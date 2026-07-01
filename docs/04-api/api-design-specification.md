@@ -5,6 +5,12 @@
 > [Data Model (#03)](../03-data/data-architecture-and-domain-model.md).
 > Define **los contratos entre las superficies y el núcleo**. No define el
 > esquema de base de datos (eso es #03) ni el despliegue (eso es #06).
+>
+> ⚠️ **REVISADO por [ADR-010](../02-architecture/adr/ADR-010-final-stack-and-two-backends.md)
+> (2026-07-01):** la API la sirve **NestJS** (no FastAPI); el tiempo real usa
+> **WebSocket** (ADR-A1 pasa de SSE a WebSocket); el servicio de IA (Python)
+> expone su propia API interna consumida por NestJS. Los recursos y endpoints
+> definidos aquí siguen siendo el contrato de referencia.
 
 | Metadato | Valor |
 |----------|-------|

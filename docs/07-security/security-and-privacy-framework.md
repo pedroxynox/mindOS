@@ -8,6 +8,13 @@
 > [Infra (#06)](../06-infrastructure/infrastructure-and-deployment-strategy.md).
 > Define **cómo protegemos los datos más íntimos del usuario y qué políticas de
 > privacidad y cumplimiento aplicamos.**
+>
+> ⚠️ **REVISADO por [ADR-010](../02-architecture/adr/ADR-010-final-stack-and-two-backends.md)
+> (2026-07-01):** la decisión P3 cambió de **comprar** auth gestionada a
+> **construir** autenticación JWT propia en NestJS. Los controles de seguridad
+> de este documento (hashing fuerte, tokens de vida corta + refresh, rate
+> limiting, protección contra fuerza bruta, MFA para operaciones sensibles) se
+> mantienen como requisitos obligatorios de esa implementación propia.
 
 | Metadato | Valor |
 |----------|-------|

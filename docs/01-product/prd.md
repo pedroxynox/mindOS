@@ -4,6 +4,11 @@
 > Deriva del [Vision & Problem Statement (#00)](../00-foundation/vision-and-problem-statement.md).
 > Define **QUÉ debe hacer el producto**. No define *cómo* se construye (eso es
 > el Technical Architecture Document #02).
+>
+> ⚠️ **REVISADO por [ADR-010](../02-architecture/adr/ADR-010-final-stack-and-two-backends.md)
+> (2026-07-01):** la decisión D1 (superficie) cambió de web desktop-primary a
+> **mobile-first** (Flutter), coherente con el mercado LatAm (P2 #07). Los
+> requisitos funcionales y el bucle de valor siguen vigentes.
 
 | Metadato | Valor |
 |----------|-------|

@@ -1,0 +1,12 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+*.iml
+.idea/
+# Generated code
+*.g.dart
+*.freezed.dart
