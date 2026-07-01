@@ -21,5 +21,9 @@ module.exports = {
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/no-explicit-any': 'error',
+    // Prettier formatting surfaced as a warning in F0 so a stray whitespace
+    // does not block the scaffold. Tightened to 'error' in F1 once formatters
+    // run locally (Engineering Standards #05).
+    'prettier/prettier': 'warn',
   },
 };

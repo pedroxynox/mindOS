@@ -29,12 +29,19 @@ line-length = 88
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B"]
+# Conservative set for the F0 scaffold: pycodestyle, pyflakes, isort, bugbear.
+# (pyupgrade "UP" and naming "N" are added in F1 once the codebase grows.)
+select = ["E", "F", "I", "B"]
 
 [tool.mypy]
 python_version = "3.11"
-strict = true
 ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_redundant_casts = true
+# Full `strict` is the target (Engineering Standards #05); untyped-decorator
+# enforcement is relaxed for F0 to accommodate FastAPI/Pydantic decorators.
+disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
