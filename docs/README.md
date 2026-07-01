@@ -17,8 +17,8 @@ comienza hasta que su predecesor ha sido validado.
 |---|-----------|--------|-----------|
 | 00 | [Vision & Problem Statement](./00-foundation/vision-and-problem-statement.md) | 🟢 Aprobado | QUÉ problema resolvemos y PARA QUIÉN |
 | 01 | [Product Requirements Document (PRD)](./01-product/prd.md) | 🟢 Aprobado | QUÉ debe hacer el producto |
-| 02 | [Technical Architecture Document (TAD)](./02-architecture/technical-architecture.md) | 🟡 En revisión | CÓMO lo construimos a nivel de sistema |
-| 03 | Data Architecture & Domain Model | ⚪ Pendiente | El modelo de información central |
+| 02 | [Technical Architecture Document (TAD)](./02-architecture/technical-architecture.md) | 🟢 Aprobado | CÓMO lo construimos a nivel de sistema |
+| 03 | [Data Architecture & Domain Model](./03-data/data-architecture-and-domain-model.md) | 🟡 En revisión | El modelo de información central |
 | 04 | API Design Specification | ⚪ Pendiente | Contratos entre servicios |
 | 05 | Engineering Standards & Conventions | ⚪ Pendiente | Cómo se escribe, revisa y despliega código |
 | 06 | Infrastructure & Deployment Strategy | ⚪ Pendiente | Entornos, CI/CD, observabilidad |
