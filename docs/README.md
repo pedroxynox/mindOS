@@ -15,9 +15,9 @@ comienza hasta que su predecesor ha sido validado.
 
 | # | Documento | Estado | Propósito |
 |---|-----------|--------|-----------|
-| 00 | [Vision & Problem Statement](./00-foundation/vision-and-problem-statement.md) | 🟡 En revisión | QUÉ problema resolvemos y PARA QUIÉN |
-| 01 | [Product Requirements Document (PRD)](./01-product/prd.md) | 🟡 En revisión | QUÉ debe hacer el producto |
-| 02 | Technical Architecture Document (TAD) | ⚪ Pendiente | CÓMO lo construimos a nivel de sistema |
+| 00 | [Vision & Problem Statement](./00-foundation/vision-and-problem-statement.md) | 🟢 Aprobado | QUÉ problema resolvemos y PARA QUIÉN |
+| 01 | [Product Requirements Document (PRD)](./01-product/prd.md) | 🟢 Aprobado | QUÉ debe hacer el producto |
+| 02 | [Technical Architecture Document (TAD)](./02-architecture/technical-architecture.md) | 🟡 En revisión | CÓMO lo construimos a nivel de sistema |
 | 03 | Data Architecture & Domain Model | ⚪ Pendiente | El modelo de información central |
 | 04 | API Design Specification | ⚪ Pendiente | Contratos entre servicios |
 | 05 | Engineering Standards & Conventions | ⚪ Pendiente | Cómo se escribe, revisa y despliega código |
