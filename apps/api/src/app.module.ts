@@ -10,9 +10,6 @@ import { HealthModule } from './health/health.module';
  * F0 wires only configuration and the health check.
  */
 @Module({
-  imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    HealthModule,
-  ],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), HealthModule],
 })
 export class AppModule {}
