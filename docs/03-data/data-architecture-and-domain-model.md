@@ -9,7 +9,7 @@
 | Metadato | Valor |
 |----------|-------|
 | Versión | 0.1 (borrador para revisión) |
-| Estado | 🟡 En revisión |
+| Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00 Vision, #01 PRD, #02 TAD |
 | Última actualización | 2026-07-01 |
