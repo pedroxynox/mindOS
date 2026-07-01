@@ -30,23 +30,30 @@ condición para que el producto exista (principio de producto #5, #00).
 > seguridad y la privacidad se diseñan desde el inicio (*security & privacy by
 > design*), no se añaden después.
 
-Este documento contiene **3 decisiones que requieren tu input explícito**
-(marcadas 🔴), porque tienen implicaciones de negocio, marca y presupuesto que
-no debe tomar el CTO en solitario.
+Este documento contiene **3 decisiones que requirieron tu input explícito**
+(marcadas 🔴). **Las tres han sido decididas** (ver §1). Este documento ya
+refleja esas decisiones y está listo para aprobación.
+
+## 0.1 Decisiones tomadas (resumen)
+
+| # | Decisión | Resolución |
+|---|----------|-----------|
+| **P1** | Proveedor de LLM + privacidad | ✅ Aceptado: LLM externo con compromiso contractual de *no-training* + DPA. La IA externa **procesa y olvida**; mindOS es quien guarda los datos del usuario. |
+| **P2** | Mercado inicial + cumplimiento | ✅ Lanzamiento en **Brasil y Latinoamérica**. **GDPR como estándar base** (cubre además la **LGPD** brasileña). Residencia de datos en región de las Américas. |
+| **P3** | Autenticación build vs. buy | ✅ **Comprar** un proveedor de identidad gestionado, empezando con su **plan gratuito**. |
 
 ---
 
-## 1. Decisiones que requieren tu input (🔴)
+## 1. Decisiones que requerían tu input (🔴 → ✅ resueltas)
 
-| # | Decisión | Por qué te toca a ti |
-|---|----------|----------------------|
-| **P1** | **Proveedor de LLM** y su postura de privacidad | Afecta costo, calidad y la promesa de privacidad de marca. |
-| **P2** | **Alcance de cumplimiento inicial** (GDPR / CCPA / otros) | Depende de en qué mercados/geografías lanzas primero. |
-| **P3** | **Autenticación: construir vs. comprar** | Trade-off entre control, costo y riesgo de seguridad. |
+| # | Decisión | Resolución | Sección |
+|---|----------|-----------|---------|
+| **P1** | **Proveedor de LLM** y su postura de privacidad | ✅ Aceptada la recomendación (no-training + DPA). | §3 |
+| **P2** | **Alcance de cumplimiento** + mercado inicial | ✅ Brasil/Latinoamérica; GDPR base (+ LGPD). | §8 |
+| **P3** | **Autenticación: construir vs. comprar** | ✅ Comprar (plan gratuito inicial). | §4 |
 
-Las presento con recomendación de CTO en las secciones 3, 8 y 4 respectivamente.
 El resto del framework (cifrado, controles de acceso, manejo de incidentes) son
-decisiones técnicas que sí asumo yo.
+decisiones técnicas que asume el CTO.
 
 ---
 
@@ -88,9 +95,9 @@ enterprise que garantice *no-training* y DPA sólido. Esto cumple el requisito d
 privacidad para el MVP sin el costo de modelos propios, y mantiene la puerta a
 migrar a modelos propios (ADR-09) como evolución de marca.
 
-> **Tu decisión (P1):** ¿te parece aceptable esta postura (LLM externo con
-> garantías contractuales) o quieres endurecerla ya? La recomendación es
-> aceptarla para el MVP.
+> **Decisión (P1): ✅ ACEPTADA.** Se adopta la postura de LLM externo con
+> garantías contractuales (*no-training* + DPA) para el MVP, con la puerta
+> abierta a modelos propios (ADR-09) como evolución futura.
 
 ---
 
@@ -115,7 +122,10 @@ viable.
 - Contraseñas: nunca en claro; hashing fuerte (a cargo del proveedor).
 - Protección contra fuerza bruta y *credential stuffing* (rate limiting, #04).
 
-> **Tu decisión (P3):** ¿comprar (recomendado) o construir la autenticación?
+> **Decisión (P3): ✅ COMPRAR.** Se usará un proveedor de identidad gestionado,
+> empezando con su **plan gratuito** (cubre las etapas iniciales sin costo; el
+> gasto llega solo cuando hay volumen de usuarios que lo justifica). Provider
+> concreto (Auth0 / Clerk / Cognito u otro) se elige en implementación.
 
 ---
 
@@ -161,34 +171,39 @@ Implementados como funcionalidad de producto (no solo política):
 
 ---
 
-## 8. 🔴 P2 — Privacidad y cumplimiento normativo
+## 8. 🔴 P2 — Privacidad y cumplimiento normativo  ✅ RESUELTO
 
-**El alcance depende de dónde lances primero.** Marcos principales:
-- **GDPR** (Unión Europea): el estándar más estricto; exige base legal,
-  minimización, derechos del titular, DPA con procesadores, notificación de
-  brechas.
-- **CCPA/CPRA** (California): derechos de acceso, borrado y opt-out.
-- Otros según mercado.
+**Mercado inicial decidido: Brasil y Latinoamérica (países de América).**
 
-**Recomendación de CTO:** **diseñar cumpliendo GDPR desde el inicio**, aunque no
-lances en la UE de inmediato. Razón: GDPR es el superconjunto más estricto;
-cumplirlo hace que cumplir los demás sea trivial, y evita un rediseño costoso
-cuando quieras expandirte a Europa. Las capacidades ya diseñadas (export,
-borrado, trazabilidad, consentimiento, minimización) cubren la mayor parte.
+Marcos aplicables al mercado objetivo:
+- **LGPD** (Brasil, *Lei Geral de Proteção de Dados*): ley de privacidad
+  brasileña, muy alineada con GDPR (derechos del titular, base legal,
+  minimización, notificación de brechas).
+- **GDPR** (Unión Europea): el estándar más estricto; lo adoptamos como base
+  aunque no lancemos en la UE de inmediato.
+- Leyes nacionales de otros países de la región (México LFPDPPP, Argentina,
+  Colombia, Chile, etc.), en su mayoría cubiertas al cumplir GDPR/LGPD.
+
+**Decisión (P2): ✅ GDPR como estándar base desde el día uno.** Razón: GDPR es
+el superconjunto más estricto; cumplirlo satisface simultáneamente la **LGPD
+brasileña** y las leyes del resto de Latinoamérica, y evita un rediseño costoso
+al expandirse. Las capacidades ya diseñadas (export, borrado, trazabilidad,
+consentimiento, minimización) cubren la mayor parte.
+
+**Residencia de datos:** región de despliegue en **las Américas** (p. ej. una
+región cloud en Brasil/São Paulo o EE. UU. según latencia y costo, #06),
+cercana al mercado objetivo para rendimiento y cumplimiento local.
 
 **Elementos de cumplimiento a formalizar (con asesoría legal, no solo técnica):**
-- Política de privacidad y términos de servicio claros.
+- Política de privacidad y términos de servicio claros (en portugués y español).
 - Base legal del procesamiento (consentimiento).
 - DPA con cada subprocesador (incluido el proveedor de LLM, P1).
-- Proceso de notificación de brechas.
+- Proceso de notificación de brechas (plazos LGPD/GDPR).
 - Registro de actividades de tratamiento.
 
 > **Nota:** el cumplimiento legal formal requiere **asesoría jurídica
-> profesional**. Este documento cubre la arquitectura técnica que lo habilita,
-> no sustituye el consejo legal.
->
-> **Tu decisión (P2):** ¿en qué mercado(s) lanzas primero? ¿Adoptamos GDPR como
-> estándar base desde ya (recomendado)?
+> profesional** (idealmente con especialización en LGPD y GDPR). Este documento
+> cubre la arquitectura técnica que lo habilita, no sustituye el consejo legal.
 
 ---
 
@@ -231,15 +246,15 @@ Refuerza lo definido en #05/#06:
 
 ---
 
-## 12. Resumen de decisiones pendientes de tu input
+## 12. Resumen de decisiones (✅ resueltas)
 
-| # | Decisión | Recomendación CTO |
-|---|----------|-------------------|
-| **P1** | Proveedor de LLM + privacidad | Proveedor enterprise con *no-training* + DPA. Aceptar para MVP. |
-| **P2** | Alcance de cumplimiento + mercado inicial | Adoptar GDPR como base desde el día uno. |
-| **P3** | Auth: construir vs. comprar | Comprar (proveedor gestionado). |
+| # | Decisión | Resolución |
+|---|----------|-----------|
+| **P1** | Proveedor de LLM + privacidad | ✅ Proveedor externo con *no-training* + DPA. La IA procesa y olvida; mindOS guarda los datos. |
+| **P2** | Cumplimiento + mercado inicial | ✅ Brasil/Latinoamérica; GDPR base (cubre LGPD); residencia en las Américas. |
+| **P3** | Auth: construir vs. comprar | ✅ Comprar proveedor gestionado, plan gratuito inicial. |
 
-> No marco este documento como listo para aprobar hasta que decidas P1, P2 y P3.
+> Con P1, P2 y P3 resueltas, este documento queda **listo para aprobación**.
 
 ---
 
@@ -257,3 +272,4 @@ Refuerza lo definido en #05/#06:
 | Versión | Fecha | Autor | Cambios |
 |---------|-------|-------|---------|
 | 0.1 | 2026-07-01 | CTO | Borrador inicial. Postura de seguridad/privacidad by design, modelo de amenazas, tres decisiones que requieren input del founder (proveedor LLM, cumplimiento, auth), cifrado, control de acceso, derechos del usuario, cumplimiento (GDPR by default), retención, gestión de incidentes y seguridad en el ciclo de desarrollo. |
+| 0.2 | 2026-07-01 | Founder + CTO | Resueltas P1 (LLM externo con no-training + DPA), P2 (mercado Brasil/Latinoamérica; GDPR base cubriendo LGPD; residencia en las Américas) y P3 (comprar auth gestionada, plan gratuito). Documento listo para aprobación. |
