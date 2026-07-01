@@ -21,8 +21,8 @@ comienza hasta que su predecesor ha sido validado.
 | 03 | [Data Architecture & Domain Model](./03-data/data-architecture-and-domain-model.md) | 🟢 Aprobado | El modelo de información central |
 | 04 | [API Design Specification](./04-api/api-design-specification.md) | 🟢 Aprobado | Contratos entre servicios |
 | 05 | [Engineering Standards & Conventions](./05-engineering/engineering-standards-and-conventions.md) | 🟢 Aprobado | Cómo se escribe, revisa y despliega código |
-| 06 | [Infrastructure & Deployment Strategy](./06-infrastructure/infrastructure-and-deployment-strategy.md) | 🟡 En revisión | Entornos, CI/CD, observabilidad |
-| 07 | Security & Privacy Framework | ⚪ Pendiente | Políticas de datos, auth, compliance |
+| 06 | [Infrastructure & Deployment Strategy](./06-infrastructure/infrastructure-and-deployment-strategy.md) | 🟢 Aprobado | Entornos, CI/CD, observabilidad |
+| 07 | [Security & Privacy Framework](./07-security/security-and-privacy-framework.md) | 🟡 En revisión | Políticas de datos, auth, compliance |
 | 08 | Roadmap Técnico | ⚪ Pendiente | Secuencia de implementación por fases |
 
 ### Leyenda de estados
