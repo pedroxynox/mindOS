@@ -34,38 +34,45 @@ código de mindOS debe cumplir, de modo que:
 ## 1. Estructura del repositorio (monorepo)
 
 ### ADR-E1 — Monorepo
-- **Decisión:** un único repositorio contiene backend, frontend y documentación.
-- **Estado:** 🟠 Decisión de CTO, sujeta a veto.
-- **Por qué:** con un equipo pequeño y un producto Core-first, el monorepo
-  simplifica cambios atómicos entre API y clientes, comparte tipos/contratos, y
-  centraliza CI. Coherente con el monolito modular del #02.
+- **Decisión:** un único repositorio contiene las tres apps y la documentación.
+- **Estado:** 🟢 Aprobado.
+- **Por qué:** con un equipo pequeño, el monorepo simplifica cambios atómicos
+  entre las apps, centraliza CI y facilita compartir contratos.
+
+> ⚠️ **Actualizado por [ADR-010](../02-architecture/adr/ADR-010-final-stack-and-two-backends.md):**
+> la estructura refleja el stack definitivo (Flutter + NestJS + Python IA), no
+> el `backend/frontend` original.
 
 ```
 mindOS/
-├── docs/                  # Cadena documental (#00–#08)
-├── backend/               # Python + FastAPI (núcleo, ADR-03)
-│   ├── src/
-│   │   └── mindos/
-│   │       ├── identity/        # contextos acotados (#02 §4)
-│   │       ├── capture/
-│   │       ├── graph/
-│   │       ├── understanding/
-│   │       ├── proactivity/
-│   │       ├── query/
-│   │       └── shared/          # utilidades transversales, no lógica de dominio
-│   ├── tests/
-│   └── pyproject.toml
-├── frontend/              # React + TypeScript (PWA, ADR-08)
-│   ├── src/
-│   ├── tests/
-│   └── package.json
+├── docs/                  # Cadena documental (#00–#08) + ADRs
+├── apps/
+│   ├── mobile/            # Flutter (Riverpod, GoRouter, Drift, Material 3)
+│   │   ├── lib/
+│   │   └── pubspec.yaml
+│   ├── api/               # NestJS + Prisma (negocio, grafo, auth, WebSocket)
+│   │   ├── src/
+│   │   │   ├── identity/        # contextos acotados (#02 §4)
+│   │   │   ├── capture/
+│   │   │   ├── graph/
+│   │   │   ├── realtime/
+│   │   │   └── health/
+│   │   ├── prisma/
+│   │   └── package.json
+│   └── ai/                # Python + FastAPI (comprensión, embeddings, RAG)
+│       ├── app/
+│       │   ├── understanding/
+│       │   ├── query/
+│       │   └── providers/       # capa AIProvider (ADR-09)
+│       └── pyproject.toml
+├── infra/                 # docker-compose, Nginx, IaC (#06)
 ├── .github/workflows/     # CI/CD (detalle en #06)
 └── README.md
 ```
 
-> Cada carpeta de contexto acotado es una **frontera de módulo**: no se importa
-> lógica de dominio de un contexto a otro directamente; se comunican por
-> interfaces explícitas (prepara la extracción a servicios, #02 §4).
+> Cada contexto acotado es una **frontera de módulo**: no se importa lógica de
+> dominio de un contexto a otro directamente. La frontera entre `api` (NestJS) y
+> `ai` (Python) está definida en el ADR-010.
 
 ---
 

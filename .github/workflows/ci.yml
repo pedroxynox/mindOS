@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Gates required before merge (Engineering Standards #05 §4.3, Infra #06 §5.1).
+jobs:
+  api:
+    name: API (NestJS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # npm install (not `npm ci`) because the lockfile is generated on first
+      # install; it will be committed once dependencies are resolved.
+      - run: npm install --no-audit --no-fund
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  ai:
+    name: AI (Python/FastAPI)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install --upgrade pip && pip install -e ".[dev]"
+      - run: ruff check .
+      - run: mypy app
+      - run: pytest
+
+  mobile:
+    name: Mobile (Flutter)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      # Generate platform folders. The default template test is removed because
+      # our own tests live in test/ (the generated widget_test references a
+      # non-existent MyApp).
+      - run: flutter create . --project-name mindos --platforms=android
+      - run: rm -f test/widget_test.dart
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test

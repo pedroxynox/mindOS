@@ -1,0 +1,33 @@
+name: mindos
+description: mindOS — personal intelligence layer (mobile-first, Flutter).
+publish_to: "none"
+version: 0.0.1+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # State management
+  flutter_riverpod: ^2.5.1
+  # Navigation
+  go_router: ^14.2.0
+  # HTTP client (talks to the NestJS API)
+  http: ^1.2.2
+  # Local storage / offline (Drift = SQLite). Wired into features in F1.
+  drift: ^2.19.0
+  sqlite3_flutter_libs: ^0.5.0
+  path_provider: ^2.1.0
+  path: ^1.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  # Drift code generation (used from F1 onwards)
+  drift_dev: ^2.19.0
+  build_runner: ^2.4.0
+
+flutter:
+  uses-material-design: true

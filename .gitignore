@@ -1,0 +1,15 @@
+# Root ignore — app-specific ignores live in each app folder.
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Env files (never commit real secrets — #07)
+.env
+*.local
+
+# Logs
+*.log

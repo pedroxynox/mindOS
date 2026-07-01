@@ -5,6 +5,13 @@
 > [Vision (#00)](../00-foundation/vision-and-problem-statement.md).
 > Define **CÓMO se construye el sistema**. No define el esquema exacto de datos
 > (eso es #03) ni los contratos de API detallados (eso es #04).
+>
+> ⚠️ **REVISADO por [ADR-010](./adr/ADR-010-final-stack-and-two-backends.md)
+> (2026-07-01):** el stack y el estilo cambiaron a mobile-first (Flutter) con
+> **dos backends** (NestJS para negocio + Python/FastAPI para IA). ADR-01,
+> ADR-03 y ADR-08 de este documento quedan superados por el ADR-010. El resto
+> del documento (principios, contextos, flujos, atributos de calidad) sigue
+> vigente.
 
 | Metadato | Valor |
 |----------|-------|

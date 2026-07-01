@@ -7,7 +7,7 @@
 | Metadato | Valor |
 |----------|-------|
 | Versión | 0.1 (borrador para revisión) |
-| Estado | 🟡 En revisión |
+| Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00–#07 (toda la cadena) |
 | Última actualización | 2026-07-01 |

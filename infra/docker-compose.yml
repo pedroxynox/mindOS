@@ -1,0 +1,64 @@
+# mindOS — local development stack (F0)
+# Brings up PostgreSQL (with pgvector), Redis, the NestJS API and the Python AI
+# service. Run from repo root: `docker compose -f infra/docker-compose.yml up`.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: mindos
+      POSTGRES_PASSWORD: mindos
+      POSTGRES_DB: mindos
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mindos"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ../apps/api
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://mindos:mindos@postgres:5432/mindos?schema=public
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ai:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ai:
+    build:
+      context: ../apps/ai
+    environment:
+      PORT: 8000
+      DATABASE_URL: postgresql://mindos:mindos@postgres:5432/mindos
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

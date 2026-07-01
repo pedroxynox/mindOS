@@ -23,7 +23,12 @@ comienza hasta que su predecesor ha sido validado.
 | 05 | [Engineering Standards & Conventions](./05-engineering/engineering-standards-and-conventions.md) | 🟢 Aprobado | Cómo se escribe, revisa y despliega código |
 | 06 | [Infrastructure & Deployment Strategy](./06-infrastructure/infrastructure-and-deployment-strategy.md) | 🟢 Aprobado | Entornos, CI/CD, observabilidad |
 | 07 | [Security & Privacy Framework](./07-security/security-and-privacy-framework.md) | 🟢 Aprobado | Políticas de datos, auth, compliance |
-| 08 | [Roadmap Técnico](./08-roadmap/technical-roadmap.md) | 🟡 En revisión | Secuencia de implementación por fases |
+| 08 | [Roadmap Técnico](./08-roadmap/technical-roadmap.md) | 🟢 Aprobado | Secuencia de implementación por fases |
+
+> **Estado de construcción:** fundación completa (#00–#08 aprobados). En curso:
+> **F0 — Cimientos técnicos** (esqueleto del monorepo). Ver
+> [ADR-010](./02-architecture/adr/ADR-010-final-stack-and-two-backends.md) para
+> el stack definitivo.
 
 ### Leyenda de estados
 - ⚪ Pendiente — aún no iniciado

@@ -1,0 +1,55 @@
+[project]
+name = "mindos-ai"
+version = "0.0.1"
+description = "mindOS AI service — understanding, embeddings, RAG (FastAPI + LangGraph + LlamaIndex)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.8.0",
+    "pydantic-settings>=2.4.0",
+]
+
+[project.optional-dependencies]
+# Heavier AI deps are introduced in F2 (understanding pipeline), kept optional
+# here so F0 stays lightweight.
+ai = [
+    "langgraph>=0.2.0",
+    "llama-index>=0.11.0",
+]
+dev = [
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+    "pytest>=8.3.0",
+    "httpx>=0.27.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+# Conservative set for the F0 scaffold: pycodestyle, pyflakes, isort, bugbear.
+# (pyupgrade "UP" and naming "N" are added in F1 once the codebase grows.)
+select = ["E", "F", "I", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_redundant_casts = true
+# Full `strict` is the target (Engineering Standards #05); untyped-decorator
+# enforcement is relaxed for F0 to accommodate FastAPI/Pydantic decorators.
+disallow_untyped_decorators = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
