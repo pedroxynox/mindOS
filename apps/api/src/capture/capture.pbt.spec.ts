@@ -148,41 +148,54 @@ describe('CaptureService (PBT)', () => {
   // Feature: capture-engine, Property 1
   // Validates: Requirements 4.1, 4.2, 4.3, 7.1, 7.2
   it('Property 1: a capture is readable/listable by its owner and invisible (404) to others', async () => {
+    // Text captures require non-empty content: the service rejects
+    // whitespace-only payloads (design §7/§13). Property 1 is about owner-only
+    // *visibility*, so the generator must stay inside the valid input space and
+    // yield content with at least one non-whitespace character — otherwise the
+    // capture is never created. Surrounding whitespace is still allowed (only
+    // fully-blank content is invalid), so we keep broad coverage.
+    const nonBlankContent = fc
+      .string({ minLength: 1, maxLength: 100 })
+      .filter((s) => s.trim().length > 0);
+
     await fc.assert(
-      fc.asyncProperty(
-        fc.string({ minLength: 1, maxLength: 100 }),
-        async (content) => {
-          const service = buildHarness();
-          const owner = randomUUID();
-          const other = randomUUID();
+      fc.asyncProperty(nonBlankContent, async (content) => {
+        const service = buildHarness();
+        const owner = randomUUID();
+        const other = randomUUID();
 
-          const created = await service.create(owner, randomUUID(), {
-            type: CaptureType.text,
-            content,
-          });
+        const created = await service.create(owner, randomUUID(), {
+          type: CaptureType.text,
+          content,
+        });
 
-          // Owner can read it.
-          const read = await service.findOne(owner, created.capture_id);
-          expect(read.capture_id).toBe(created.capture_id);
+        // Owner can read it.
+        const read = await service.findOne(owner, created.capture_id);
+        expect(read.capture_id).toBe(created.capture_id);
 
-          // A non-owner gets 404 (no content, no existence leak).
-          await expect(
-            service.findOne(other, created.capture_id),
-          ).rejects.toBeInstanceOf(NotFoundException);
+        // A non-owner gets 404 (no content, no existence leak).
+        await expect(
+          service.findOne(other, created.capture_id),
+        ).rejects.toBeInstanceOf(NotFoundException);
 
-          // Listing is owner-scoped.
-          const ownerList = await service.list(owner, { limit: 100 });
-          expect(
-            ownerList.data.some((c) => c.capture_id === created.capture_id),
-          ).toBe(true);
+        // Listing is owner-scoped.
+        const ownerList = await service.list(owner, { limit: 100 });
+        expect(
+          ownerList.data.some((c) => c.capture_id === created.capture_id),
+        ).toBe(true);
 
-          const otherList = await service.list(other, { limit: 100 });
-          expect(
-            otherList.data.some((c) => c.capture_id === created.capture_id),
-          ).toBe(false);
-        },
-      ),
-      { numRuns: 100 },
+        const otherList = await service.list(other, { limit: 100 });
+        expect(
+          otherList.data.some((c) => c.capture_id === created.capture_id),
+        ).toBe(false);
+      }),
+      {
+        numRuns: 100,
+        // Regression: content that is non-blank but padded with whitespace must
+        // still be accepted (the CI counterexample was fully-blank " ", which
+        // is now correctly outside the generated input space).
+        examples: [['x'], [' x '], ['a\nb']],
+      },
     );
   });
 });
