@@ -4,13 +4,15 @@
 > Integra todo lo anterior (#00–#07) en una **secuencia de construcción por
 > fases**. Responde: *¿qué construimos primero, segundo, tercero, y por qué?*
 
+> **⚠️ Revisado por [ADR-010](../02-architecture/adr/ADR-010-final-stack-and-two-backends.md) (2026-07-01).** El stack y las fases F0–F1 se actualizan a **mobile-first con dos backends** (NestJS de negocio + Python/FastAPI de IA) y **auth JWT propia**. Las menciones originales a "FastAPI único", "frontend React", "PWA" y "auth vía proveedor gestionado" quedan superadas por ese ADR. La Definición de Hecho de F0 se refina en [ADR-011](../02-architecture/adr/ADR-011-f0-definition-of-done-and-infra.md) (propuesto).
+
 | Metadato | Valor |
 |----------|-------|
-| Versión | 0.1 (borrador para revisión) |
+| Versión | 0.2 |
 | Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00–#07 (toda la cadena) |
-| Última actualización | 2026-07-01 |
+| Última actualización | 2026-07-02 |
 
 ---
 
@@ -58,14 +60,16 @@ pendiente.
 producto todavía. Elimina el riesgo de integración temprano.
 
 - Monorepo con la estructura del #05 (backend, frontend, docs).
-- Backend FastAPI mínimo (healthcheck) + frontend React mínimo.
+- Backend de negocio **NestJS** mínimo (healthcheck) + servicio de IA **Python/FastAPI** mínimo (healthcheck) + app móvil **Flutter** mínima (pantalla de salud). *[Actualizado por ADR-010]*
 - PostgreSQL (+pgvector) y Redis levantados vía Docker Compose (local).
 - CI (lint, tipos, tests) + CD a staging (#06) funcionando con un endpoint trivial.
 - IaC inicial (#06) para staging.
-- Proveedor de identidad gestionado conectado en su forma más básica (P3, #07).
+- Base de **autenticación propia (JWT en NestJS)** en su forma más básica. *[Actualizado por ADR-010]*
 
 **Hecho cuando:** un commit a `main` despliega automáticamente a staging un
 "hello world" que pasa por api + BD, con toda la cadena de CI/CD verde.
+
+> *Nota (ADR-011, propuesto): esta Definición de Hecho se refina a un CD mínimo a un único staging (sin K8s) + IaC mínima; la infra pesada se difiere a pre-beta. Estado real hoy: ≈70% (CI verde y docker-compose local; falta CD/IaC).*
 
 **Riesgo que elimina:** integración de infraestructura y pipeline (el "no
 compila en prod" tardío).
@@ -77,12 +81,11 @@ compila en prod" tardío).
 
 - `POST /v1/captures` (texto y voz transcrita) con `Idempotency-Key` (#04).
 - Persistencia del nodo `Capture` (`status=raw`) en el modelo del #03.
-- Autenticación real de usuarios (registro/login vía proveedor, #07).
-- Superficie: pantalla de captura en web + PWA de captura móvil (#02/#01).
+- Autenticación real de usuarios (**registro/login/refresh con JWT propia en NestJS**, #07/ADR-010). *[Parcialmente implementada; pendiente de endurecer]*
+- Superficie: pantalla de captura en la **app móvil Flutter** (#02/ADR-010).
 - Aislamiento por usuario + RLS (#03) verificado.
 
-**Hecho cuando:** un usuario autenticado captura por texto y voz desde web y
-móvil, y la captura persiste de forma aislada y segura, respondiendo en p95 <
+**Hecho cuando:** un usuario autenticado captura por texto y voz desde la **app móvil**, y la captura persiste de forma aislada y segura, respondiendo en p95 <
 300 ms (SLO #06).
 
 **Riesgo que elimina:** que la captura sin fricción (requisito central del PRD)
@@ -249,3 +252,4 @@ Con la fundación documental completa (#00–#08 aprobados), el siguiente paso e
 | Versión | Fecha | Autor | Cambios |
 |---------|-------|-------|---------|
 | 0.1 | 2026-07-01 | CTO | Borrador inicial. Secuencia de fases F0–F5 orientada a riesgo y aprendizaje, con resultados demostrables, dependencias críticas, qué queda fuera del MVP, definición de éxito y siguiente paso (iniciar F0). |
+| 0.2 | 2026-07-02 | CPTO | Cabecera de supersesión (ADR-010). Corrección de deriva en F0/F1 (stack de dos backends, auth JWT propia, superficie Flutter). Nota de refinamiento de la DoD de F0 (ADR-011). |

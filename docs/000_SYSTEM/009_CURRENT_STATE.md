@@ -25,7 +25,7 @@ ADR-010 (2026-07-01): mobile-first + dos backends (NestJS negocio / Python IA) +
 Cerrar F0 honestamente (CD a staging + IaC mínima) O tomar la decisión explícita de posponerlo (ADR). En paralelo, preparar F1: `POST /v1/captures` + nodo `Capture` + tabla nodes/edges + RLS.
 
 ## 5. Bloqueadores
-Ninguno técnico duro. Bloqueador de proceso: la deriva documental debe cerrarse antes de seguir acumulando código sobre un roadmap que describe mal el presente.
+Ninguno técnico duro. En resolución: la deriva del #08 (R-004) se está corrigiendo en el PR de coherencia.
 
 ## 6. Riesgos vivos (detalle e historia en [012](./012_RISK_AND_DEBT_REGISTER.md))
 - R-001 (Alto): calidad de comprensión de F2 aún no de-riesgada (PoC pendiente).
@@ -42,10 +42,11 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 
 ## 9. Cambios recientes
 - Fundación del sistema de gobernanza (docs/000_SYSTEM/) — esta sesión.
+- Corrección de deriva documental del roadmap #08 (R-004) y creación del ADR-011 (propuesto) sobre la Definición de Hecho de F0 — esta sesión.
 
 ## 10. Preguntas abiertas
 - ¿PoC de comprensión (F2) en paralelo a F1? (recomendación CTO: sí, #08 §7).
-- ¿Se cierra F0 con CD+IaC ahora, o se pospone formalmente vía ADR?
+- ¿Se aprueba el ADR-011 (CD mínimo + diferir infra pesada) para cerrar la DoD de F0? — pendiente del founder.
 - Proveedor LLM y dimensión de embeddings (dependencia de #07).
 
 ## 11. Acciones recomendadas (priorizadas)
@@ -57,3 +58,4 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 | Versión | Fecha | Cambios |
 |---------|-------|---------|
 | 1.0 | 2026-07-02 | Estado inicial tras fundar el sistema de gobernanza. |
+| 1.1 | 2026-07-02 | Coherencia del #08 en curso; ADR-011 propuesto. |
