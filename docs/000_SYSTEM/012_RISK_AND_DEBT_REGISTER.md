@@ -35,6 +35,7 @@
 | D-005 | Sin rastreo de errores (Sentry) ni gestión formal de secretos. | Incidentes ciegos en prod y secretos mal gestionados. | Adoptar Sentry (móvil+backends) y un gestor de secretos antes de pre-beta. | 🟠 Abierto | 2026-07-02 |
 | D-006 | El barrido de reconciliación y el janitor de blobs iteran sobre TODOS los usuarios por lote | Coste O(usuarios) por ejecución; no escala a millones | Acotar a usuarios con actividad reciente / índice dedicado antes de escala | 🟠 Abierto | 2026-07-02 |
 | D-007 | El código Flutter solo se valida en CI (no hay SDK de Flutter en el entorno de desarrollo) → bucles de iteración lentos | Feedback lento en cambios móviles; riesgo de fallos detectados tarde | Aceptar CI-driven para móvil o provisionar un entorno con Flutter cuando el volumen lo justifique | 🟠 Abierto | 2026-07-02 |
+| D-009 | El widget test de la pantalla de captura se cuelga en CI (timeout) y no es depurable sin un entorno Flutter local; queda skippeado | Cobertura de UI ausente para la pantalla de captura (la pantalla sí pasa `flutter analyze`; la lógica sí tiene tests) | Depurar con Flutter local (probable `tester.runAsync` para el stream Drift) y reactivar los tests; relacionado con D-007 | 🟠 Abierto | 2026-07-02 |
 
 ## Historial de versiones
 | Versión | Fecha | Cambios |
@@ -44,3 +45,4 @@
 | 1.2 | 2026-07-02 | R-003 mitigado tras aprobación de ADR-011. |
 | 1.3 | 2026-07-02 | Alta de R-005 (offline sync) y D-005 (observabilidad/secretos) tras ADR-012. |
 | 1.4 | 2026-07-02 | Alta de R-006, D-006, D-007; D-001 en progreso tras hardening de reproducibilidad de la API. |
+| 1.5 | 2026-07-02 | Alta de D-009 (widget test de captura skippeado, pendiente de entorno Flutter). |
