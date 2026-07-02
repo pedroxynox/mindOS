@@ -2,6 +2,20 @@
 
 Este directorio contiene toda la documentación oficial del proyecto mindOS.
 
+## 🏛️ Capa de gobernanza (serie 000_SYSTEM)
+
+Antes de la cadena de fundación existe una capa superior: el **Sistema Operativo
+del Proyecto**, en [`000_SYSTEM/`](./000_SYSTEM/000_README.md). Es la **capa de
+gobernanza** que rige el resto de la documentación (#00–#08) y todo el código:
+define quién es el responsable técnico ([CPTO Charter](./000_SYSTEM/001_CPTO_CHARTER.md)),
+los principios inmutables ([Constitution](./000_SYSTEM/002_ENGINEERING_CONSTITUTION.md)),
+cómo se decide, se trabaja, se revisa y se documenta, y mantiene el estado vivo
+([Current State](./000_SYSTEM/009_CURRENT_STATE.md)) y el registro de riesgos y
+deuda ([Risk & Debt Register](./000_SYSTEM/012_RISK_AND_DEBT_REGISTER.md)).
+
+> Empieza por [`000_SYSTEM/000_README.md`](./000_SYSTEM/000_README.md) si eres
+> nuevo (ingeniero o IA): es la puerta de entrada al proyecto.
+
 ## Filosofía
 
 > Nunca programes antes de diseñar.
