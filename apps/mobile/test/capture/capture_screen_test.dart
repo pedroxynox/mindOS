@@ -12,10 +12,7 @@ import 'fake_capture_api.dart';
 
 // Feature: capture-engine — capture screen wiring (R6.1).
 //
-// NOTE: This widget test requires a Flutter SDK (`flutter test`) with the
-// native sqlite3 library available to `NativeDatabase`. It was written but NOT
-// executed here (the sandbox has no Flutter SDK). Run with:
-//   cd apps/mobile && flutter test
+// Run with: cd apps/mobile && flutter test
 //
 // The test is intentionally deterministic: it NEVER calls `pumpAndSettle()`.
 // The screen shows a `CircularProgressIndicator` while the Drift stream is
@@ -25,6 +22,19 @@ import 'fake_capture_api.dart';
 // override the sync service with a no-op so no background network / backoff
 // work is scheduled — the capture simply stays `pending`, which is exactly what
 // these assertions verify.
+//
+// Root cause of the historic CI hang (debt D-009), diagnosed once a local
+// Flutter SDK was available: when the widget tree is disposed at the end of a
+// test, Riverpod tears down the `capturesStreamProvider`, which cancels the
+// Drift query stream. Drift's `StreamQueryStore.markAsClosed` schedules a
+// zero-duration `Timer` to actually release the stream. Under `testWidgets`
+// fake-async that timer is created *after* the body finishes, so it is still
+// pending when the framework verifies invariants — tripping the "A Timer is
+// still pending even after the widget tree was disposed" assertion and leaving
+// the test isolate alive (the ~10-min CI hang). The fix is to tear the tree
+// down explicitly with `pumpWidget(const SizedBox())` and then flush that
+// zero-duration close timer with a single bounded `pump()` — all while we can
+// still advance the fake clock. See `_disposeTree` below.
 
 /// A [SyncService] whose drain does nothing and returns immediately. This
 /// removes all asynchronous sync noise (network calls, backoff scheduling) from
@@ -42,12 +52,10 @@ class _NoopSyncService extends SyncService {
   }
 }
 
-// TEMPORARY SKIP (debt D-009): both widget tests below are marked `skip:`.
-// They hang in CI (~10 min timeout per test) and are not debuggable without a
-// local Flutter SDK. The screen itself is validated by `flutter analyze`, and
-// the data/sync logic is covered by its own passing tests. Re-enable once a
-// local Flutter environment is available (likely fix: wrap the Drift stream
-// interaction in `tester.runAsync`). See 012_RISK_AND_DEBT_REGISTER.md (D-009).
+// Both widget tests below run for real against an in-memory Drift database
+// (`NativeDatabase.memory`). Previously they were skipped (debt D-009); they
+// are now re-enabled after diagnosing and fixing the stream-close timer leak
+// described above.
 void main() {
   late AppDatabase db;
   late FakeCaptureApi api;
@@ -76,10 +84,20 @@ void main() {
     );
   }
 
+  // Dispose the widget tree deterministically. Replacing it with an empty
+  // widget unmounts the `ProviderScope`, which cancels the Drift query stream
+  // and schedules Drift's zero-duration stream-close timer. A bare `pump()`
+  // does NOT advance the fake clock, so that timer (a real `Timer`, not a
+  // microtask) would never fire; we therefore `pump` a tiny non-zero duration
+  // to elapse the fake clock and flush it while it is still under our control,
+  // so nothing lingers past teardown. No `pumpAndSettle()`.
+  Future<void> disposeTree(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 10));
+  }
+
   testWidgets(
       'typing text and tapping Guardar shows the capture as pending in the list',
-      skip:
-          'Hangs in CI (~10 min timeout per test); the capture-screen widget tests are not debuggable without a local Flutter SDK (debt D-009). The screen itself is validated by `flutter analyze`; data/sync logic is covered by its own passing tests. Likely root cause: Drift stream under widget-test fake-async needs tester.runAsync — to be fixed with a local Flutter environment.',
       (tester) async {
     await tester.pumpWidget(buildHarness());
     // First frame builds the loading spinner; a short bounded pump lets the
@@ -111,11 +129,11 @@ void main() {
     // the test tears down without any pending timers (no pumpAndSettle needed).
     await tester.pump(const Duration(seconds: 4));
     await tester.pump(const Duration(milliseconds: 750));
+
+    await disposeTree(tester);
   });
 
   testWidgets('empty input is rejected with a validation error',
-      skip:
-          'Hangs in CI (~10 min timeout per test); the capture-screen widget tests are not debuggable without a local Flutter SDK (debt D-009). The screen itself is validated by `flutter analyze`; data/sync logic is covered by its own passing tests. Likely root cause: Drift stream under widget-test fake-async needs tester.runAsync — to be fixed with a local Flutter environment.',
       (tester) async {
     await tester.pumpWidget(buildHarness());
     await tester.pump();
@@ -130,5 +148,7 @@ void main() {
 
     expect(find.text('Escribe algo antes de guardar'), findsOneWidget);
     expect(find.text('Aún no hay capturas'), findsOneWidget);
+
+    await disposeTree(tester);
   });
 }
