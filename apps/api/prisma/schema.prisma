@@ -2,7 +2,15 @@
 //
 // The full knowledge-graph schema (nodes / edges) is defined in
 // docs/03-data/data-architecture-and-domain-model.md and grows with each phase.
-// F1a adds the identity model needed for authentication.
+// F1a added the identity model needed for authentication.
+// F1 (capture-engine) adds the property-graph tables (nodes / edges) plus the
+// idempotency ledger backing POST /v1/captures. See design.md §5.
+//
+// ARCHITECTURE DECISION (CPTO): native UUID everywhere. Every primary key and
+// foreign key uses `@db.Uuid` so that graph foreign keys and the RLS policy
+// (`= current_setting('app.current_user_id', true)::uuid`) work natively without
+// per-row text->uuid casts. At the application layer these ids remain strings;
+// only the Postgres column type changes.
 
 generator client {
   provider = "prisma-client-js"
@@ -15,11 +23,125 @@ datasource db {
 
 /// A registered user. Passwords are stored only as a strong hash (#07).
 model User {
-  id           String   @id @default(uuid())
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email        String   @unique
   passwordHash String   @map("password_hash")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Inverse relations for the F1 property graph.
+  nodes           Node[]
+  edges           Edge[]
+  idempotencyKeys IdempotencyKey[]
 
   @@map("users")
+}
+
+enum NodeType {
+  capture
+  note
+  task
+  person
+  project
+  event
+  decision
+  topic
+
+  @@map("node_type")
+}
+
+/// Status of the understanding pipeline over a capture (ADR-02 / #03 §5).
+/// F1 only ever writes `raw`. F2 transitions raw -> processing -> processed | failed.
+enum CaptureStatus {
+  raw
+  processing
+  processed
+  failed
+
+  @@map("capture_status")
+}
+
+enum CaptureModality {
+  text
+  voice
+
+  @@map("capture_modality")
+}
+
+enum NodeOrigin {
+  manual_text
+  voice
+  calendar_sync
+  ai
+
+  @@map("node_origin")
+}
+
+/// Property-graph node. All node types share this table, discriminated by
+/// `type`. Type-specific fields live in `attributes` (JSONB).
+model Node {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String        @map("user_id") @db.Uuid
+  type       NodeType
+  title      String?
+  body       String? // raw text / transcription content
+  attributes Json          @default("{}") // e.g. { "audio_ref": "...", "modality": "voice" }
+  status     CaptureStatus @default(raw) // relevant for type=capture
+  origin     NodeOrigin
+  confidence Float? // null for captures (not AI-derived)
+  // embedding VECTOR(1536) -> added in F2 via a raw SQL migration (pgvector).
+  //   Prisma does not natively type pgvector, so it is intentionally omitted in F1.
+  occurredAt DateTime?     @map("occurred_at") @db.Timestamptz(6)
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime?     @map("deleted_at") @db.Timestamptz(6)
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outgoingEdges   Edge[]           @relation("SourceNode")
+  incomingEdges   Edge[]           @relation("TargetNode")
+  idempotencyKeys IdempotencyKey[]
+
+  @@index([userId, type], name: "idx_nodes_user_type")
+  @@index([userId, status])
+  @@map("nodes")
+}
+
+/// Typed, directional edge (adjacency list). F1 creates no edges; the model is
+/// defined so F2 can use it without a new structural migration.
+model Edge {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  type          String // 'derived_from','mentions',...
+  sourceNodeId  String    @map("source_node_id") @db.Uuid
+  targetNodeId  String    @map("target_node_id") @db.Uuid
+  confidence    Float?
+  origin        String // 'ai' | 'user' | 'integration'
+  userConfirmed Boolean   @default(false) @map("user_confirmed")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  sourceNode Node @relation("SourceNode", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  targetNode Node @relation("TargetNode", fields: [targetNodeId], references: [id], onDelete: Cascade)
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sourceNodeId], name: "idx_edges_source")
+  @@index([userId, targetNodeId], name: "idx_edges_target")
+  @@map("edges")
+}
+
+/// Idempotency ledger for POST /v1/captures. The key is client-provided
+/// (Idempotency-Key); in offline sync it is Drift's client_id.
+model IdempotencyKey {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  key         String
+  captureId   String   @map("capture_id") @db.Uuid
+  requestHash String   @map("request_hash") // payload hash to detect reuse with a different body
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  capture Node @relation(fields: [captureId], references: [id], onDelete: Cascade)
+  user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key], name: "uq_idempotency_user_key")
+  @@map("idempotency_keys")
 }
