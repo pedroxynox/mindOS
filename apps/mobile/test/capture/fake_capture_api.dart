@@ -41,7 +41,7 @@ class FakeCaptureApi implements CaptureApiClient {
     presignCalls++;
     return PresignResult(
       uploadUrl: 'https://s3.local/upload/${_seq++}',
-      audioRef: 'audio/user/${_seq}.m4a',
+      audioRef: 'audio/user/$_seq.m4a',
       expiresIn: 900,
     );
   }

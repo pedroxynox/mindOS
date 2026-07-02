@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'capture_api_client.dart';
 import 'local/app_database.dart';
 import 'local/capture_tables.dart';

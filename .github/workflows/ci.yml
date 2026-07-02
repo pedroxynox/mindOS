@@ -59,5 +59,9 @@ jobs:
       - run: flutter create . --project-name mindos --platforms=android
       - run: rm -f test/widget_test.dart
       - run: flutter pub get
+      # Drift generates app_database.g.dart (the `part` file) via build_runner.
+      # It is not checked in, so it must be generated before analyze/test or
+      # the generated companions/classes are missing and analysis fails.
+      - run: dart run build_runner build --delete-conflicting-outputs
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
