@@ -18,9 +18,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # npm install (not `npm ci`) because the lockfile is generated on first
-      # install; it will be committed once dependencies are resolved.
-      - run: npm install --no-audit --no-fund
+          cache: 'npm'
+          cache-dependency-path: apps/api/package-lock.json
+      # Reproducible install from the committed lockfile (D-001).
+      - run: npm ci
       - run: npx prisma generate
       - run: npm run lint
       - run: npm test
