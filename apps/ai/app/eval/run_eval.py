@@ -16,6 +16,7 @@ owner. They are read from Settings so they can be tuned without code changes.
 
 import argparse
 import asyncio
+import sys
 
 from app.config import Settings
 from app.config import settings as default_settings
@@ -40,10 +41,25 @@ def thresholds_from_settings(s: Settings) -> Thresholds:
     )
 
 
-async def run_eval(provider: AIProvider, dataset: EvalDataset) -> EvalReport:
-    """Score every case in the dataset and aggregate into a report."""
+async def run_eval(
+    provider: AIProvider,
+    dataset: EvalDataset,
+    *,
+    request_delay_s: float = 0.0,
+) -> EvalReport:
+    """Score every case in the dataset and aggregate into a report.
+
+    Cases run strictly sequentially (never a concurrent burst) and an optional
+    ``request_delay_s`` pause is inserted between them so a real-provider run
+    stays under the requests-per-minute limit of a fresh account. A transient
+    provider error such as a rate limit (429) — already retried inside the
+    provider — is allowed to propagate so the caller can surface a clear
+    message instead of a partial, misleading report.
+    """
     scores = []
-    for case in dataset.cases:
+    for index, case in enumerate(dataset.cases):
+        if index > 0 and request_delay_s > 0:
+            await asyncio.sleep(request_delay_s)
         try:
             result = await run_extraction(case.text, provider)
             predicted = result.extraction
@@ -151,6 +167,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+# Exit code used when the run aborts because the provider stayed unavailable
+# (e.g. rate limit persisting after all retries). Distinct from the gate-fail
+# code (1) so CI can tell "infra problem" apart from "quality below threshold".
+EXIT_PROVIDER_UNAVAILABLE = 2
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     s = default_settings
@@ -158,13 +180,47 @@ def main(argv: list[str] | None = None) -> int:
         s = Settings(**{**default_settings.model_dump(), "llm_provider": args.provider})
     provider = build_provider(s)
     dataset = load_dataset()
-    report = asyncio.run(run_eval(provider, dataset))
+    try:
+        report = asyncio.run(
+            run_eval(provider, dataset, request_delay_s=s.eval_request_delay_s)
+        )
+    except Exception as exc:  # noqa: BLE001 - narrowed via _classify_provider_error
+        message = _classify_provider_error(exc)
+        if message is None:
+            raise
+        print(message, file=sys.stderr)
+        return EXIT_PROVIDER_UNAVAILABLE
     thresholds = thresholds_from_settings(s)
     print(render_report(report, thresholds, s.llm_provider))
     if args.gate:
         passed, _ = report.gate(thresholds)
         return 0 if passed else 1
     return 0
+
+
+def _classify_provider_error(exc: BaseException) -> str | None:
+    """Map a provider failure to a clear operator message, or ``None``.
+
+    Returns ``None`` when the error is not a recognised provider/transport
+    problem, so unexpected bugs still surface as a normal traceback.
+    """
+    try:
+        from openai import APIError, RateLimitError
+    except ImportError:  # pragma: no cover - openai is a core dependency
+        return None
+    if isinstance(exc, RateLimitError):
+        return (
+            "ERROR: límite de OpenAI alcanzado; revisa facturación/saldo o los "
+            "límites de peticiones de tu cuenta. La evaluación se ha detenido "
+            "tras agotar los reintentos."
+        )
+    if isinstance(exc, APIError):
+        return (
+            "ERROR: no se pudo completar la evaluación por un problema "
+            "transitorio con OpenAI tras agotar los reintentos. Inténtalo de "
+            "nuevo más tarde."
+        )
+    return None
 
 
 def _as_mutable(s: Settings) -> Settings:

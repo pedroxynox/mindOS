@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
     openai_embedding_model: str = "text-embedding-3-small"
 
+    # Resilience against transient failures / rate limits (HTTP 429). Applied
+    # by OpenAIProvider around every API call: exponential backoff + jitter,
+    # honouring a server-provided ``Retry-After`` header. Defaults are sensible
+    # for a fresh account with a low requests-per-minute allowance.
+    openai_max_retries: int = 5
+    openai_backoff_base_s: float = 2.0
+
     # --- Evaluation gate thresholds (design §13.2) ---------------------------
     # PROVISIONAL values, pending ratification by the product owner. They are
     # the acceptance gate that de-risks R-001 before building the full pipeline.
@@ -36,6 +43,11 @@ class Settings(BaseSettings):
     eval_hallucination_max: float = 0.05
     # Average cost budget per capture in USD (the "presupuesto acordado").
     eval_cost_per_capture_max_usd: float = 0.01
+
+    # Delay (seconds) inserted between eval cases so a run stays under the
+    # requests-per-minute limit of a fresh provider account. Keep at 0 for the
+    # offline FakeProvider (no network); set a small value for real OpenAI runs.
+    eval_request_delay_s: float = 0.0
 
 
 settings = Settings()
