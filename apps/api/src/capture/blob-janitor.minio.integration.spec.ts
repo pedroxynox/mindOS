@@ -75,6 +75,20 @@ describeIntegration(
       } catch {
         // Bucket may already exist — ignore.
       }
+
+      // Seed the owning user. The janitor test references a fixed USER_ID in
+      // the audio key prefix AND creates a `nodes` row for it; that row's
+      // `user_id` FK requires the user to exist. Upsert keeps the setup
+      // idempotent across repeated runs against a persistent database.
+      await prisma.user.upsert({
+        where: { id: USER_ID },
+        update: {},
+        create: {
+          id: USER_ID,
+          email: `janitor-${USER_ID}@example.com`,
+          passwordHash: 'x',
+        },
+      });
     });
 
     afterAll(async () => {
