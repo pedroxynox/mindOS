@@ -11,14 +11,54 @@ single embedding call, each recording token usage and an estimated cost.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, TypeVar
 
 from app.providers.base import AIProvider, Completion, Embedding, Usage
+from app.providers.retry import retry_async
 
 if TYPE_CHECKING:
     from app.config import Settings
 
 _PROVIDER_NAME = "openai"
+
+T = TypeVar("T")
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """True for transient OpenAI failures worth retrying (429 / timeout / 5xx).
+
+    Unrecoverable errors (authentication 401, bad request 400, ...) are *not*
+    listed here and therefore propagate immediately without a retry.
+    """
+    from openai import (
+        APIConnectionError,
+        APITimeoutError,
+        InternalServerError,
+        RateLimitError,
+    )
+
+    return isinstance(
+        exc,
+        (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError),
+    )
+
+
+def _retry_after_seconds(exc: BaseException) -> float | None:
+    """Extract a ``Retry-After`` hint (seconds) from an OpenAI error, if any."""
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if not headers:
+        return None
+    raw = headers.get("retry-after")
+    if raw is None:
+        return None
+    try:
+        # Header is typically an integer number of seconds. A date form is not
+        # honoured here; falling back to computed backoff is acceptable.
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
 
 # Approximate public prices (USD per 1M tokens), provisional — used only to
 # attribute an estimated cost. Update as pricing changes.
@@ -55,24 +95,47 @@ class OpenAIProvider(AIProvider):
                 "Install it with: pip install -e '.[ai]'"
             ) from exc
 
-        self._client = AsyncOpenAI(api_key=settings.openai_api_key)
+        # We manage retries ourselves (below) with backoff + jitter that also
+        # honours Retry-After, so disable the SDK's own retry loop to avoid
+        # compounding both policies.
+        self._client = AsyncOpenAI(api_key=settings.openai_api_key, max_retries=0)
         self._model = settings.openai_model
         self._embedding_model = settings.openai_embedding_model
+        self._max_retries = settings.openai_max_retries
+        self._backoff_base_s = settings.openai_backoff_base_s
+
+    def _with_retries(self, func: Callable[[], Awaitable[T]]) -> Awaitable[T]:
+        """Wrap an API call with exponential backoff + jitter on 429/5xx/timeouts.
+
+        After the retries are exhausted the original error is re-raised so
+        callers (e.g. the eval runner) can present a clear, typed message.
+        """
+        return retry_async(
+            func,
+            max_retries=self._max_retries,
+            backoff_base_s=self._backoff_base_s,
+            is_retryable=_is_retryable,
+            retry_after_s=_retry_after_seconds,
+        )
 
     async def complete(
         self, prompt: str, *, schema: dict | None = None
     ) -> Completion:
-        response = await self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You output only valid JSON. No prose, no markdown.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0,
+        response = await self._with_retries(
+            lambda: self._client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You output only valid JSON. No prose, no markdown."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0,
+            )
         )
         text = response.choices[0].message.content or "{}"
         u = response.usage
@@ -89,8 +152,10 @@ class OpenAIProvider(AIProvider):
         return Completion(text=text, usage=usage)
 
     async def embed(self, text: str) -> Embedding:
-        response = await self._client.embeddings.create(
-            model=self._embedding_model, input=text
+        response = await self._with_retries(
+            lambda: self._client.embeddings.create(
+                model=self._embedding_model, input=text
+            )
         )
         vector = list(response.data[0].embedding)
         u = response.usage
