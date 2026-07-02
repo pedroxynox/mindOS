@@ -78,38 +78,38 @@ graph TD
 
 ## 3. Tasks
 
-- [ ] 1. Migración Prisma: grafo `nodes`/`edges` + `idempotency_keys`
-  - [ ] 1.1 Añadir enums y modelos a `schema.prisma`
+- [x] 1. Migración Prisma: grafo `nodes`/`edges` + `idempotency_keys`
+  - [x] 1.1 Añadir enums y modelos a `schema.prisma`
     - En `apps/api/prisma/schema.prisma` añadir enums `NodeType`, `CaptureStatus`, `CaptureModality`, `NodeOrigin` con sus `@@map`.
     - Añadir modelos `Node`, `Edge`, `IdempotencyKey` según diseño §5 (campos, `@db.Uuid`, `@db.Timestamptz(6)`, JSONB `attributes`, `@default`).
     - Añadir índices `idx_nodes_user_type`, `[userId, status]`, `idx_edges_source`, `idx_edges_target` y la unicidad `uq_idempotency_user_key` (`@@unique([userId, key])`).
     - _Requisitos: R1.1, R4.4, R3.4 · Diseño §5 · D-002_
-  - [ ] 1.2 Añadir relaciones inversas en `User` y generar migración
+  - [x] 1.2 Añadir relaciones inversas en `User` y generar migración
     - Añadir a `User`: `nodes Node[]`, `edges Edge[]`, `idempotencyKeys IdempotencyKey[]`.
     - Ejecutar `prisma migrate dev` para crear la migración estructural y `prisma generate`.
     - Verificar que la migración compila y el cliente Prisma tipa los nuevos modelos.
     - _Requisitos: R1.1, R4.4 · Diseño §5_
 
-- [ ] 2. Migración SQL cruda: RLS fail-closed + rol de aplicación no-owner
-  - [ ] 2.1 Habilitar y forzar RLS con políticas de aislamiento
+- [x] 2. Migración SQL cruda: RLS fail-closed + rol de aplicación no-owner
+  - [x] 2.1 Habilitar y forzar RLS con políticas de aislamiento
     - Crear una migración SQL cruda (posterior a la de Prisma) que ejecute `ENABLE`/`FORCE ROW LEVEL SECURITY` en `nodes`, `edges`, `idempotency_keys`.
     - Crear las políticas `nodes_isolation`, `edges_isolation`, `idem_isolation` con `USING` y `WITH CHECK` sobre `current_setting('app.current_user_id', true)::uuid` (diseño §6).
     - _Requisitos: R4.5, R4.4 · Propiedades P1, P8 · Diseño §6_
-  - [ ] 2.2 Provisionar el rol de aplicación no-owner y sus permisos
+  - [x] 2.2 Provisionar el rol de aplicación no-owner y sus permisos
     - Definir/documentar el rol de conexión de la app como **no superusuario y no dueño de tabla** (para que `FORCE RLS` aplique siempre) con los `GRANT` mínimos (SELECT/INSERT/UPDATE/DELETE) sobre las tablas del grafo.
     - Ajustar la cadena de conexión de la app (`.env.example`) para usar ese rol.
     - _Requisitos: R4.5 · Propiedades P1, P8 · Diseño §6_
-  - [ ]* 2.3 Test de integración RLS con rol no-owner (PostgreSQL real)
+  - [ ]* 2.3 Test de integración RLS con rol no-owner (PostgreSQL real) — _PENDIENTE DE ENTORNO: requiere Postgres vivo con RLS + rol no-owner (docker-compose). Test escrito y skippeado en `src/prisma/prisma-rls.rls.integration.spec.ts`._
     - Con dos `user_id` distintos, insertar filas y verificar que cada contexto sólo ve las suyas; verificar que sin `app.current_user_id` fijado no se lee ni escribe ninguna fila (fail-closed).
     - **Feature: capture-engine, Property 8: Fail-closed sin contexto de usuario** y **Property 1: Aislamiento por dueño (RLS)**.
     - _Valida: Requisitos R4.5, R4.2, R4.3 · Propiedades P1, P8_
 
-- [ ] 3. `PrismaRlsService.withUser()` — contexto de usuario por transacción
-  - [ ] 3.1 Implementar el servicio
+- [x] 3. `PrismaRlsService.withUser()` — contexto de usuario por transacción
+  - [x] 3.1 Implementar el servicio
     - Crear `apps/api/src/prisma/prisma-rls.service.ts` con `withUser(userId, work)` que abra una transacción interactiva y ejecute `SELECT set_config('app.current_user_id', ${userId}, true)` (parametrizado) antes de `work(tx)` (diseño §6.1).
     - Registrarlo en `PrismaModule` y exportarlo.
     - _Requisitos: R4.4 · Propiedad P8 · Diseño §6.1_
-  - [ ]* 3.2 Tests unitarios de `withUser`
+  - [x]* 3.2 Tests unitarios de `withUser`
     - Verificar que fija el contexto dentro de la transacción y que se limpia al finalizar (setting local a la transacción).
     - _Valida: Requisitos R4.4_
 
