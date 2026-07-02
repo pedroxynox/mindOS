@@ -26,7 +26,7 @@ ADR-011 (2026-07-02, ACEPTADO): DoD de F0 = CD mínimo a un staging (sin K8s) + 
 Validar F1 contra infraestructura real (docker-compose: Postgres+RLS, Redis, MinIO) ejecutando los tests de integración skippeados y `flutter test`; completar hardening de plataforma (reproducibilidad). Después, F2 (comprensión) — de-riesgar R-001 con una PoC.
 
 ## 5. Bloqueadores
-Ninguno. La deriva del #08 (R-004) quedó corregida y mergeada. F1 está listo para entrar en implementación.
+Ninguno. F1 está implementada y mergeada. Pendiente NO bloqueante: validar F1 contra infraestructura real (R-006) antes de darla por 'demostrada' (los tests de aislamiento P1/P8, no-pérdida P2 y dedup P7 están escritos pero skippeados sin infra).
 
 ## 6. Riesgos vivos (detalle e historia en [012](./012_RISK_AND_DEBT_REGISTER.md))
 - R-001 (Alto): calidad de comprensión de F2 aún no de-riesgada (PoC pendiente).
@@ -59,9 +59,9 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 - Proveedor LLM y dimensión de embeddings (dependencia de #07).
 
 ## 11. Acciones recomendadas (priorizadas)
-1. Implementar F1 — Capture Engine según el plan de tareas, empezando por la migración Prisma de `nodes`/`edges` + RLS fail-closed (tareas 1–3).
-2. Endurecer la autenticación propia (R-002) antes de pre-beta; no dejarlo sin fecha.
-3. Considerar la PoC aislada de comprensión (F2) en paralelo a F1 para de-riesgar R-001 (nuestro mayor riesgo).
+1. Validar F1 contra infraestructura real: levantar docker-compose (Postgres+RLS rol no-owner, Redis, MinIO), ejecutar los `*.integration.spec.ts` y `flutter test` → cerrar R-006.
+2. Completar la reproducibilidad (D-001) en móvil (`pubspec.lock`) y ai (deps Python), y endurecer la autenticación propia (R-002).
+3. Arrancar F2 (comprensión) con una PoC aislada para de-riesgar R-001 (nuestro mayor riesgo).
 
 ## Historial de versiones
 | Versión | Fecha | Cambios |
@@ -73,3 +73,4 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 | 1.4 | 2026-07-02 | Spec de F1 completo (diseño+requisitos+tareas); próximo objetivo = implementación de F1. |
 | 1.5 | 2026-07-02 | Saneado de secciones desactualizadas (resumen, bloqueadores, acciones, preguntas) tras completar el spec de F1. |
 | 1.6 | 2026-07-02 | F1 mergeada; hardening de reproducibilidad; alta de R-006/D-006/D-007. |
+| 1.7 | 2026-07-02 | Saneado de §5 (bloqueadores) y §11 (acciones) tras el merge de F1. |
