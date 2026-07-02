@@ -20,7 +20,7 @@
 |----|-------------|-----------|--------------|------------|--------|-------|
 | R-001 | Calidad de comprensión de F2 aún no de-riesgada: el pipeline IA podría no "entender" lo bastante bien. | Alto | Media | PoC aislada de comprensión en paralelo a F1; eval set con umbral de aceptación antes de invertir en F3. | 🔴 abierto | 2026-07-02 |
 | R-002 | Auth propia (JWT) sin endurecer: falta rate limiting, rotación de refresh y protección contra enumeración por timing. | Medio | Media | Endurecimiento planificado en F4 (#07); registrar controles y añadir pruebas de seguridad. | 🔴 abierto | 2026-07-02 |
-| R-003 | F0 declarado "hecho" sin cumplir su Definición de Hecho (falta CD a staging + IaC) → falsa señal de avance. | Medio | Alta | Cerrar CD+IaC o posponer formalmente vía ADR; corregir la señal en README/009. | 🔴 abierto — (2026-07-02) Abordado por ADR-011 (propuesto): DoD mínima de F0 + diferimiento de infra. Pendiente de aprobación del founder. | 2026-07-02 |
+| R-003 | F0 declarado "hecho" sin cumplir su Definición de Hecho (falta CD a staging + IaC) → falsa señal de avance. | Medio | Alta | Cerrar CD+IaC o posponer formalmente vía ADR; corregir la señal en README/009. | 🟢 Mitigado — (2026-07-02) Abordado por ADR-011 (propuesto): DoD mínima de F0 + diferimiento de infra. Pendiente de aprobación del founder. (2026-07-02) ADR-011 ACEPTADO: DoD de F0 redefinida a criterio realista. Queda como trabajo (no riesgo) ejecutar CD mínimo + IaC. | 2026-07-02 |
 | R-004 | Deriva documental: el roadmap #08 contradice ADR-010 (aún dice "backend FastAPI + frontend React" en F0 y "auth vía proveedor gestionado" en F0/F1). | Medio | Alta | Aplicar cabecera de aviso al #08 y corregir el texto ([005](./005_DOCUMENTATION_STANDARD.md) §6). | 🟡 En corrección — (2026-07-02) Corrección de deriva del #08 en curso vía PR de coherencia + ADR-010 referenciado. | 2026-07-02 |
 
 ## Tabla de DEUDA
@@ -36,3 +36,4 @@
 |---------|-------|---------|
 | 1.0 | 2026-07-02 | Registro inicial: R-001..R-004 y D-001..D-004 sembrados. |
 | 1.1 | 2026-07-02 | Actualización de estado de R-003/R-004 y plan de D-004. |
+| 1.2 | 2026-07-02 | R-003 mitigado tras aprobación de ADR-011. |

@@ -19,10 +19,10 @@ Fundación documental sólida y aprobada (#00–#08). El esqueleto ejecutable ex
 - **CI:** 3 jobs (api/ai/mobile) con lint+tipos+test+build. Sin CD.
 
 ## 3. Última decisión
-ADR-010 (2026-07-01): mobile-first + dos backends (NestJS negocio / Python IA) + auth JWT propia. Reemplaza parcialmente ADR-01/03/08, D1 (#01), ADR-A1 (#04), P3 (#07).
+ADR-011 (2026-07-02, ACEPTADO): DoD de F0 = CD mínimo a un staging (sin K8s) + IaC mínima; infra pesada diferida a pre-beta.
 
 ## 4. Próximo objetivo
-Cerrar F0 honestamente (CD a staging + IaC mínima) O tomar la decisión explícita de posponerlo (ADR). En paralelo, preparar F1: `POST /v1/captures` + nodo `Capture` + tabla nodes/edges + RLS.
+Ejecutar el cierre de F0 según ADR-011 (imágenes en CI + CD a staging + IaC mínima) y, en paralelo, abrir el spec de diseño de F1 — Capture Engine (POST /v1/captures + nodo Capture + tablas nodes/edges + RLS).
 
 ## 5. Bloqueadores
 Ninguno técnico duro. En resolución: la deriva del #08 (R-004) se está corrigiendo en el PR de coherencia.
@@ -30,7 +30,7 @@ Ninguno técnico duro. En resolución: la deriva del #08 (R-004) se está corrig
 ## 6. Riesgos vivos (detalle e historia en [012](./012_RISK_AND_DEBT_REGISTER.md))
 - R-001 (Alto): calidad de comprensión de F2 aún no de-riesgada (PoC pendiente).
 - R-002 (Medio): auth propia sin endurecer (rate limiting, rotación de refresh, enumeración por timing) — deuda de seguridad abierta.
-- R-003 (Medio): F0 declarado "hecho" sin cumplir su DoD → falsa señal de avance.
+- R-003 (Mitigado): DoD de F0 redefinida por ADR-011 (aceptado).
 
 ## 7. Deuda técnica top (detalle en [012](./012_RISK_AND_DEBT_REGISTER.md))
 - D-001: sin lockfiles commiteados (CI usa `npm install`, no `npm ci`) → builds no reproducibles.
@@ -46,7 +46,6 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 
 ## 10. Preguntas abiertas
 - ¿PoC de comprensión (F2) en paralelo a F1? (recomendación CTO: sí, #08 §7).
-- ¿Se aprueba el ADR-011 (CD mínimo + diferir infra pesada) para cerrar la DoD de F0? — pendiente del founder.
 - Proveedor LLM y dimensión de embeddings (dependencia de #07).
 
 ## 11. Acciones recomendadas (priorizadas)
@@ -59,3 +58,4 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 |---------|-------|---------|
 | 1.0 | 2026-07-02 | Estado inicial tras fundar el sistema de gobernanza. |
 | 1.1 | 2026-07-02 | Coherencia del #08 en curso; ADR-011 propuesto. |
+| 1.2 | 2026-07-02 | ADR-011 aceptado; F0 DoD y próximo objetivo actualizados. |

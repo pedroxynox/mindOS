@@ -6,7 +6,7 @@
 
 | Metadato | Valor |
 |----------|-------|
-| Estado | 🟠 Propuesto (pendiente de decisión del founder) |
+| Estado | 🟢 Aceptado |
 | Fecha | 2026-07-02 |
 | Autor | CPTO |
 | Depende de | ADR-010, #06, #08 |
@@ -74,9 +74,7 @@ reintroduciría el riesgo de integración tardía que F0 debía eliminar. El mí
 
 ## Estado y siguiente paso
 
-**PROPUESTO.** Cambia la DoD de F0, por lo que requiere aprobación del founder
-(decisión Founder+CPTO según 001/003). Al aprobarse: pasa a 🟢 Aceptado, se
-actualiza la sección F0 del #08 y se cierra R-003 en el registro (012).
+**ACEPTADO** (2026-07-02) por el founder. Cambia la Definición de Hecho de F0 (§F0 del #08), que se actualiza en consecuencia. Con ello, el riesgo R-003 pasa a mitigado: la DoD es ahora realista y queda como trabajo pendiente ejecutar los puntos (2)(3)(4) — CD mínimo a staging + IaC mínima.
 
 ## Nota de numeración
 
@@ -89,3 +87,4 @@ y de los ADR-01..09 embebidos en #02 está registrada como deuda **D-004** (012)
 | Versión | Fecha | Autor | Cambios |
 |---------|-------|-------|---------|
 | 1.0 | 2026-07-02 | CPTO | Propuesta inicial: DoD mínima de F0 + diferimiento de infra pesada. |
+| 1.1 | 2026-07-02 | CPTO | Aceptado por el founder; F0 DoD actualizada en el #08. |
