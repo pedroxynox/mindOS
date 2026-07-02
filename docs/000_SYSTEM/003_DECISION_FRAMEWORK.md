@@ -74,7 +74,7 @@ Hoy existe una **inconsistencia**: los ADR-01..ADR-09 están **embebidos** dentr
 
 **En adelante:**
 1. **Todo ADR es un archivo propio** en `../02-architecture/adr/`.
-2. El **esquema de ID usa cero-padding a cuatro dígitos**: `ADR-0001`, …, `ADR-0009`, `ADR-0010`. (El actual `ADR-010` se normaliza a `ADR-0010`.)
+2. **Esquema transitorio de ID:** HASTA completar la migración (deuda [D-004](./012_RISK_AND_DEBT_REGISTER.md)), los **nuevos ADR individuales siguen el patrón de 3 dígitos de `ADR-010`** (`ADR-011`, `ADR-012`, …) por consistencia con el único ADR individual existente. **TRAS la migración** se adoptará **cero-padding a cuatro dígitos para todos** (`ADR-0001`, …, `ADR-0009`, `ADR-0010`, `ADR-0011`, …, `ADR-00NN`), normalizando también los IDs actuales de 3 dígitos.
 3. Se **planifica migrar** los ADR embebidos del #02 a archivos individuales (`ADR-0001`..`ADR-0009`), dejando en #02 solo un índice con enlaces. Esta migración se registra como deuda [D-004](./012_RISK_AND_DEBT_REGISTER.md).
 4. Cada archivo ADR declara qué documentos o ADRs supersede, y esos documentos reciben la cabecera de aviso del [005](./005_DOCUMENTATION_STANDARD.md).
 
@@ -85,3 +85,4 @@ Si el CPTO objeta y el founder decide igual, la objeción y su motivo se registr
 | Versión | Fecha | Cambios |
 |---------|-------|---------|
 | 1.0 | 2026-07-02 | Framework inicial de decisiones + regla de unificación de ADRs. |
+| 1.1 | 2026-07-02 | Aclaración transitoria del esquema de numeración de ADRs. |
