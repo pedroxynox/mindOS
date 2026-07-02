@@ -163,11 +163,11 @@ graph TD
     - **Feature: capture-engine, Property 5** / **Property 1** (fast-check, ≥100 iteraciones).
     - _Valida: Requisitos R8.1, R8.2, R4.1, R4.2, R4.3, R7.1, R7.2 · Propiedades P5, P1_
 
-- [~] 7. Checkpoint — camino síncrono de captura funcional
+- [x] 7. Checkpoint — camino síncrono de captura funcional
   - Asegurar que todos los tests hasta aquí pasan; consultar al usuario si surgen dudas.
 
-- [ ] 8. `UnderstandingQueue` — productor BullMQ (handoff a F2)
-  - [~] 8.1 Implementar el productor y su contrato
+- [x] 8. `UnderstandingQueue` — productor BullMQ (handoff a F2)
+  - [x] 8.1 Implementar el productor y su contrato
     - Crear `apps/api/src/capture/understanding.queue.ts` con `UNDERSTANDING_QUEUE`/`UNDERSTANDING_JOB`, la interfaz `UnderstandingJobData` (`schema_version:1`, `capture_id`, `user_id`, `enqueued_at`) y `understandingJobOpts` (`jobId = capture_id`, `attempts:5`, backoff exponencial, `removeOnFail:false`) (diseño §10).
     - Integrar `enqueueUnderstanding` en `CaptureService.create` tras persistir; el fallo de encolado **no** debe romper el `202` (la captura ya está a salvo).
     - _Requisitos: R9.1, R9.2, R9.3, R9.4, R5.2 · Propiedad P7 · Diseño §10, §10.1_
@@ -177,8 +177,8 @@ graph TD
     - **Feature: capture-engine, Property 7** (fast-check + Redis real, ≥100 iteraciones donde aplique).
     - _Valida: Requisitos R9.2, R9.3 · Propiedad P7_
 
-- [ ] 9. Barrido de reconciliación (red de seguridad de no-pérdida)
-  - [~] 9.1 Implementar el job programado (cron)
+- [x] 9. Barrido de reconciliación (red de seguridad de no-pérdida)
+  - [x] 9.1 Implementar el job programado (cron)
     - **(Refinamiento c)** Crear un cron que se ejecute **periódicamente (~cada 1 min)** y reencole las capturas con `status=raw` **cuya antigüedad supere 5 min** y sin job activo asociado, con **límite de lote** por ejecución para acotar carga. Idempotente por `jobId = capture_id` (diseño §10.2).
     - Ejecutar bajo contexto RLS/servicio apropiado para poder leer capturas huérfanas de forma segura.
     - _Requisitos: R5.3, R5.4, R5.5 · Propiedad P2 · Diseño §10.2_
@@ -188,8 +188,8 @@ graph TD
     - **Feature: capture-engine, Property 2**.
     - _Valida: Requisitos R5.2, R5.3, R5.4 · Propiedad P2_
 
-- [ ] 10. Janitor de blobs de audio huérfanos (refinamiento a)
-  - [~] 10.1 Implementar el recolector programado
+- [x] 10. Janitor de blobs de audio huérfanos (refinamiento a)
+  - [x] 10.1 Implementar el recolector programado
     - **(Refinamiento a)** Crear un job periódico que **purgue objetos S3 subidos vía presign que nunca quedaron referenciados** por ninguna Captura, **tras un TTL** (p.ej. antigüedad del objeto > umbral y sin `attributes.audio_ref` que lo apunte).
     - Recorrer el prefijo `audio/{user_id}/`, cruzar con las `audio_ref` referenciadas y eliminar sólo los huérfanos vencidos; con límite de lote y logging de lo purgado.
     - _Requisitos: R2 (higiene de blobs; complementa R2.1, R2.4) · Diseño §9_

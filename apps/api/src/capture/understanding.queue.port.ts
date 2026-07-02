@@ -1,9 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
-
 /**
  * DI token for the understanding-queue port. CaptureService depends on this
- * abstraction, not on a concrete queue, so the synchronous capture path is
- * fully wired and testable before the BullMQ producer lands in task 8.
+ * abstraction, not on a concrete queue, so the capture path stays decoupled
+ * from the broker and remains unit-testable with a lightweight double.
+ *
+ * The concrete implementation bound to this token is `BullUnderstandingQueue`
+ * (see `understanding.queue.ts`), which produces to BullMQ/Redis with
+ * `jobId = capture_id` for handoff idempotency (design.md §10, P7).
  */
 export const UNDERSTANDING_QUEUE_PORT = Symbol('UNDERSTANDING_QUEUE_PORT');
 
@@ -20,32 +22,10 @@ export interface UnderstandingJobData {
 
 /**
  * Port that hands a persisted capture off to the understanding pipeline (F2).
- * Task 8 will supply a BullMQ-backed implementation (dedup by `jobId`, retries,
- * `removeOnFail:false`); until then `LoggingUnderstandingQueue` provides a real,
- * wired implementation so nothing in the capture path is left dangling.
+ * The synchronous capture path and the reconciliation sweep both depend on this
+ * interface; the BullMQ adapter provides the concrete behaviour (dedup by
+ * `jobId`, retries with exponential backoff, `removeOnFail: false`).
  */
 export interface UnderstandingQueuePort {
   enqueueUnderstanding(data: UnderstandingJobData): Promise<void>;
-}
-
-/**
- * Temporary understanding-queue implementation that records the enqueue attempt
- * without an external broker. It is a genuine, injected provider (not dead
- * code): CaptureService calls it after persisting, and task 8 replaces it with
- * the BullMQ producer behind the same port.
- */
-@Injectable()
-export class LoggingUnderstandingQueue implements UnderstandingQueuePort {
-  private readonly logger = new Logger(LoggingUnderstandingQueue.name);
-
-  async enqueueUnderstanding(data: UnderstandingJobData): Promise<void> {
-    // Persisted-before-enqueue is already guaranteed by the caller; here we only
-    // record intent. BullMQ (task 8) will replace this with a real enqueue whose
-    // jobId = capture_id provides handoff idempotency (P7).
-    this.logger.log(
-      `understanding handoff (stub): capture=${data.capture_id} user=${data.user_id} ` +
-        `enqueued_at=${data.enqueued_at} schema_version=${data.schema_version}`,
-    );
-    return Promise.resolve();
-  }
 }

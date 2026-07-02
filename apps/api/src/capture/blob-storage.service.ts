@@ -8,8 +8,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -29,6 +31,16 @@ export interface PresignUploadResult {
   upload_url: string;
   audio_ref: string;
   expires_in: number;
+}
+
+/** A stored audio object as returned by a listing (used by the blob janitor). */
+export interface AudioObject {
+  /** Object key, e.g. `audio/{user_id}/{uuid}.m4a`. */
+  key: string;
+  /** Last-modified timestamp reported by S3 (epoch 0 if unknown). */
+  lastModified: Date;
+  /** Object size in bytes (0 if unknown). */
+  size: number;
 }
 
 /**
@@ -155,6 +167,53 @@ export class BlobStorageService {
       Key: audioRef,
     });
     return getSignedUrl(this.s3, command, { expiresIn: this.presignTtl });
+  }
+
+  /**
+   * List every audio object stored under a user's prefix (`audio/{userId}/`),
+   * following pagination. Used by the orphan-blob janitor (design.md §9) to
+   * cross-reference stored objects against referenced `audio_ref`s. Scoping the
+   * listing to the user prefix keeps the janitor within one user's namespace.
+   */
+  async listAudioObjects(userId: string): Promise<AudioObject[]> {
+    const prefix = `audio/${userId}/`;
+    const objects: AudioObject[] = [];
+    let continuationToken: string | undefined;
+
+    do {
+      const result = await this.s3.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        }),
+      );
+      for (const object of result.Contents ?? []) {
+        if (object.Key) {
+          objects.push({
+            key: object.Key,
+            lastModified: object.LastModified ?? new Date(0),
+            size: object.Size ?? 0,
+          });
+        }
+      }
+      continuationToken = result.IsTruncated
+        ? result.NextContinuationToken
+        : undefined;
+    } while (continuationToken);
+
+    return objects;
+  }
+
+  /**
+   * Delete a single audio object by key. Used by the janitor to purge orphaned
+   * uploads; callers are responsible for having verified the key is an unwanted
+   * orphan under the correct user prefix.
+   */
+  async deleteObject(key: string): Promise<void> {
+    await this.s3.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
   }
 
   /** Reject any key whose prefix does not namespace it under `userId` (403). */
