@@ -1,8 +1,8 @@
-// mindOS — Prisma schema (F0 minimal).
+// mindOS — Prisma schema.
 //
 // The full knowledge-graph schema (nodes / edges) is defined in
-// docs/03-data/data-architecture-and-domain-model.md and will be added in F1/F2.
-// F0 includes only what is needed to prove the DB connection end-to-end.
+// docs/03-data/data-architecture-and-domain-model.md and grows with each phase.
+// F1a adds the identity model needed for authentication.
 
 generator client {
   provider = "prisma-client-js"
@@ -13,12 +13,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Placeholder user model. Full identity model arrives in F1 (auth).
+/// A registered user. Passwords are stored only as a strong hash (#07).
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("users")
 }
