@@ -126,9 +126,9 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                     const SizedBox(width: 12),
                     // Voice capture is out of scope for this screen: it needs
                     // device recording APIs. Left as a visible, disabled TODO.
-                    IconButton.outlined(
+                    const IconButton.outlined(
                       onPressed: null,
-                      icon: const Icon(Icons.mic_off),
+                      icon: Icon(Icons.mic_off),
                       tooltip: 'Captura de voz (próximamente)',
                     ),
                   ],

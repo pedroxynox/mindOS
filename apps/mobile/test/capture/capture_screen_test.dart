@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mindos/src/features/capture/capture_providers.dart';
-import 'package:mindos/src/features/capture/data/capture_api_client.dart';
 import 'package:mindos/src/features/capture/data/local/app_database.dart';
 import 'package:mindos/src/features/capture/data/sync_service.dart';
 import 'package:mindos/src/features/capture/presentation/capture_screen.dart';
@@ -41,8 +40,8 @@ import 'fake_capture_api.dart';
 /// the widget test: the optimistic local write is exercised for real, but the
 /// capture is left in the `pending` state and no timers are left dangling.
 class _NoopSyncService extends SyncService {
-  _NoopSyncService({required AppDatabase db, required CaptureApiClient api})
-      : super(db: db, api: api, audioReader: _noAudio);
+  _NoopSyncService({required super.db, required super.api})
+      : super(audioReader: _noAudio);
 
   static Future<List<int>> _noAudio(String path) async => const <int>[];
 
