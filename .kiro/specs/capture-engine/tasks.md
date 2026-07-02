@@ -114,60 +114,60 @@ graph TD
     - _Valida: Requisitos R4.4_
 
 - [ ] 4. `BlobStorageService` — cliente S3-compatible (presign + ownership)
-  - [ ] 4.1 Implementar el servicio y su módulo
+  - [x] 4.1 Implementar el servicio y su módulo
     - Crear `apps/api/src/capture/blob-storage.service.ts` con `presignUpload(userId, contentType, sizeBytes)`, `assertOwnedAndExists(userId, audioRef)` y `presignDownload(userId, audioRef)` (diseño §9).
     - Generar object key `audio/{user_id}/{uuid}.{ext}`; presigned URLs de vida corta; cliente S3 configurable (MinIO local / R2 prod).
     - Aplicar allowlist de `content_type` (`audio/m4a`, `audio/mpeg`, `audio/webm`) y límite de tamaño (p.ej. 25 MB); `assertOwnedAndExists` valida que el prefijo de la key contiene el `user_id` del token **y** que el objeto existe en S3.
     - _Requisitos: R2.1, R2.2, R2.3, R2.5 · Propiedad P6 · Diseño §9_
-  - [ ]* 4.2 Tests unitarios de allowlist, límites y ownership de key
+  - [x]* 4.2 Tests unitarios de allowlist, límites y ownership de key
     - Verificar rechazo de `content_type` fuera de allowlist y tamaño excedido; verificar que una key con prefijo de otro usuario es rechazada por `assertOwnedAndExists`.
     - _Valida: Requisitos R2.2, R2.5_
   - [ ]* 4.3 Test de integración con MinIO real
     - Presign PUT → subir un objeto → `assertOwnedAndExists` OK; verificar que una key inexistente o ajena falla.
     - _Valida: Requisitos R2.1, R2.3, R2.5 · Propiedad P6_
 
-- [ ] 5. `IdempotencyService` — lookup/store con `request_hash`
-  - [ ] 5.1 Implementar el servicio
+- [x] 5. `IdempotencyService` — lookup/store con `request_hash`
+  - [x] 5.1 Implementar el servicio
     - Crear `apps/api/src/capture/idempotency.service.ts` con `lookup(userId, key, dto)` y `store(...)` que persisten el registro con unicidad `(user_id, key)` y `request_hash = hashPayload(dto)` (diseño §7.2, §8).
     - Semántica: clave nueva → sigue el flujo; clave repetida + mismo payload → devuelve la respuesta original; clave repetida + payload distinto → señala reuso incoherente (`409`).
     - El `store` debe ocurrir dentro de la misma transacción RLS que crea la Captura (se integra en la tarea 6).
     - _Requisitos: R3.1, R3.2, R3.4 · Propiedades P3, P4 · Diseño §7.2, §8_
-  - [ ]* 5.2 PBT de idempotencia y reuso incoherente de clave
+  - [x]* 5.2 PBT de idempotencia y reuso incoherente de clave
     - **Property 3: Idempotencia de creación** — *para toda* clave y payload, reenviar dos veces produce el mismo `capture_id` y una sola fila.
     - **Property 4: Detección de reuso incoherente de clave** — *para toda* clave reutilizada con payload distinto, se devuelve `409` y la Captura original no cambia.
     - **Feature: capture-engine, Property 3** / **Property 4** (fast-check, ≥100 iteraciones).
     - _Valida: Requisitos R3.1, R3.2, R3.4 · Propiedades P3, P4_
 
-- [ ] 6. `CaptureService` + `CaptureController` + DTOs (camino síncrono)
-  - [ ] 6.1 Implementar DTOs con validación (incluye límites de paginación)
+- [x] 6. `CaptureService` + `CaptureController` + DTOs (camino síncrono)
+  - [x] 6.1 Implementar DTOs con validación (incluye límites de paginación)
     - Crear `create-capture.dto.ts`, `presign-audio.dto.ts` y `list-captures-query.dto.ts` con `class-validator` (diseño §7.1).
     - **(Refinamiento b)** En `ListCapturesQueryDto`: `limit` opcional con **valor por defecto 20** y **máximo 100** (validado con `@IsInt`/`@Min(1)`/`@Max(100)` + transform de default), `cursor` opcional, `status` opcional (enum `CaptureStatus`).
     - `CreateCaptureDto`: `type`, `content` (1–20 000), `audio_ref` (≤512), `occurred_at` ISO-8601, `client_id` UUID.
     - _Requisitos: R1.5, R7.2, R7.3, R2.1 · Diseño §7.1_
-  - [ ] 6.2 Implementar `CaptureService.create` (orden persistir → encolar)
+  - [x] 6.2 Implementar `CaptureService.create` (orden persistir → encolar)
     - Orquestar: (1) `idempotency.lookup`; (2) si es voz, `blobs.assertOwnedAndExists`; (3) dentro de `rls.withUser` crear el nodo `Capture` (`status=raw`, `origin` según tipo, `attributes.audio_ref`/`modality`) **y** el registro de idempotencia en una sola transacción; (4) encolar (tarea 7). La persistencia ocurre **antes** de encolar (diseño §8).
     - **Coherencia temporal:** garantizar `occurred_at ≤ created_at`; si `occurred_at` es posterior a la hora del servidor, rechazar con `400 validation_error`; si falta, persistir `null` (diseño §8, §12 P5).
     - _Requisitos: R1.1, R1.3, R1.6, R2.3, R2.4, R5.1, R8.1, R8.2, R8.3 · Propiedades P5, P6 · Diseño §8_
-  - [ ] 6.3 Implementar `CaptureController` (endpoints v1)
+  - [x] 6.3 Implementar `CaptureController` (endpoints v1)
     - `POST /v1/captures` (`202`, `Idempotency-Key` obligatorio → `400 missing_idempotency_key` si falta), `POST /v1/captures/audio-upload` (`200` presign), `GET /v1/captures/:id` (`ParseUUIDPipe`, `404` si no es del dueño), `GET /v1/captures` (listado por cursor con `next_cursor`). Bajo `JwtAuthGuard`; `user_id` siempre del token, nunca del cuerpo (diseño §7).
     - _Requisitos: R1.2, R1.4, R2.1, R3.3, R4.1, R4.2, R4.3, R7.1, R7.2, R7.3, R7.4 · Propiedad P1_
-  - [ ] 6.4 Crear `CaptureModule` y cablearlo en `AppModule`
+  - [x] 6.4 Crear `CaptureModule` y cablearlo en `AppModule`
     - `capture.module.ts` importando `PrismaModule`, `BlobStorageService`, `IdempotencyService`, cola BullMQ y `AuthModule`; registrar en `app.module.ts`. Sin código huérfano: los endpoints quedan enrutados.
     - _Requisitos: R1.1, R1.2 · Diseño §8_
-  - [ ]* 6.5 Tests unitarios de `CaptureService`/`Controller`
+  - [x]* 6.5 Tests unitarios de `CaptureService`/`Controller`
     - Verificar orden persistir→encolar, rechazo por falta de `Idempotency-Key`, mapeo de errores (401/400/403/422), y respuesta `202` con la forma correcta.
     - _Valida: Requisitos R1.2, R1.4, R1.5, R3.3, R2.5_
-  - [ ]* 6.6 PBT de coherencia temporal y lectura propia
+  - [x]* 6.6 PBT de coherencia temporal y lectura propia
     - **Property 5: Coherencia temporal** — *para toda* captura con `occurred_at` presente, `occurred_at ≤ created_at`.
     - **Property 1 (lectura):** *para toda* captura del dueño, `GET /:id` la devuelve; para no-dueño, `404`; el listado sólo incluye capturas propias.
     - **Feature: capture-engine, Property 5** / **Property 1** (fast-check, ≥100 iteraciones).
     - _Valida: Requisitos R8.1, R8.2, R4.1, R4.2, R4.3, R7.1, R7.2 · Propiedades P5, P1_
 
-- [ ] 7. Checkpoint — camino síncrono de captura funcional
+- [~] 7. Checkpoint — camino síncrono de captura funcional
   - Asegurar que todos los tests hasta aquí pasan; consultar al usuario si surgen dudas.
 
 - [ ] 8. `UnderstandingQueue` — productor BullMQ (handoff a F2)
-  - [ ] 8.1 Implementar el productor y su contrato
+  - [~] 8.1 Implementar el productor y su contrato
     - Crear `apps/api/src/capture/understanding.queue.ts` con `UNDERSTANDING_QUEUE`/`UNDERSTANDING_JOB`, la interfaz `UnderstandingJobData` (`schema_version:1`, `capture_id`, `user_id`, `enqueued_at`) y `understandingJobOpts` (`jobId = capture_id`, `attempts:5`, backoff exponencial, `removeOnFail:false`) (diseño §10).
     - Integrar `enqueueUnderstanding` en `CaptureService.create` tras persistir; el fallo de encolado **no** debe romper el `202` (la captura ya está a salvo).
     - _Requisitos: R9.1, R9.2, R9.3, R9.4, R5.2 · Propiedad P7 · Diseño §10, §10.1_
@@ -178,7 +178,7 @@ graph TD
     - _Valida: Requisitos R9.2, R9.3 · Propiedad P7_
 
 - [ ] 9. Barrido de reconciliación (red de seguridad de no-pérdida)
-  - [ ] 9.1 Implementar el job programado (cron)
+  - [~] 9.1 Implementar el job programado (cron)
     - **(Refinamiento c)** Crear un cron que se ejecute **periódicamente (~cada 1 min)** y reencole las capturas con `status=raw` **cuya antigüedad supere 5 min** y sin job activo asociado, con **límite de lote** por ejecución para acotar carga. Idempotente por `jobId = capture_id` (diseño §10.2).
     - Ejecutar bajo contexto RLS/servicio apropiado para poder leer capturas huérfanas de forma segura.
     - _Requisitos: R5.3, R5.4, R5.5 · Propiedad P2 · Diseño §10.2_
@@ -189,7 +189,7 @@ graph TD
     - _Valida: Requisitos R5.2, R5.3, R5.4 · Propiedad P2_
 
 - [ ] 10. Janitor de blobs de audio huérfanos (refinamiento a)
-  - [ ] 10.1 Implementar el recolector programado
+  - [~] 10.1 Implementar el recolector programado
     - **(Refinamiento a)** Crear un job periódico que **purgue objetos S3 subidos vía presign que nunca quedaron referenciados** por ninguna Captura, **tras un TTL** (p.ej. antigüedad del objeto > umbral y sin `attributes.audio_ref` que lo apunte).
     - Recorrer el prefijo `audio/{user_id}/`, cruzar con las `audio_ref` referenciadas y eliminar sólo los huérfanos vencidos; con límite de lote y logging de lo purgado.
     - _Requisitos: R2 (higiene de blobs; complementa R2.1, R2.4) · Diseño §9_
@@ -197,17 +197,17 @@ graph TD
     - Subir un objeto vía presign sin crear captura; avanzar el reloj/superar TTL; verificar que el janitor lo purga y que un objeto **referenciado** por una captura **no** se elimina.
     - _Valida: Requisitos R2.1, R2.4_
 
-- [ ] 11. Checkpoint — backend completo (API + cola + reconciliación + janitor)
+- [~] 11. Checkpoint — backend completo (API + cola + reconciliación + janitor)
   - Asegurar que todos los tests pasan; consultar al usuario si surgen dudas.
 
 - [ ] 12. Flutter: captura offline-first (Drift + Repository + SyncService)
-  - [ ] 12.1 Definir el esquema Drift del outbox
+  - [~] 12.1 Definir el esquema Drift del outbox
     - Crear `apps/mobile/lib/src/features/capture/data/local/capture_tables.dart` con `LocalCaptures` (PK `clientId`, `type`, `content`, `audioLocalPath`, `audioRef`, `occurredAt`, `createdAtLocal`, `syncState` default `pending`, `serverId`, `retryCount`, `nextAttemptAt`) según diseño §11.1.
     - _Requisitos: R6.1 · Diseño §11.1_
-  - [ ] 12.2 Implementar `CaptureRepository` (escritura local optimista)
+  - [~] 12.2 Implementar `CaptureRepository` (escritura local optimista)
     - Repositorio sobre Drift que genera `client_id` UUID v4, inserta con `sync_state=pending` y expone lectura de capturas locales; la UI no llama a red directamente (capas #07 §4).
     - _Requisitos: R6.1 · Diseño §11.2_
-  - [ ] 12.3 Implementar `SyncService` (drenado idempotente del outbox)
+  - [~] 12.3 Implementar `SyncService` (drenado idempotente del outbox)
     - Al recuperar conectividad / periódicamente: leer lote `pending|failed` con `next_attempt_at <= now` en orden FIFO; para voz sin `audio_ref`, presign + subir a S3 y guardar `audio_ref`; `POST /v1/captures` con `Idempotency-Key = client_id`.
     - Manejo de resultados: `202/200` → `synced` + `server_id`; `4xx` de validación → `failed` sin reintento; `5xx`/timeout/sin red → `retry_count++` y backoff exponencial en `next_attempt_at` (diseño §11.2).
     - _Requisitos: R6.2, R6.3, R6.4, R6.5, R6.6 · Propiedades P9, P3 · Diseño §11.2_
@@ -230,7 +230,7 @@ graph TD
     - Medir p95 del camino síncrono (transacción de INSERT + encolado no bloqueante) contra dependencias reales locales; confirmar que se mantiene por debajo de 300 ms y que el audio (presigned directo a S3) queda fuera del camino de la API.
     - _Valida: Requisitos R1.6 · Diseño §15_
 
-- [ ] 15. Checkpoint final — toda la suite verde
+- [~] 15. Checkpoint final — toda la suite verde
   - Asegurar que todos los tests pasan; consultar al usuario si surgen dudas.
 
 ---
