@@ -16,11 +16,18 @@ import { BlobStorageService } from './blob-storage.service';
  * It exercises the full round-trip: presign PUT -> upload the object ->
  * assertOwnedAndExists succeeds; a foreign or non-existent key fails
  * (Validates: Requirements R2.1, R2.3, R2.5 · Property P6).
+ *
+ * Gated on RUN_INTEGRATION=1: default `npm test` skips it; `RUN_INTEGRATION=1
+ * npm test` runs it against the MinIO in infra/docker-compose.test.yml.
  */
 const USER_ID = '11111111-1111-1111-1111-111111111111';
 const OTHER_USER = '22222222-2222-2222-2222-222222222222';
 
-describe.skip('BlobStorageService (integration, MinIO)', () => {
+const describeIntegration = process.env.RUN_INTEGRATION
+  ? describe
+  : describe.skip;
+
+describeIntegration('BlobStorageService (integration, MinIO)', () => {
   let service: BlobStorageService;
   let client: S3Client;
 
