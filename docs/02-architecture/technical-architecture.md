@@ -8,10 +8,17 @@
 >
 > ⚠️ **REVISADO por [ADR-010](./adr/ADR-010-final-stack-and-two-backends.md)
 > (2026-07-01):** el stack y el estilo cambiaron a mobile-first (Flutter) con
-> **dos backends** (NestJS para negocio + Python/FastAPI para IA). ADR-01,
-> ADR-03 y ADR-08 de este documento quedan superados por el ADR-010. El resto
+> **dos backends** (NestJS para negocio + Python/FastAPI para IA). ADR-001,
+> ADR-003 y ADR-008 de este documento quedan superados por el ADR-010. El resto
 > del documento (principios, contextos, flujos, atributos de calidad) sigue
 > vigente.
+>
+> 📁 **NOTA DE CONSOLIDACIÓN (2026-07-03):** los ADR que estaban embebidos en
+> este documento (antes "ADR-01".."ADR-09") se extrajeron a archivos individuales
+> en [`./adr/`](./adr/README.md) con numeración de 3 dígitos (`ADR-001`..`ADR-009`),
+> unificando el esquema con `ADR-010`/`011`/`012`. Aquí queda solo el índice con
+> enlaces (ver §3 y §5). Consolidación registrada como deuda
+> [D-004](../000_SYSTEM/012_RISK_AND_DEBT_REGISTER.md).
 
 | Metadato | Valor |
 |----------|-------|
@@ -93,32 +100,17 @@ Derivadas de #00 y #01:
 
 ## 3. Estilo arquitectónico
 
-### ADR-01 — Modular monolith sobre microservicios (para empezar)
-
-- **Decisión:** El backend se construye como un **monolito modular** con
-  contextos acotados bien definidos y fronteras internas explícitas.
-- **Estado:** 🟠 Decisión de CTO, sujeta a veto.
-- **Por qué:** Los microservicios prematuros son la causa más común de muerte
-  por complejidad en startups. Añaden sobrecarga operativa (despliegue,
-  observabilidad distribuida, consistencia entre servicios) que no se justifica
-  sin escala ni equipo grande. Un monolito modular con fronteras limpias nos da
-  velocidad hoy y permite **extraer servicios** (empezando por los workers de
-  IA) cuando los datos de carga lo justifiquen.
-- **Alternativa considerada:** microservicios desde el día uno. Rechazada por
-  costo operativo y velocidad.
-- **Punto de extensión:** los contextos acotados se comunican por interfaces
-  internas, de modo que extraer uno a un servicio independiente sea mecánico,
-  no una reescritura.
-
-### ADR-02 — Procesamiento asíncrono del pipeline de comprensión
-
-- **Decisión:** La captura es síncrona y devuelve en < 3s. La comprensión
-  (extracción de entidades, embeddings, linking) ocurre en **workers
-  asíncronos** vía cola de trabajos.
-- **Estado:** 🟢 Firme (deriva de FR-1.1 + FR-2.x).
-- **Por qué:** Cumple el requisito de captura instantánea sin bloquear al
-  usuario esperando a la IA. Además desacopla el costo/latencia del LLM de la
-  experiencia de captura, y permite reintentos y escalado independiente.
+> Las decisiones de estilo se registran ahora como ADRs individuales en
+> [`./adr/`](./adr/README.md). Resumen:
+>
+> - **[ADR-001 — Monolito modular sobre microservicios](./adr/ADR-001-modular-monolith.md)**
+>   (🟠 superado parcialmente por [ADR-010](./adr/ADR-010-final-stack-and-two-backends.md)):
+>   el backend arrancaba como monolito modular con contextos acotados y fronteras
+>   internas explícitas, para dar velocidad hoy y permitir extraer servicios
+>   después. ADR-010 adelantó esa extracción a **dos backends** desde el inicio.
+> - **[ADR-002 — Procesamiento asíncrono del pipeline de comprensión](./adr/ADR-002-async-comprehension-pipeline.md)**
+>   (🟢 firme): la captura es síncrona (< 3s); la comprensión (extracción,
+>   embeddings, linking) ocurre en workers asíncronos vía cola de trabajos.
 
 ---
 
@@ -146,120 +138,22 @@ Cada contexto tiene responsabilidad única y fronteras claras:
 > Cada decisión incluye alternativas consideradas. Las marcadas 🟠 son las de
 > mayor impacto y las que más quiero que cuestiones.
 
-### ADR-03 — Backend: Python + FastAPI para el núcleo de IA
+> Cada decisión de stack se registra ahora como un ADR individual en
+> [`./adr/`](./adr/README.md). Índice de las decisiones que antes vivían embebidas
+> en esta sección:
 
-- **Decisión:** El backend principal se escribe en **Python** con **FastAPI**.
-- **Estado:** 🟠 Decisión de CTO, sujeta a veto.
-- **Por qué:** El diferenciador de mindOS *es* la IA. El ecosistema de Python
-  para orquestación de LLMs, embeddings, procesamiento de lenguaje y
-  herramientas de ML no tiene rival. FastAPI aporta rendimiento async, tipado
-  vía type hints + Pydantic, y validación de contratos sólida. Poner el núcleo
-  donde vive el ecosistema de IA reduce fricción en el componente más crítico.
-- **Alternativas consideradas:**
-  - *TypeScript/Node (full-stack unificado):* tentador por compartir lenguaje
-    con el frontend, pero el ecosistema de IA es más pobre y acabaríamos
-    llamando a servicios Python de todas formas.
-  - *Go:* excelente rendimiento y concurrencia, pero ecosistema de IA inmaduro
-    y mayor verbosidad para iterar rápido en la capa de comprensión.
-- **Trade-off aceptado:** Python es menos performante que Go en CPU puro. Lo
-  mitigamos con procesamiento async y extrayendo trabajo pesado a workers. Para
-  nuestras cargas (I/O hacia LLMs y BD), no es el cuello de botella.
+| ADR | Decisión | Firmeza / Estado |
+|-----|----------|------------------|
+| [ADR-003](./adr/ADR-003-backend-python-fastapi.md) | Backend: Python + FastAPI para el núcleo de IA | 🟠 superado parcialmente por [ADR-010](./adr/ADR-010-final-stack-and-two-backends.md) (negocio pasa a NestJS; Python queda para el servicio de IA) |
+| [ADR-004](./adr/ADR-004-postgresql-source-of-truth.md) | PostgreSQL como sistema de verdad (incluido el grafo) | 🟠 confirmado por [ADR-012](./adr/ADR-012-canonical-stack.md) |
+| [ADR-005](./adr/ADR-005-pgvector-semantic-search.md) | Búsqueda semántica con pgvector (no vector DB dedicada, aún) | 🟠 confirmado por [ADR-012](./adr/ADR-012-canonical-stack.md) |
+| [ADR-006](./adr/ADR-006-redis-queue-cache.md) | Cola de trabajos y caché: Redis | 🟢 complementado por [ADR-012](./adr/ADR-012-canonical-stack.md) (BullMQ) |
+| [ADR-007](./adr/ADR-007-aiprovider-abstraction.md) | Capa de IA con abstracción agnóstica de proveedor (`AIProvider`) | 🟢 reafirmado por ADR-010/012 |
+| [ADR-008](./adr/ADR-008-frontend-react-pwa.md) | Frontend: TypeScript + React (web) + PWA | 🟠 superado parcialmente por [ADR-010](./adr/ADR-010-final-stack-and-two-backends.md) (mobile-first Flutter) |
+| [ADR-009](./adr/ADR-009-ai-strategy-external-llm.md) | Estrategia de IA: LLM externo ahora, IP en el motor de contexto, modelos propios después | 🟢 firme |
 
-### ADR-04 — PostgreSQL como sistema de verdad (incluido el grafo)
-
-- **Decisión:** **PostgreSQL** es el almacén principal. El grafo de
-  conocimiento se modela con tablas de **nodos** y **aristas** explícitas
-  (más JSONB para atributos flexibles).
-- **Estado:** 🟠 Decisión de CTO, sujeta a veto.
-- **Por qué:** Postgres es robusto, operacionalmente simple, escala vertical y
-  horizontalmente (réplicas de lectura, particionado), y soporta aislamiento
-  por usuario vía Row-Level Security. Introducir una base de grafos nativa
-  (Neo4j) desde el día uno añade un sistema entero que operar, respaldar y
-  monitorear, sin que la complejidad de las travesías del MVP lo justifique.
-- **Alternativa considerada:** *Neo4j / base de grafos nativa.* Superior para
-  travesías profundas y multi-salto. **Punto de reevaluación:** si las
-  consultas de grafo (recomendaciones multi-salto, análisis de relaciones
-  complejas en V2+) degradan el rendimiento en Postgres, migramos ese subdominio
-  a una base de grafos. El diseño de nodos/aristas mantiene esa puerta abierta.
-- **Trade-off aceptado:** travesías complejas en SQL son más verbosas. Aceptable
-  para el alcance del MVP (conexiones de 1-2 saltos).
-
-### ADR-05 — Búsqueda semántica con pgvector (no una vector DB dedicada, aún)
-
-- **Decisión:** Los embeddings y la búsqueda semántica (RAG) usan la extensión
-  **pgvector** sobre el mismo Postgres.
-- **Estado:** 🟠 Decisión de CTO, sujeta a veto.
-- **Por qué:** Mantiene un solo almacén operativo en el MVP. Evita sincronizar
-  datos entre Postgres y una vector DB externa. pgvector es suficiente hasta
-  escalas considerables.
-- **Punto de reevaluación:** ante millones de vectores por consulta con
-  latencia crítica, migrar a una vector DB dedicada (Qdrant / Weaviate /
-  Pinecone). La capa de recuperación se abstrae para permitir el cambio.
-
-### ADR-06 — Cola de trabajos y caché: Redis
-
-- **Decisión:** **Redis** para caché y como backend de la cola de trabajos
-  asíncronos (con un framework de workers sobre él).
-- **Estado:** 🟢 Firme.
-- **Por qué:** Estándar probado, simple, cubre caché y colas con un solo
-  componente en la fase inicial.
-
-### ADR-07 — Capa de IA con abstracción agnóstica de proveedor
-
-- **Decisión:** Todo acceso a LLMs pasa por una **capa de abstracción interna**
-  (interfaz `AIProvider`) que oculta al proveedor concreto. El MVP usa un LLM de
-  terceros vía API (decisión D6 del PRD).
-- **Estado:** 🟢 Firme (principio anti-lock-in).
-- **Por qué:** El mercado de modelos cambia cada trimestre. No podemos acoplar
-  la lógica de negocio a un proveedor. La abstracción permite: cambiar de
-  proveedor, hacer A/B entre modelos, enrutar por costo/calidad, y migrar a
-  modelos propios post-MVP sin tocar la lógica de dominio.
-- **Nota:** La elección del proveedor concreto (costo, latencia, privacidad,
-  residencia de datos) es una decisión con implicaciones de negocio y
-  privacidad; se cierra junto con #07 (Security & Privacy Framework).
-
-### ADR-08 — Frontend: TypeScript + React (web responsive) + PWA
-
-- **Decisión:** Superficie web en **React + TypeScript**, responsive
-  (desktop-primary), con capacidades **PWA** para la captura móvil.
-- **Estado:** 🟠 Decisión de CTO, sujeta a veto.
-- **Por qué:** Ecosistema maduro, contratación sencilla, PWA cubre la captura
-  móvil del MVP sin el costo de apps nativas (alineado con non-goals del PRD).
-  El framework concreto (Next.js vs. SPA con Vite) se decide en la fase de
-  frontend; recomendación inicial: Next.js por routing, SSR opcional y madurez.
-- **Trade-off aceptado:** una PWA tiene limitaciones frente a nativo (captura en
-  background, notificaciones en iOS). Aceptable para MVP; app nativa es un
-  candidato de V2 si los datos de uso lo justifican.
-
-### ADR-09 — Estrategia de IA: LLM externo ahora, IP en el motor de contexto, modelos propios especializados después
-
-- **Decisión:** El MVP usa el **LLM externo más capaz disponible** (vía la capa
-  `AIProvider` del ADR-07), con protecciones contractuales y técnicas de
-  privacidad. La inversión de ingeniería propia se concentra en el **motor de
-  contexto, el grafo de conocimiento y el sistema de memoria/recuperación** —
-  ahí vive la IP defendible de mindOS. Los modelos propios (fine-tuning o
-  auto-hospedaje) se adoptan **después**, de forma especializada, cuando el
-  grafo de datos del usuario ofrezca una ventaja de entrenamiento que un modelo
-  genérico no pueda replicar.
-- **Estado:** 🟢 Firme (decisión del founder + CTO, tomada explícitamente).
-- **Por qué:** "IA propia y potente" no se logra construyendo un LLM propio
-  (competir con laboratorios de miles de millones es inviable y el LLM es un
-  commodity que se abarata cada mes). Se logra construyendo la capa que nadie
-  puede copiar: el modelo vivo del usuario. Analogía: no fabricamos las celdas
-  de batería (el LLM); construimos el vehículo completo (el motor de contexto).
-- **Alternativa considerada y descartada:** *Modelo propio / auto-hospedado
-  desde el día uno* (la "Opción B" evaluada). Rechazada para el MVP porque:
-  (1) dispara el costo de infraestructura de GPU antes de tener ingresos;
-  (2) retrasa el lanzamiento 3-6 meses; (3) los modelos auto-hospedables hoy
-  quedan por debajo de los frontera en razonamiento, atacando justo el
-  diferenciador ("te entiende"); (4) exige talento de MLOps escaso y caro.
-- **Puerta abierta:** la capa `AIProvider` (ADR-07) permite migrar a modelos
-  propios sin tocar la lógica de dominio, cuando el negocio lo justifique. La
-  privacidad total pasa a ser una **promesa de evolución de marca**, no un
-  requisito bloqueante del MVP.
-- **Implicación para #07 (Security & Privacy):** aunque usemos un LLM externo,
-  se aplican minimización de datos enviados, prohibición contractual de
-  entrenamiento con datos del usuario, y evaluación de residencia de datos.
+> El índice completo de TODOS los ADR (001..012) vive en
+> [`./adr/README.md`](./adr/README.md).
 
 ### Resumen del stack (MVP)
 
@@ -369,3 +263,4 @@ Cada contexto tiene responsabilidad única y fronteras claras:
 |---------|-------|-------|---------|
 | 0.1 | 2026-07-01 | CTO | Borrador inicial. Estilo arquitectónico (modular monolith + async), contextos acotados, stack tecnológico con ADRs y alternativas, flujos clave, atributos de calidad, soporte a la visión a 10 años y riesgos. |
 | 0.2 | 2026-07-01 | Founder + CTO | Añadido ADR-09: estrategia de IA (LLM externo ahora + IP en el motor de contexto + modelos propios especializados después). Decisión tomada tras descartar explícitamente la opción de modelo propio desde el día uno. |
+| 0.3 | 2026-07-03 | CPTO | Consolidación de ADRs (D-004): los ADR embebidos ADR-01..ADR-09 se extrajeron a archivos individuales `ADR-001`..`ADR-009` en `./adr/` (esquema uniforme de 3 dígitos). §3 y §5 dejan solo un índice con enlaces; el detalle vive en cada archivo. Referencias cruzadas normalizadas a 3 dígitos. |

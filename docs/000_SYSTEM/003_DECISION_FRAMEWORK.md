@@ -6,7 +6,7 @@
 | Estado | 🟢 Vigente |
 | Ámbito | Cómo se toman, evalúan y registran las decisiones técnicas |
 | Depende de | [001](./001_CPTO_CHARTER.md), [002](./002_ENGINEERING_CONSTITUTION.md) |
-| Última actualización | 2026-07-02 |
+| Última actualización | 2026-07-03 |
 
 ## 1. Propósito
 Toda decisión técnica de mindOS se toma con el mismo método: explícito, trazable y proporcional a su riesgo. Este documento define los criterios, cómo comparar alternativas, cuándo se exige un ADR y qué plantilla usar.
@@ -45,7 +45,7 @@ Las decisiones reversibles de bajo impacto (elección de librería dentro del st
 
 ## 6. Plantilla de ADR
 ```markdown
-# ADR-NNNN — Título de la decisión
+# ADR-0NN — Título de la decisión
 
 | Metadato | Valor |
 |----------|-------|
@@ -69,13 +69,13 @@ Positivas, negativas (aceptadas conscientemente) y mitigaciones.
 Opciones evaluadas y por qué se descartaron.
 ```
 
-## 7. REGLA: unificación del sistema de ADRs 🟠
-Hoy existe una **inconsistencia**: los ADR-01..ADR-09 están **embebidos** dentro del documento [#02 Technical Architecture](../02-architecture/technical-architecture.md), mientras que [ADR-010](../02-architecture/adr/ADR-010-final-stack-and-two-backends.md) es un **archivo suelto**. Esto rompe la trazabilidad y dificulta superseder decisiones individuales.
+## 7. REGLA: unificación del sistema de ADRs 🟢
+Los ADR se gestionan como **archivos individuales** en `../02-architecture/adr/`, con un **esquema canónico de numeración de 3 dígitos: `ADR-0NN`** (`ADR-001`, …, `ADR-012`, …).
 
-**En adelante:**
-1. **Todo ADR es un archivo propio** en `../02-architecture/adr/`.
-2. **Esquema transitorio de ID:** HASTA completar la migración (deuda [D-004](./012_RISK_AND_DEBT_REGISTER.md)), los **nuevos ADR individuales siguen el patrón de 3 dígitos de `ADR-010`** (`ADR-011`, `ADR-012`, …) por consistencia con el único ADR individual existente. **TRAS la migración** se adoptará **cero-padding a cuatro dígitos para todos** (`ADR-0001`, …, `ADR-0009`, `ADR-0010`, `ADR-0011`, …, `ADR-00NN`), normalizando también los IDs actuales de 3 dígitos.
-3. Se **planifica migrar** los ADR embebidos del #02 a archivos individuales (`ADR-0001`..`ADR-0009`), dejando en #02 solo un índice con enlaces. Esta migración se registra como deuda [D-004](./012_RISK_AND_DEBT_REGISTER.md).
+**Reglas:**
+1. **Todo ADR es un archivo propio** en `../02-architecture/adr/`. No se embeben ADRs dentro de otros documentos.
+2. **Esquema canónico de ID: 3 dígitos, `ADR-0NN`.** Es correlativo, estable y no se reutiliza. Esta es la forma definitiva; **no hay migración futura a 4 dígitos** (fue una aspiración previa que se descarta: la realidad y lo consistente en el repo es 3 dígitos, alineado con `ADR-010`/`011`/`012`).
+3. Los ADR que estuvieron **embebidos en el [#02 Technical Architecture](../02-architecture/technical-architecture.md)** (antes "ADR-01".."ADR-09") se migraron a archivos individuales `ADR-001`..`ADR-009`, dejando en #02 solo un índice con enlaces. El índice de todos los ADR vive en [`../02-architecture/adr/README.md`](../02-architecture/adr/README.md). Esta consolidación se registra como deuda [D-004](./012_RISK_AND_DEBT_REGISTER.md) (aún pendiente migrar los ADR embebidos en #04 `ADR-A*` y #06 `ADR-I*`).
 4. Cada archivo ADR declara qué documentos o ADRs supersede, y esos documentos reciben la cabecera de aviso del [005](./005_DOCUMENTATION_STANDARD.md).
 
 ## 8. "Disagree & commit"
@@ -86,3 +86,4 @@ Si el CPTO objeta y el founder decide igual, la objeción y su motivo se registr
 |---------|-------|---------|
 | 1.0 | 2026-07-02 | Framework inicial de decisiones + regla de unificación de ADRs. |
 | 1.1 | 2026-07-02 | Aclaración transitoria del esquema de numeración de ADRs. |
+| 1.2 | 2026-07-03 | Esquema canónico de ADR fijado en **3 dígitos `ADR-0NN`** (se descarta la migración futura a 4 dígitos). §7 actualizada tras consolidar los ADR embebidos del #02 en archivos individuales `ADR-001`..`ADR-009` (D-004); plantilla §6 alineada a `ADR-0NN`. |
