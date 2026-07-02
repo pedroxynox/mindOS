@@ -35,6 +35,7 @@
 | D-005 | Sin rastreo de errores (Sentry) ni gestión formal de secretos. | Incidentes ciegos en prod y secretos mal gestionados. | Adoptar Sentry (móvil+backends) y un gestor de secretos antes de pre-beta. | 🟠 Abierto | 2026-07-02 |
 | D-006 | El barrido de reconciliación y el janitor de blobs iteran sobre TODOS los usuarios por lote | Coste O(usuarios) por ejecución; no escala a millones | Acotar a usuarios con actividad reciente / índice dedicado antes de escala | 🟠 Abierto | 2026-07-02 |
 | D-007 | El código Flutter solo se valida en CI (no hay SDK de Flutter en el entorno de desarrollo) → bucles de iteración lentos | Feedback lento en cambios móviles; riesgo de fallos detectados tarde | Aceptar CI-driven para móvil o provisionar un entorno con Flutter cuando el volumen lo justifique | 🟠 Abierto | 2026-07-02 |
+| D-008 | Dimensión del vector de embedding y elección de proveedor LLM sin fijar (depende de la PoC de F2) | Cambiarla tras poblar embeddings exige reindexar todo | Fijar con datos tras superar el umbral del arnés de evaluación de F2 (PoC de R-001) | 🟠 Abierto | 2026-07-02 |
 
 ## Historial de versiones
 | Versión | Fecha | Cambios |
@@ -44,3 +45,4 @@
 | 1.2 | 2026-07-02 | R-003 mitigado tras aprobación de ADR-011. |
 | 1.3 | 2026-07-02 | Alta de R-005 (offline sync) y D-005 (observabilidad/secretos) tras ADR-012. |
 | 1.4 | 2026-07-02 | Alta de R-006, D-006, D-007; D-001 en progreso tras hardening de reproducibilidad de la API. |
+| 1.5 | 2026-07-02 | Alta de D-008 (dimensión de embedding/proveedor) desde el diseño de F2. |
