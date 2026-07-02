@@ -19,6 +19,7 @@ Fundación documental sólida y aprobada (#00–#08). El esqueleto ejecutable ex
 - **CI:** 3 jobs (api/ai/mobile) con lint+tipos+test+build. Sin CD.
 
 ## 3. Última decisión
+ADR-012 (2026-07-02, ACEPTADO): stack canónico confirmado — Drift local, pgvector, Cloudflare (edge), MinIO/R2 (blobs S3-compatible), BullMQ (colas).
 ADR-011 (2026-07-02, ACEPTADO): DoD de F0 = CD mínimo a un staging (sin K8s) + IaC mínima; infra pesada diferida a pre-beta.
 
 ## 4. Próximo objetivo
@@ -43,10 +44,12 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 ## 9. Cambios recientes
 - Fundación del sistema de gobernanza (docs/000_SYSTEM/) — esta sesión.
 - Corrección de deriva documental del roadmap #08 (R-004) y creación del ADR-011 (propuesto) sobre la Definición de Hecho de F0 — esta sesión.
+- ADR-012 aceptado: confirmación del stack canónico y cierre de huecos (blobs, colas, edge) — esta sesión.
 
 ## 10. Preguntas abiertas
 - ¿PoC de comprensión (F2) en paralelo a F1? (recomendación CTO: sí, #08 §7).
 - Proveedor LLM y dimensión de embeddings (dependencia de #07).
+- Diseño de la estrategia offline-first / sync Drift↔API (a resolver en el spec de F1).
 
 ## 11. Acciones recomendadas (priorizadas)
 1. Cerrar deriva documental del roadmap #08 (coherencia con ADR-010).
@@ -59,3 +62,4 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 | 1.0 | 2026-07-02 | Estado inicial tras fundar el sistema de gobernanza. |
 | 1.1 | 2026-07-02 | Coherencia del #08 en curso; ADR-011 propuesto. |
 | 1.2 | 2026-07-02 | ADR-011 aceptado; F0 DoD y próximo objetivo actualizados. |
+| 1.3 | 2026-07-02 | ADR-012 aceptado; alta de R-005 y pregunta de sync offline. |

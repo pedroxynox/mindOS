@@ -17,6 +17,8 @@
 
 ---
 
+> **➕ Extendido por [ADR-012](../02-architecture/adr/ADR-012-canonical-stack.md) (2026-07-02).** Decisiones de infraestructura confirmadas: **Cloudflare** como capa edge (DNS/WAF/CDN/TLS/rate limiting, sin Workers), **almacenamiento de objetos S3-compatible** (MinIO local / Cloudflare R2 en prod), **BullMQ sobre Redis** para colas, y diferimiento de Kubernetes/IaC pesada a pre-beta (ADR-011).
+
 ## 0. Propósito
 
 Define la infraestructura que ejecuta mindOS y el proceso que lleva el código
