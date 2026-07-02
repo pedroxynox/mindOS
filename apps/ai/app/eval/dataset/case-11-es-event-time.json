@@ -1,0 +1,16 @@
+{
+  "id": "case-11",
+  "language": "es",
+  "description": "Evento con día y hora, sin acción explícita (español).",
+  "text": "Reunión con el equipo el martes a las 3pm para revisar el diseño.",
+  "gold": {
+    "entities": [
+      { "type": "event", "label": "martes" },
+      { "type": "event", "label": "3pm" },
+      { "type": "topic", "label": "reunión" },
+      { "type": "topic", "label": "diseño" }
+    ],
+    "tasks": [],
+    "connections": []
+  }
+}

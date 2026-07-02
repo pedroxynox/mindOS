@@ -1,0 +1,20 @@
+{
+  "id": "case-06",
+  "language": "en",
+  "description": "Event with two people and topics; no action item (English).",
+  "text": "Meeting with John and Sarah on Monday about the marketing budget.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "John" },
+      { "type": "person", "label": "Sarah" },
+      { "type": "event", "label": "Monday" },
+      { "type": "topic", "label": "meeting" },
+      { "type": "topic", "label": "marketing" },
+      { "type": "topic", "label": "budget" }
+    ],
+    "tasks": [],
+    "connections": [
+      { "type": "mentions", "source": "Monday", "target": "John" }
+    ]
+  }
+}

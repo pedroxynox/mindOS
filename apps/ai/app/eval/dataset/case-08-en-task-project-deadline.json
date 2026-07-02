@@ -1,0 +1,17 @@
+{
+  "id": "case-08",
+  "language": "en",
+  "description": "Action item with a project, a deadline event and a topic (English).",
+  "text": "Need to finish the Q3 report for project Titan before Friday.",
+  "gold": {
+    "entities": [
+      { "type": "project", "label": "Titan" },
+      { "type": "event", "label": "Friday" },
+      { "type": "topic", "label": "report" }
+    ],
+    "tasks": [
+      { "label": "finish the Q3 report for project Titan before Friday" }
+    ],
+    "connections": []
+  }
+}

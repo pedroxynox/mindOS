@@ -1,0 +1,18 @@
+{
+  "id": "case-12",
+  "language": "en",
+  "description": "Action item assigned to a person, with a topic (English).",
+  "text": "Send Robert the marketing plan and ask for feedback.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Robert" },
+      { "type": "topic", "label": "marketing" }
+    ],
+    "tasks": [
+      { "label": "Send Robert the marketing plan and ask for feedback" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "Send Robert the marketing plan and ask for feedback", "target": "Robert" }
+    ]
+  }
+}

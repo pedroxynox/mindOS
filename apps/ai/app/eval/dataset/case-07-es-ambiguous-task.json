@@ -1,0 +1,18 @@
+{
+  "id": "case-07",
+  "language": "es",
+  "description": "Caso ambiguo: intención tentativa que un humano anota como tarea (español).",
+  "text": "Quizás debería escribir a Pedro sobre el diseño.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Pedro" },
+      { "type": "topic", "label": "diseño" }
+    ],
+    "tasks": [
+      { "label": "escribir a Pedro sobre el diseño" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "escribir a Pedro sobre el diseño", "target": "Pedro" }
+    ]
+  }
+}

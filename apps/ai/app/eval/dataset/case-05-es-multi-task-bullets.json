@@ -1,0 +1,21 @@
+{
+  "id": "case-05",
+  "language": "es",
+  "description": "Varias tareas en viñetas, con persona y temas (español).",
+  "text": "- Comprar café\n- Enviar el informe a Lucía\n- Pagar la factura de internet",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Lucía" },
+      { "type": "topic", "label": "informe" },
+      { "type": "topic", "label": "factura" }
+    ],
+    "tasks": [
+      { "label": "Comprar café" },
+      { "label": "Enviar el informe a Lucía" },
+      { "label": "Pagar la factura de internet" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "Enviar el informe a Lucía", "target": "Lucía" }
+    ]
+  }
+}

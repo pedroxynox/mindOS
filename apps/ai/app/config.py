@@ -18,9 +18,24 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://mindos:mindos@localhost:5432/mindos"
     redis_url: str = "redis://localhost:6379"
 
-    # LLM provider selection (provider-agnostic layer, ADR-09).
-    # Concrete keys are added in F2; F0 keeps this abstract.
-    llm_provider: str = "none"
+    # LLM provider selection (provider-agnostic layer, ADR-09 / ADR-012 D4).
+    # 'fake' is the default so the comprehension PoC and its evaluation harness
+    # run fully offline with zero cost. Set to 'openai' for a real run.
+    llm_provider: str = "fake"
+
+    # OpenAI provider (only required when llm_provider = 'openai').
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4o-mini"
+    openai_embedding_model: str = "text-embedding-3-small"
+
+    # --- Evaluation gate thresholds (design §13.2) ---------------------------
+    # PROVISIONAL values, pending ratification by the product owner. They are
+    # the acceptance gate that de-risks R-001 before building the full pipeline.
+    eval_f1_entities_min: float = 0.80
+    eval_task_precision_min: float = 0.85
+    eval_hallucination_max: float = 0.05
+    # Average cost budget per capture in USD (the "presupuesto acordado").
+    eval_cost_per_capture_max_usd: float = 0.01
 
 
 settings = Settings()

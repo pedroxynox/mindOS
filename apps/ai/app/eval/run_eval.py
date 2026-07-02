@@ -1,0 +1,176 @@
+"""Evaluation runner + acceptance gate (design §13.3).
+
+Loads the eval set, runs extraction with the chosen provider, aggregates the
+metrics, prints a human-readable report, and compares against the acceptance
+thresholds. In "gate" mode a failed threshold exits non-zero (for future CI).
+
+Run it with:
+
+    python -m app.eval.run_eval                 # FakeProvider (offline), report only
+    python -m app.eval.run_eval --gate          # exit != 0 if thresholds not met
+    python -m app.eval.run_eval --provider openai --gate
+
+Thresholds are PROVISIONAL (design §13.2) — pending ratification by the product
+owner. They are read from Settings so they can be tuned without code changes.
+"""
+
+import argparse
+import asyncio
+
+from app.config import Settings
+from app.config import settings as default_settings
+from app.eval.loader import EvalDataset, load_dataset
+from app.eval.metrics import (
+    EvalReport,
+    Thresholds,
+    aggregate,
+    score_case,
+)
+from app.providers.base import AIProvider
+from app.providers.factory import build_provider
+from app.understanding.extract import Extraction, run_extraction
+
+
+def thresholds_from_settings(s: Settings) -> Thresholds:
+    return Thresholds(
+        f1_entities_min=s.eval_f1_entities_min,
+        task_precision_min=s.eval_task_precision_min,
+        hallucination_max=s.eval_hallucination_max,
+        cost_per_capture_max_usd=s.eval_cost_per_capture_max_usd,
+    )
+
+
+async def run_eval(provider: AIProvider, dataset: EvalDataset) -> EvalReport:
+    """Score every case in the dataset and aggregate into a report."""
+    scores = []
+    for case in dataset.cases:
+        try:
+            result = await run_extraction(case.text, provider)
+            predicted = result.extraction
+            cost = result.usage.cost_usd
+            latency = result.latency_ms
+        except ValueError:
+            # Malformed/invalid provider output counts as an empty extraction
+            # (all gold items become false negatives) — never a crash.
+            predicted = Extraction()
+            cost = 0.0
+            latency = 0.0
+        scores.append(
+            score_case(case.id, predicted, case.gold, cost, latency)
+        )
+    return aggregate(scores)
+
+
+def render_report(
+    report: EvalReport,
+    thresholds: Thresholds,
+    provider_name: str,
+) -> str:
+    """Build the human-readable evaluation report."""
+    passed, failures = report.gate(thresholds)
+    lines: list[str] = []
+    lines.append("=" * 68)
+    lines.append("  mindOS — F2 Comprehension Evaluation Report (de-risk R-001)")
+    lines.append("=" * 68)
+    lines.append(f"  provider     : {provider_name}")
+    lines.append(f"  cases        : {report.n_cases}")
+    lines.append("-" * 68)
+    lines.append("  Aggregate metrics (micro-averaged)")
+    lines.append(
+        f"    entities   P={report.entity.precision:.3f}  "
+        f"R={report.entity.recall:.3f}  F1={report.entity.f1:.3f}  "
+        f"(tp={report.entity.tp} fp={report.entity.fp} fn={report.entity.fn})"
+    )
+    lines.append(
+        f"    tasks      P={report.task.precision:.3f}  "
+        f"R={report.task.recall:.3f}  F1={report.task.f1:.3f}  "
+        f"(tp={report.task.tp} fp={report.task.fp} fn={report.task.fn})"
+    )
+    lines.append(
+        f"    connections P={report.connection.precision:.3f}  "
+        f"R={report.connection.recall:.3f}  F1={report.connection.f1:.3f}"
+    )
+    lines.append(f"    hallucination rate : {report.hallucination_rate:.3f}")
+    lines.append(f"    mean cost / capture: ${report.mean_cost_usd:.6f}")
+    lines.append(f"    latency p95        : {report.p95_latency_ms:.2f} ms")
+    lines.append("-" * 68)
+    lines.append("  Acceptance gate (PROVISIONAL — pending product sign-off)")
+
+    def flag(ok: bool) -> str:
+        return "PASS" if ok else "FAIL"
+
+    f1_ok = report.entity.f1 >= thresholds.f1_entities_min
+    task_ok = report.task.precision >= thresholds.task_precision_min
+    hall_ok = report.hallucination_rate <= thresholds.hallucination_max
+    cost_ok = report.mean_cost_usd <= thresholds.cost_per_capture_max_usd
+    lines.append(
+        f"    F1 entities        >= {thresholds.f1_entities_min:.2f}   "
+        f"-> {report.entity.f1:.3f}  {flag(f1_ok)}"
+    )
+    lines.append(
+        f"    task precision     >= {thresholds.task_precision_min:.2f}   "
+        f"-> {report.task.precision:.3f}  {flag(task_ok)}"
+    )
+    lines.append(
+        f"    hallucination      <= {thresholds.hallucination_max:.2f}   "
+        f"-> {report.hallucination_rate:.3f}  {flag(hall_ok)}"
+    )
+    lines.append(
+        f"    mean cost/capture  <= ${thresholds.cost_per_capture_max_usd:.4f} "
+        f"-> ${report.mean_cost_usd:.6f}  {flag(cost_ok)}"
+    )
+    lines.append("-" * 68)
+    lines.append("  Per-case entity F1 / task precision")
+    for s in report.per_case:
+        lines.append(
+            f"    {s.case_id:<9} F1={s.entity.f1:.3f}  "
+            f"taskP={s.task.precision:.3f}  hall={s.hallucination:.3f}"
+        )
+    lines.append("=" * 68)
+    verdict = "GATE PASSED" if passed else "GATE FAILED"
+    lines.append(f"  VERDICT: {verdict}")
+    if not passed:
+        for f in failures:
+            lines.append(f"    - {f}")
+    lines.append("=" * 68)
+    return "\n".join(lines)
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the F2 comprehension eval.")
+    parser.add_argument(
+        "--provider",
+        default=None,
+        help="Override llm_provider (fake|openai). Defaults to Settings.",
+    )
+    parser.add_argument(
+        "--gate",
+        action="store_true",
+        help="Exit non-zero if the acceptance thresholds are not met.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    s = default_settings
+    if args.provider:
+        s = Settings(**{**default_settings.model_dump(), "llm_provider": args.provider})
+    provider = build_provider(s)
+    dataset = load_dataset()
+    report = asyncio.run(run_eval(provider, dataset))
+    thresholds = thresholds_from_settings(s)
+    print(render_report(report, thresholds, s.llm_provider))
+    if args.gate:
+        passed, _ = report.gate(thresholds)
+        return 0 if passed else 1
+    return 0
+
+
+def _as_mutable(s: Settings) -> Settings:
+    # Settings is a Pydantic model; build a fresh instance to override a field.
+    return Settings(**s.model_dump())
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
