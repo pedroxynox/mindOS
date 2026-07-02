@@ -4,11 +4,11 @@
 > Integra todo lo anterior (#00–#07) en una **secuencia de construcción por
 > fases**. Responde: *¿qué construimos primero, segundo, tercero, y por qué?*
 
-> **⚠️ Revisado por [ADR-010](../02-architecture/adr/ADR-010-final-stack-and-two-backends.md) (2026-07-01).** El stack y las fases F0–F1 se actualizan a **mobile-first con dos backends** (NestJS de negocio + Python/FastAPI de IA) y **auth JWT propia**. Las menciones originales a "FastAPI único", "frontend React", "PWA" y "auth vía proveedor gestionado" quedan superadas por ese ADR. La Definición de Hecho de F0 se refina en [ADR-011](../02-architecture/adr/ADR-011-f0-definition-of-done-and-infra.md) (propuesto).
+> **⚠️ Revisado por [ADR-010](../02-architecture/adr/ADR-010-final-stack-and-two-backends.md) (2026-07-01).** El stack y las fases F0–F1 se actualizan a **mobile-first con dos backends** (NestJS de negocio + Python/FastAPI de IA) y **auth JWT propia**. Las menciones originales a "FastAPI único", "frontend React", "PWA" y "auth vía proveedor gestionado" quedan superadas por ese ADR. La Definición de Hecho de F0 se refina en [ADR-011](../02-architecture/adr/ADR-011-f0-definition-of-done-and-infra.md) (aceptado).
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 0.2 |
+| Versión | 0.3 |
 | Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00–#07 (toda la cadena) |
@@ -66,10 +66,9 @@ producto todavía. Elimina el riesgo de integración temprano.
 - IaC inicial (#06) para staging.
 - Base de **autenticación propia (JWT en NestJS)** en su forma más básica. *[Actualizado por ADR-010]*
 
-**Hecho cuando:** un commit a `main` despliega automáticamente a staging un
-"hello world" que pasa por api + BD, con toda la cadena de CI/CD verde.
+**Hecho cuando (revisado por ADR-011, aceptado):** (1) CI verde en api/ai/mobile; (2) build y publicación de imágenes de contenedor de api y ai vía CI; (3) despliegue continuo a UN único entorno de staging (host/PaaS de contenedores simple, sin Kubernetes); (4) IaC mínima y declarativa de ese entorno. La infraestructura pesada (Kubernetes, prod aislado, IaC completa, observabilidad avanzada) se difiere a una fase pre-beta.
 
-> *Nota (ADR-011, propuesto): esta Definición de Hecho se refina a un CD mínimo a un único staging (sin K8s) + IaC mínima; la infra pesada se difiere a pre-beta. Estado real hoy: ≈70% (CI verde y docker-compose local; falta CD/IaC).*
+> *Estado real hoy: (1) cumplido; (2)(3)(4) pendientes. F0 ≈70%.*
 
 **Riesgo que elimina:** integración de infraestructura y pipeline (el "no
 compila en prod" tardío).
@@ -253,3 +252,4 @@ Con la fundación documental completa (#00–#08 aprobados), el siguiente paso e
 |---------|-------|-------|---------|
 | 0.1 | 2026-07-01 | CTO | Borrador inicial. Secuencia de fases F0–F5 orientada a riesgo y aprendizaje, con resultados demostrables, dependencias críticas, qué queda fuera del MVP, definición de éxito y siguiente paso (iniciar F0). |
 | 0.2 | 2026-07-02 | CPTO | Cabecera de supersesión (ADR-010). Corrección de deriva en F0/F1 (stack de dos backends, auth JWT propia, superficie Flutter). Nota de refinamiento de la DoD de F0 (ADR-011). |
+| 0.3 | 2026-07-02 | CPTO | DoD de F0 actualizada por ADR-011 (aceptado): CD mínimo + diferimiento de infra pesada. |
