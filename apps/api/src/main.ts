@@ -5,9 +5,14 @@ import { AppModule } from './app.module';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
-  // Global input validation (Engineering Standards #05 §8).
+  // Global input validation (Engineering Standards #05 §8). `transform` coerces
+  // query/body primitives (e.g. list pagination `limit`) to their DTO types.
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
   );
 
   // API versioning via path prefix (API Design #04 §3).
