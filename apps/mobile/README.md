@@ -27,3 +27,27 @@ alive end-to-end (mobile -> API).
 ## Quality
 - `flutter analyze` — static analysis
 - `flutter test` — tests
+
+## Installing Flutter (local/CI-like Linux)
+No package manager ships Flutter; install the stable SDK directly and add it to
+`PATH` (clone it **outside** the repo so it never pollutes the working tree):
+
+```bash
+git clone --depth 1 -b stable https://github.com/flutter/flutter.git "$HOME/flutter"
+export PATH="$HOME/flutter/bin:$PATH"
+flutter --version          # first run downloads the embedded Dart SDK
+flutter config --no-analytics
+```
+
+Then, inside `apps/mobile`:
+
+```bash
+flutter pub get
+dart run build_runner build --delete-conflicting-outputs   # generates Drift's app_database.g.dart
+flutter analyze --no-fatal-infos
+flutter test
+```
+
+For `flutter test`, the Dart toolchain alone is enough (no Android/iOS SDK
+needed); `NativeDatabase.memory()` uses the bundled `sqlite3`.
+

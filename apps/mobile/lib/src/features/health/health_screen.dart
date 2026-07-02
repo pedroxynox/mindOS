@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'health_providers.dart';
 
@@ -15,6 +16,11 @@ class HealthScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('mindOS')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/capture'),
+        icon: const Icon(Icons.edit_note),
+        label: const Text('Capturar'),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
