@@ -1,4 +1,10 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 /** Payload for registration and login. */
 export class CredentialsDto {
@@ -14,6 +20,17 @@ export class CredentialsDto {
 export class RefreshDto {
   @IsString()
   refreshToken!: string;
+}
+
+/** Payload to revoke a refresh token (logout). */
+export class LogoutDto {
+  @IsString()
+  refreshToken!: string;
+
+  /** When true, revoke every active session of the user (global logout). */
+  @IsOptional()
+  @IsBoolean()
+  allSessions?: boolean;
 }
 
 /** Tokens returned to the client after authentication. */
