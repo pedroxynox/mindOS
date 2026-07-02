@@ -9,7 +9,7 @@
 | Avance estimado del MVP (F0–F5) | ~8–10 % |
 
 ## 1. Resumen ejecutivo
-Fundación documental sólida y aprobada (#00–#08). El esqueleto ejecutable existe (3 apps + Docker + CI verde). La autenticación JWT (F1a) está implementada a nivel funcional pero sin endurecer. F0 NO cumple aún su propia Definición de Hecho (falta CD a staging + IaC). Existe deriva documental en el roadmap (#08).
+Fundación documental sólida y aprobada (#00–#08). El esqueleto ejecutable existe (3 apps + Docker + CI verde). La autenticación JWT (F1a) está implementada a nivel funcional pero sin endurecer. F0 NO cumple aún su propia Definición de Hecho (falta CD a staging + IaC). La deriva documental del roadmap #08 (R-004) ya fue corregida y la DoD de F0 redefinida (ADR-011). El spec de F1 (Capture Engine) está completo y listo para implementación.
 
 ## 2. Qué existe hoy (verificado en repo)
 - **apps/api (NestJS):** health `/v1/health`; auth `register/login/refresh` con bcrypt(cost 12) + JWT access/refresh; `JwtAuthGuard`; Prisma con SOLO el modelo `User`. Sin nodes/edges, sin RLS.
@@ -26,7 +26,7 @@ ADR-011 (2026-07-02, ACEPTADO): DoD de F0 = CD mínimo a un staging (sin K8s) + 
 Implementar F1 — Capture Engine siguiendo el plan de tareas del spec (empezando por la migración Prisma de nodes/edges + RLS fail-closed). El diseño, los requisitos (EARS) y el plan de 15 tareas ya están aprobados.
 
 ## 5. Bloqueadores
-Ninguno técnico duro. En resolución: la deriva del #08 (R-004) se está corrigiendo en el PR de coherencia.
+Ninguno. La deriva del #08 (R-004) quedó corregida y mergeada. F1 está listo para entrar en implementación.
 
 ## 6. Riesgos vivos (detalle e historia en [012](./012_RISK_AND_DEBT_REGISTER.md))
 - R-001 (Alto): calidad de comprensión de F2 aún no de-riesgada (PoC pendiente).
@@ -51,12 +51,11 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 ## 10. Preguntas abiertas
 - ¿PoC de comprensión (F2) en paralelo a F1? (recomendación CTO: sí, #08 §7).
 - Proveedor LLM y dimensión de embeddings (dependencia de #07).
-- Diseño de la estrategia offline-first / sync Drift↔API (a resolver en el spec de F1).
 
 ## 11. Acciones recomendadas (priorizadas)
-1. Cerrar deriva documental del roadmap #08 (coherencia con ADR-010).
-2. ADR sobre el estado real de F0 (cerrar CD/IaC o posponer con criterio).
-3. Diseñar F1 (Capture Engine) como primer spec de implementación.
+1. Implementar F1 — Capture Engine según el plan de tareas, empezando por la migración Prisma de `nodes`/`edges` + RLS fail-closed (tareas 1–3).
+2. Endurecer la autenticación propia (R-002) antes de pre-beta; no dejarlo sin fecha.
+3. Considerar la PoC aislada de comprensión (F2) en paralelo a F1 para de-riesgar R-001 (nuestro mayor riesgo).
 
 ## Historial de versiones
 | Versión | Fecha | Cambios |
@@ -66,3 +65,4 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 | 1.2 | 2026-07-02 | ADR-011 aceptado; F0 DoD y próximo objetivo actualizados. |
 | 1.3 | 2026-07-02 | ADR-012 aceptado; alta de R-005 y pregunta de sync offline. |
 | 1.4 | 2026-07-02 | Spec de F1 completo (diseño+requisitos+tareas); próximo objetivo = implementación de F1. |
+| 1.5 | 2026-07-02 | Saneado de secciones desactualizadas (resumen, bloqueadores, acciones, preguntas) tras completar el spec de F1. |
