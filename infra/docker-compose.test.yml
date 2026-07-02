@@ -1,0 +1,90 @@
+# mindOS — integration TEST stack (F1 / R-006).
+#
+# Brings up the REAL backing services the skipped `*.integration.spec.ts` suites
+# need: PostgreSQL (with pgvector + the fail-closed RLS setup), Redis (BullMQ
+# handoff) and MinIO (S3-compatible blob storage). It intentionally does NOT
+# build the API/AI images — the integration tests run on the host via Jest and
+# connect to these containers.
+#
+# Usage (see apps/api/TESTING.md for the full walkthrough):
+#   docker compose -f infra/docker-compose.test.yml up -d
+#   # then, from apps/api: prisma migrate deploy + RUN_INTEGRATION=1 npm test
+#   docker compose -f infra/docker-compose.test.yml down -v
+#
+# Ports mirror apps/api/.env.example defaults (5432 / 6379 / 9000) so the specs
+# work with zero extra env. Do NOT run this at the same time as the dev stack
+# (infra/docker-compose.yml); stop one before starting the other.
+name: mindos-test
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL + pgvector. Owner/superuser is `mindos` (used by prisma migrate
+  # deploy). The non-owner application role `mindos_app` (NOSUPERUSER /
+  # NOBYPASSRLS) is what the app + RLS integration tests connect as; it is
+  # (re)created idempotently both by ./postgres-init and by the RLS migration.
+  # ---------------------------------------------------------------------------
+  postgres-test:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: mindos
+      POSTGRES_PASSWORD: mindos
+      POSTGRES_DB: mindos
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mindos -d mindos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Redis — BullMQ broker for the understanding handoff (P7) and reconciliation.
+  # Unauthenticated, matching REDIS_PASSWORD="" in .env.example.
+  # ---------------------------------------------------------------------------
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # MinIO — S3-compatible object storage for voice blobs (P6). Credentials match
+  # S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY in .env.example (minioadmin).
+  # ---------------------------------------------------------------------------
+  minio-test:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API (S3_ENDPOINT=http://localhost:9000)
+      - "9001:9001"   # web console (optional, for debugging)
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # One-shot init: creates the `mindos-audio` bucket (S3_BUCKET) the blob-storage
+  # / janitor integration tests expect, then exits. Keeps the specs from having
+  # to create the bucket themselves.
+  # ---------------------------------------------------------------------------
+  minio-setup:
+    image: minio/mc:latest
+    depends_on:
+      minio-test:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio-test:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/mindos-audio &&
+      echo 'bucket mindos-audio ready'
+      "

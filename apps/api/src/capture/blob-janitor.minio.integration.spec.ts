@@ -25,94 +25,104 @@ import { BlobStorageService } from './blob-storage.service';
  *
  * Validates: Requirements R2.1, R2.4 — an unreferenced, expired upload is
  * purged; an object referenced by a capture is never deleted.
+ *
+ * Gated on RUN_INTEGRATION=1: default `npm test` skips it; `RUN_INTEGRATION=1
+ * npm test` runs it against MinIO + Postgres in infra/docker-compose.test.yml.
  */
 const USER_ID = '55555555-5555-5555-5555-555555555555';
 
-describe.skip('BlobJanitorService (integration, MinIO + Postgres)', () => {
-  let prisma: PrismaService;
-  let rls: PrismaRlsService;
-  let blobs: BlobStorageService;
-  let janitor: BlobJanitorService;
-  let s3: S3Client;
+const describeIntegration = process.env.RUN_INTEGRATION
+  ? describe
+  : describe.skip;
 
-  beforeAll(async () => {
-    prisma = new PrismaService();
-    await (prisma as unknown as PrismaClient).$connect();
-    rls = new PrismaRlsService(prisma);
+describeIntegration(
+  'BlobJanitorService (integration, MinIO + Postgres)',
+  () => {
+    let prisma: PrismaService;
+    let rls: PrismaRlsService;
+    let blobs: BlobStorageService;
+    let janitor: BlobJanitorService;
+    let s3: S3Client;
 
-    s3 = new S3Client({
-      region: 'us-east-1',
-      endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
-      forcePathStyle: true,
-      credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY_ID ?? 'minioadmin',
-        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? 'minioadmin',
-      },
-    });
-    const config = {
-      get: (key: string): string | undefined =>
-        ({
-          S3_BUCKET: 'mindos-audio',
-          S3_PRESIGN_TTL: '300',
-          JANITOR_TTL_HOURS: '1',
-          JANITOR_BATCH_LIMIT: '100',
-        })[key],
-    } as unknown as ConfigService;
-    blobs = new BlobStorageService(s3, config);
-    janitor = new BlobJanitorService(prisma, rls, blobs, config);
+    beforeAll(async () => {
+      prisma = new PrismaService();
+      await (prisma as unknown as PrismaClient).$connect();
+      rls = new PrismaRlsService(prisma);
 
-    try {
-      await s3.send(new CreateBucketCommand({ Bucket: 'mindos-audio' }));
-    } catch {
-      // Bucket may already exist — ignore.
-    }
-  });
-
-  afterAll(async () => {
-    await (prisma as unknown as PrismaClient).$disconnect();
-  });
-
-  it('purges an unreferenced expired object and keeps a referenced one', async () => {
-    // Orphan upload: object exists but no capture references it.
-    const orphanKey = `audio/${USER_ID}/orphan.m4a`;
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: 'mindos-audio',
-        Key: orphanKey,
-        Body: 'orphan',
-      }),
-    );
-
-    // Referenced object: create a capture pointing at it.
-    const referencedKey = `audio/${USER_ID}/kept.m4a`;
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: 'mindos-audio',
-        Key: referencedKey,
-        Body: 'kept',
-      }),
-    );
-    await rls.withUser(USER_ID, (tx) =>
-      tx.node.create({
-        data: {
-          userId: USER_ID,
-          type: 'capture',
-          origin: 'voice',
-          attributes: { audio_ref: referencedKey, modality: 'voice' },
+      s3 = new S3Client({
+        region: 'us-east-1',
+        endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
+        forcePathStyle: true,
+        credentials: {
+          accessKeyId: process.env.S3_ACCESS_KEY_ID ?? 'minioadmin',
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? 'minioadmin',
         },
-      }),
-    );
+      });
+      const config = {
+        get: (key: string): string | undefined =>
+          ({
+            S3_BUCKET: 'mindos-audio',
+            S3_PRESIGN_TTL: '300',
+            JANITOR_TTL_HOURS: '1',
+            JANITOR_BATCH_LIMIT: '100',
+          })[key],
+      } as unknown as ConfigService;
+      blobs = new BlobStorageService(s3, config);
+      janitor = new BlobJanitorService(prisma, rls, blobs, config);
 
-    // NOTE: real runs must age the orphan past the TTL (fake clock / pre-aged
-    // object) so it is eligible; the referenced object is spared regardless.
-    const objects = await blobs.listAudioObjects(USER_ID);
-    expect(objects.map((o) => o.key)).toEqual(
-      expect.arrayContaining([orphanKey, referencedKey]),
-    );
+      try {
+        await s3.send(new CreateBucketCommand({ Bucket: 'mindos-audio' }));
+      } catch {
+        // Bucket may already exist — ignore.
+      }
+    });
 
-    await janitor.purgeOrphans();
+    afterAll(async () => {
+      await (prisma as unknown as PrismaClient).$disconnect();
+    });
 
-    const remaining = await blobs.listAudioObjects(USER_ID);
-    expect(remaining.map((o) => o.key)).toContain(referencedKey);
-  });
-});
+    it('purges an unreferenced expired object and keeps a referenced one', async () => {
+      // Orphan upload: object exists but no capture references it.
+      const orphanKey = `audio/${USER_ID}/orphan.m4a`;
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: 'mindos-audio',
+          Key: orphanKey,
+          Body: 'orphan',
+        }),
+      );
+
+      // Referenced object: create a capture pointing at it.
+      const referencedKey = `audio/${USER_ID}/kept.m4a`;
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: 'mindos-audio',
+          Key: referencedKey,
+          Body: 'kept',
+        }),
+      );
+      await rls.withUser(USER_ID, (tx) =>
+        tx.node.create({
+          data: {
+            userId: USER_ID,
+            type: 'capture',
+            origin: 'voice',
+            attributes: { audio_ref: referencedKey, modality: 'voice' },
+          },
+        }),
+      );
+
+      // NOTE: real runs must age the orphan past the TTL (fake clock / pre-aged
+      // object) so it is eligible; the referenced object is spared regardless.
+      const objects = await blobs.listAudioObjects(USER_ID);
+      expect(objects.map((o) => o.key)).toEqual(
+        expect.arrayContaining([orphanKey, referencedKey]),
+      );
+
+      await janitor.purgeOrphans();
+
+      const remaining = await blobs.listAudioObjects(USER_ID);
+      expect(remaining.map((o) => o.key)).toContain(referencedKey);
+    });
+  },
+);

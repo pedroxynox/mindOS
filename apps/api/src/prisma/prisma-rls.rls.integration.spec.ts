@@ -17,65 +17,76 @@ import { PrismaService } from './prisma.service';
  *
  * Feature: capture-engine, Property 8: Fail-closed sin contexto de usuario.
  * Feature: capture-engine, Property 1: Aislamiento por dueño (RLS).
+ *
+ * Gated on RUN_INTEGRATION=1 so the default `npm test` keeps skipping it, while
+ * `RUN_INTEGRATION=1 npm test` runs it against the docker-compose test stack.
+ * DATABASE_URL must point at the NON-OWNER role (mindos_app) for RLS to bite.
  */
-describe.skip('PrismaRlsService — RLS isolation (requires Postgres + non-owner role)', () => {
-  let prisma: PrismaService;
-  let rls: PrismaRlsService;
-  let userA: string;
-  let userB: string;
+const describeIntegration = process.env.RUN_INTEGRATION
+  ? describe
+  : describe.skip;
 
-  beforeAll(async () => {
-    prisma = new PrismaService();
-    await (prisma as unknown as PrismaClient).$connect();
-    rls = new PrismaRlsService(prisma);
+describeIntegration(
+  'PrismaRlsService — RLS isolation (requires Postgres + non-owner role)',
+  () => {
+    let prisma: PrismaService;
+    let rls: PrismaRlsService;
+    let userA: string;
+    let userB: string;
 
-    // Seed two users (owner-context inserts happen without RLS on `users`).
-    const a = await prisma.user.create({
-      data: { email: `a-${Date.now()}@example.com`, passwordHash: 'x' },
+    beforeAll(async () => {
+      prisma = new PrismaService();
+      await (prisma as unknown as PrismaClient).$connect();
+      rls = new PrismaRlsService(prisma);
+
+      // Seed two users (owner-context inserts happen without RLS on `users`).
+      const a = await prisma.user.create({
+        data: { email: `a-${Date.now()}@example.com`, passwordHash: 'x' },
+      });
+      const b = await prisma.user.create({
+        data: { email: `b-${Date.now()}@example.com`, passwordHash: 'x' },
+      });
+      userA = a.id;
+      userB = b.id;
     });
-    const b = await prisma.user.create({
-      data: { email: `b-${Date.now()}@example.com`, passwordHash: 'x' },
+
+    afterAll(async () => {
+      await (prisma as unknown as PrismaClient).$disconnect();
     });
-    userA = a.id;
-    userB = b.id;
-  });
 
-  afterAll(async () => {
-    await (prisma as unknown as PrismaClient).$disconnect();
-  });
+    it('P1: each user only sees their own nodes', async () => {
+      const created = await rls.withUser(userA, (tx) =>
+        tx.node.create({
+          data: {
+            userId: userA,
+            type: 'capture',
+            origin: 'manual_text',
+            body: 'a',
+          },
+        }),
+      );
 
-  it('P1: each user only sees their own nodes', async () => {
-    const created = await rls.withUser(userA, (tx) =>
-      tx.node.create({
-        data: {
-          userId: userA,
-          type: 'capture',
-          origin: 'manual_text',
-          body: 'a',
-        },
-      }),
-    );
+      // Owner A sees it.
+      const seenByA = await rls.withUser(userA, (tx) =>
+        tx.node.findUnique({ where: { id: created.id } }),
+      );
+      expect(seenByA).not.toBeNull();
 
-    // Owner A sees it.
-    const seenByA = await rls.withUser(userA, (tx) =>
-      tx.node.findUnique({ where: { id: created.id } }),
-    );
-    expect(seenByA).not.toBeNull();
+      // Non-owner B does not.
+      const seenByB = await rls.withUser(userB, (tx) =>
+        tx.node.findUnique({ where: { id: created.id } }),
+      );
+      expect(seenByB).toBeNull();
+    });
 
-    // Non-owner B does not.
-    const seenByB = await rls.withUser(userB, (tx) =>
-      tx.node.findUnique({ where: { id: created.id } }),
-    );
-    expect(seenByB).toBeNull();
-  });
+    it('P8: without app.current_user_id no rows are visible or writable', async () => {
+      // Raw query outside withUser() => no context => fail-closed.
+      const rows = await prisma.$queryRaw`SELECT id FROM nodes`;
+      expect(rows).toHaveLength(0);
 
-  it('P8: without app.current_user_id no rows are visible or writable', async () => {
-    // Raw query outside withUser() => no context => fail-closed.
-    const rows = await prisma.$queryRaw`SELECT id FROM nodes`;
-    expect(rows).toHaveLength(0);
-
-    await expect(
-      prisma.$executeRaw`INSERT INTO nodes (user_id, type, origin) VALUES (${userA}::uuid, 'capture', 'manual_text')`,
-    ).rejects.toBeTruthy();
-  });
-});
+      await expect(
+        prisma.$executeRaw`INSERT INTO nodes (user_id, type, origin) VALUES (${userA}::uuid, 'capture', 'manual_text')`,
+      ).rejects.toBeTruthy();
+    });
+  },
+);
