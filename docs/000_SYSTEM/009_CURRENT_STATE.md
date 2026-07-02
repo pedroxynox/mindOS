@@ -23,7 +23,7 @@ ADR-012 (2026-07-02, ACEPTADO): stack canónico confirmado — Drift local, pgve
 ADR-011 (2026-07-02, ACEPTADO): DoD de F0 = CD mínimo a un staging (sin K8s) + IaC mínima; infra pesada diferida a pre-beta.
 
 ## 4. Próximo objetivo
-Ejecutar el cierre de F0 según ADR-011 (imágenes en CI + CD a staging + IaC mínima) y, en paralelo, abrir el spec de diseño de F1 — Capture Engine (POST /v1/captures + nodo Capture + tablas nodes/edges + RLS).
+Implementar F1 — Capture Engine siguiendo el plan de tareas del spec (empezando por la migración Prisma de nodes/edges + RLS fail-closed). El diseño, los requisitos (EARS) y el plan de 15 tareas ya están aprobados.
 
 ## 5. Bloqueadores
 Ninguno técnico duro. En resolución: la deriva del #08 (R-004) se está corrigiendo en el PR de coherencia.
@@ -32,16 +32,18 @@ Ninguno técnico duro. En resolución: la deriva del #08 (R-004) se está corrig
 - R-001 (Alto): calidad de comprensión de F2 aún no de-riesgada (PoC pendiente).
 - R-002 (Medio): auth propia sin endurecer (rate limiting, rotación de refresh, enumeración por timing) — deuda de seguridad abierta.
 - R-003 (Mitigado): DoD de F0 redefinida por ADR-011 (aceptado).
+- R-005 (Abordado en diseño): estrategia offline-first (outbox Drift + idempotencia por client_id) definida en el spec de F1; pendiente de validar en implementación.
 
 ## 7. Deuda técnica top (detalle en [012](./012_RISK_AND_DEBT_REGISTER.md))
 - D-001: sin lockfiles commiteados (CI usa `npm install`, no `npm ci`) → builds no reproducibles.
-- D-002: nodes/edges + RLS del #03 no implementados (esperado, pero es el core).
+- D-002 (Diseñado): nodes/edges + RLS especificados en el spec de F1; se implementan en sus tareas.
 - D-003: TODO de "dummy compare" en login (side-channel de enumeración).
 
 ## 8. Salud de la arquitectura
 Alta coherencia doc→código. La frontera de dos backends está bien definida. Riesgo de complejidad distribuida asumido conscientemente (ADR-010).
 
 ## 9. Cambios recientes
+- Spec completo de F1 — Capture Engine: diseño técnico, requisitos EARS (9, trazables a P1–P9) y plan de tareas (15, ordenadas por dependencias) — esta sesión.
 - Fundación del sistema de gobernanza (docs/000_SYSTEM/) — esta sesión.
 - Corrección de deriva documental del roadmap #08 (R-004) y creación del ADR-011 (propuesto) sobre la Definición de Hecho de F0 — esta sesión.
 - ADR-012 aceptado: confirmación del stack canónico y cierre de huecos (blobs, colas, edge) — esta sesión.
@@ -63,3 +65,4 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 | 1.1 | 2026-07-02 | Coherencia del #08 en curso; ADR-011 propuesto. |
 | 1.2 | 2026-07-02 | ADR-011 aceptado; F0 DoD y próximo objetivo actualizados. |
 | 1.3 | 2026-07-02 | ADR-012 aceptado; alta de R-005 y pregunta de sync offline. |
+| 1.4 | 2026-07-02 | Spec de F1 completo (diseño+requisitos+tareas); próximo objetivo = implementación de F1. |
