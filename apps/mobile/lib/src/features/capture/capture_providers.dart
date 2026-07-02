@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'data/capture_api_client.dart';
 import 'data/capture_repository.dart';
 import 'data/local/app_database.dart';
-import 'data/local/capture_tables.dart';
 import 'data/sync_service.dart';
 
 /// Singleton local database. Disposed with the provider container.
