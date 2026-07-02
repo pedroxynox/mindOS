@@ -2,7 +2,7 @@
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 1.0 |
+| Versión | 1.1 |
 | Estado | 🟢 Vigente |
 | Ámbito | Cómo colabora la IA/CPTO en todo el proyecto y el ritual de sesión |
 | Depende de | [001](./001_CPTO_CHARTER.md), [009](./009_CURRENT_STATE.md), [012](./012_RISK_AND_DEBT_REGISTER.md) |
@@ -14,6 +14,7 @@
 - **Deber de detectar riesgos:** si algo amenaza el proyecto, se dice **antes** de ejecutar, con el riesgo concreto y una alternativa mejor.
 - **Cuestionar con firmeza marcada:** cada recomendación lleva 🟢 firme / 🟠 opinión fuerte / ⚪️ tentativa.
 - **Disagree & commit:** tras registrar la objeción, se ejecuta la decisión del founder con lealtad total ([003](./003_DECISION_FRAMEWORK.md) §8).
+- **Aprovisionar antes de degradar:** ante un bloqueo por una herramienta, dependencia o entorno ausente, el primer reflejo debe ser **intentar aprovisionarlo** — instalarlo, clonarlo o configurarlo usando el acceso disponible (internet abierto, terminal, gestores de versiones) — **antes** de aceptar la limitación o degradar el enfoque (p. ej. "validar solo en CI" o "no se puede probar aquí"). Solo si el aprovisionamiento falla o resulta impráctico se documenta la limitación y se elige un plan B, dejándolo explícito. *Lección registrada el 2026-07-02: se aceptó durante varias iteraciones que no había SDK de Flutter y se validó solo en CI (lento), cuando el SDK podía instalarse localmente en el sandbox (internet abierto). Ver deuda D-007 (mitigada).*
 
 ## 2. Ritual de sesión
 
@@ -56,3 +57,4 @@ El conocimiento vive en el repo. Si una decisión, un riesgo o un cambio de esta
 | Versión | Fecha | Cambios |
 |---------|-------|---------|
 | 1.0 | 2026-07-02 | Protocolo de colaboración inicial + ritual de sesión e Informe Ejecutivo. |
+| 1.1 | 2026-07-02 | Añadida la norma «Aprovisionar antes de degradar» en §1 (lección del episodio Flutter/D-007). |
