@@ -7,12 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       provider:
-        description: "Proveedor de IA (openai = calidad real; fake = línea base offline sin coste)"
+        description: "Proveedor de IA (groq = gratis sin tarjeta; openai = calidad real de pago; fake = línea base offline sin coste)"
         type: choice
         options:
+          - groq
           - openai
           - fake
-        default: openai
+        default: groq
       gate:
         description: "Modo puerta: si es true, el run FALLA cuando no se supera el umbral de aceptacion"
         type: boolean
@@ -29,10 +30,12 @@ jobs:
     defaults:
       run:
         working-directory: apps/ai
-    # The OpenAI key is read from the repository secret. It is empty when the
-    # secret is not configured (handled by the guard step below).
+    # Provider keys are read from repository secrets. Each is empty when its
+    # secret is not configured (handled by the guard step below). Only the key
+    # matching the chosen provider is required.
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,9 +48,9 @@ jobs:
       # package itself without re-resolving dependencies.
       - run: pip install --upgrade pip && pip install -r requirements.lock && pip install -e . --no-deps
 
-      # Friendly guard: if the user asked for the real provider but no key is
-      # configured, explain exactly how to add it and stop with a clear error
-      # (no Python stacktrace).
+      # Friendly guard for OpenAI (paid): if the user asked for openai but no
+      # key is configured, explain exactly how to add it and stop with a clear
+      # error (no Python stacktrace). fake needs no key and is skipped.
       - name: Comprobar clave de OpenAI
         if: ${{ inputs.provider == 'openai' }}
         run: |
@@ -65,12 +68,43 @@ jobs:
               echo "5. En **Secret** pega tu clave de OpenAI (empieza por \`sk-\`)."
               echo "6. Pulsa **Add secret** y vuelve a ejecutar este workflow."
               echo ""
-              echo "> Consejo: si solo quieres probar el boton sin clave y sin coste, ejecuta el workflow con **provider = fake** (linea base offline; no mide calidad real)."
+              echo "> Consejo: si prefieres una opcion **gratis y sin tarjeta**, ejecuta el workflow con **provider = groq** (necesita el secret \`GROQ_API_KEY\`, gratis en https://console.groq.com). O usa **provider = fake** para probar sin clave (linea base offline; no mide calidad real)."
             } >> "$GITHUB_STEP_SUMMARY"
-            echo "::error title=Falta el secret OPENAI_API_KEY::Anade el secret OPENAI_API_KEY (Settings -> Secrets and variables -> Actions) o ejecuta con provider=fake. Tienes las instrucciones en el Summary del run."
+            echo "::error title=Falta el secret OPENAI_API_KEY::Anade el secret OPENAI_API_KEY (Settings -> Secrets and variables -> Actions), o usa provider=groq (gratis) o provider=fake. Tienes las instrucciones en el Summary del run."
             exit 1
           fi
           echo "Clave OPENAI_API_KEY detectada. Continuando."
+
+      # Friendly guard for Groq (free, no card): if the user asked for groq but
+      # no key is configured, explain how to get one for free and add it.
+      - name: Comprobar clave de Groq
+        if: ${{ inputs.provider == 'groq' }}
+        run: |
+          if [ -z "${GROQ_API_KEY}" ]; then
+            {
+              echo "## No se pudo ejecutar el examen"
+              echo ""
+              echo "Has elegido el proveedor **groq** (gratis, sin tarjeta), pero este repositorio todavia no tiene configurada la clave \`GROQ_API_KEY\`."
+              echo ""
+              echo "### Como conseguir la clave gratis (una sola vez)"
+              echo "1. Entra en **https://console.groq.com** y crea una cuenta (es gratis, **no pide tarjeta**)."
+              echo "2. En el menu, abre **API Keys** y pulsa **Create API Key**."
+              echo "3. Copia la clave que aparece (guardala, solo se muestra una vez)."
+              echo ""
+              echo "### Como guardarla en el repositorio"
+              echo "4. Ve a **Settings** (ajustes del repositorio)."
+              echo "5. En el menu de la izquierda: **Secrets and variables -> Actions**."
+              echo "6. Pulsa **New repository secret**."
+              echo "7. En **Name** escribe exactamente: \`GROQ_API_KEY\`"
+              echo "8. En **Secret** pega la clave que copiaste de Groq."
+              echo "9. Pulsa **Add secret** y vuelve a ejecutar este workflow con **provider = groq**."
+              echo ""
+              echo "> Consejo: si solo quieres probar el boton sin clave, ejecuta el workflow con **provider = fake** (linea base offline; no mide calidad real)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Falta el secret GROQ_API_KEY::Consigue una clave gratis (sin tarjeta) en https://console.groq.com y anadela como secret GROQ_API_KEY (Settings -> Secrets and variables -> Actions), o ejecuta con provider=fake. Instrucciones en el Summary del run."
+            exit 1
+          fi
+          echo "Clave GROQ_API_KEY detectada. Continuando."
 
       # Run the exam, capture its full stdout, and render it into the run
       # Summary so the result is readable without opening the logs. The eval's

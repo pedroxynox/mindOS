@@ -10,9 +10,55 @@ veredicto de **pasa / no pasa**.
 > ¿Tienes prisa y solo quieres ver cómo funciona el botón? Salta al final:
 > **"Probar sin clave"**. No mide la calidad real, pero no cuesta nada.
 
+> **¿Quieres calidad real pero sin pagar?** Usa la **Opción gratis (Groq)** de
+> la siguiente sección: es gratis, **no pide tarjeta** y sirve perfectamente
+> para el examen. Los pasos con OpenAI (de pago) vienen después, por si los
+> prefieres.
+
 ---
 
-## Paso 1 · Conseguir una clave de OpenAI
+## Opción gratis (Groq, sin tarjeta) — recomendada
+
+Groq ofrece un motor de IA **compatible con OpenAI** con un plan **gratuito que
+no pide tarjeta de crédito**. Usa un modelo abierto (Llama), de calidad
+suficiente para este examen. Es la forma más fácil de ejecutar el examen con
+calidad real y **coste cero**.
+
+### 1 · Conseguir una clave de Groq (gratis)
+
+1. Entra en **https://console.groq.com** y crea una cuenta (o inicia sesión).
+   Es **gratis** y **no pide tarjeta**.
+2. En el menú, abre **API Keys**.
+3. Pulsa **Create API Key**, ponle cualquier nombre y créala.
+4. **Copia** la clave (se muestra una sola vez; guárdala).
+
+### 2 · Guardar la clave en el repositorio (una sola vez)
+
+1. En la página del repositorio en GitHub, pulsa la pestaña **Settings**.
+2. En el menú de la izquierda: **Secrets and variables → Actions**.
+3. Pulsa **New repository secret**.
+4. En **Name** escribe **exactamente**: `GROQ_API_KEY`
+5. En **Secret** pega la clave que copiaste de Groq.
+6. Pulsa **Add secret**.
+
+### 3 · Ejecutar el examen con Groq
+
+1. Ve a la pestaña **Actions** y elige el workflow **"F2 comprehension eval"**.
+2. Pulsa **Run workflow**.
+3. En **provider** elige **groq** (viene seleccionado por defecto).
+4. Deja **gate** desactivado la primera vez y pulsa **Run workflow**.
+5. Cuando termine, abre la ejecución y mira el **Summary** (igual que en el
+   **Paso 4** de más abajo).
+
+> **Sobre la calidad:** Groq usa un modelo abierto (Llama), no el de OpenAI. Es
+> gratis y suficiente para este examen; los resultados pueden diferir un poco de
+> OpenAI. Si Groq deja de ofrecer el modelo por defecto, se puede cambiar sin
+> tocar código mediante la variable `GROQ_MODEL` (ver
+> https://console.groq.com/docs/models).
+
+---
+
+## Alternativa de pago · Conseguir una clave de OpenAI
 
 La clave es como una contraseña que permite a la IA usar el motor de OpenAI.
 
@@ -27,7 +73,7 @@ La clave es como una contraseña que permite a la IA usar el motor de OpenAI.
 
 ---
 
-## Paso 2 · Guardar la clave en el repositorio (una sola vez)
+## Guardar la clave de OpenAI en el repositorio (una sola vez)
 
 La clave se guarda **cifrada** dentro de GitHub. Nadie más puede verla, ni
 siquiera aparece en los registros del examen.
@@ -42,7 +88,7 @@ siquiera aparece en los registros del examen.
    OPENAI_API_KEY
    ```
 
-5. En el campo **Secret** pega la clave que copiaste en el Paso 1.
+5. En el campo **Secret** pega la clave de OpenAI que copiaste antes.
 6. Pulsa **Add secret**.
 
 Ya está. Solo hay que hacer esto una vez (o cuando cambies de clave).
@@ -55,7 +101,8 @@ Ya está. Solo hay que hacer esto una vez (o cuando cambies de clave).
 2. En la lista de la izquierda, elige el workflow **"F2 comprehension eval"**.
 3. A la derecha aparece un botón **Run workflow**. Púlsalo.
 4. Se abre un pequeño formulario:
-   - **provider**: déjalo en **openai** (es la calidad real).
+   - **provider**: elige **groq** (gratis, sin tarjeta) u **openai** (de pago).
+     Ambos miden calidad real.
    - **gate**: déjalo **desactivado** (false) la primera vez. Si lo activas, el
      examen se marca en rojo cuando no llega a la nota mínima.
 5. Pulsa el botón verde **Run workflow**.
