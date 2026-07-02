@@ -9,7 +9,19 @@ por el usuario para ayudarle a tomar mejores decisiones con menos carga mental.
 ## Estado del proyecto
 
 🟢 **Fundación documental completa (#00–#08).**
-🏗️ **Fase F0 — Cimientos técnicos** (esqueleto del monorepo).
+🏗️ **Fase F0 — Cimientos técnicos: ~70 %.** El esqueleto del monorepo (3 apps +
+Docker + CI verde) existe, pero **F0 aún no cumple su Definición de Hecho** del
+[roadmap #08](./docs/08-roadmap/technical-roadmap.md): faltan **CD a staging** e
+**IaC** para el entorno de staging.
+🔐 **Autenticación (F1a):** implementada a nivel funcional (registro/login/refresh
+con JWT), pero **sin endurecer** (pendiente rate limiting, rotación de refresh y
+protección contra enumeración) — ver el registro de deuda.
+
+> 🏛️ Gobernanza: el proyecto se rige por la capa
+> [`docs/000_SYSTEM/`](./docs/000_SYSTEM/000_README.md), que gobierna toda la
+> cadena documental y el código. El estado vivo y los riesgos/deuda se mantienen
+> en [Current State](./docs/000_SYSTEM/009_CURRENT_STATE.md) y en el
+> [Risk & Debt Register](./docs/000_SYSTEM/012_RISK_AND_DEBT_REGISTER.md).
 
 ## Arquitectura (resumen)
 
