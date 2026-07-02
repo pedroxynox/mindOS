@@ -4,7 +4,8 @@
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
-pubspec.lock
+# pubspec.lock is committed: apps/mobile is an application (not a library), so
+# the lockfile is versioned to guarantee reproducible builds (D-001).
 *.iml
 .idea/
 # Generated code

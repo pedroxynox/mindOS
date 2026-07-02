@@ -38,7 +38,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install --upgrade pip && pip install -e ".[dev]"
+      # Reproducible install from the committed requirements.lock (D-001):
+      # install pinned deps from the lock, then the package itself without
+      # re-resolving dependencies.
+      - run: pip install --upgrade pip && pip install -r requirements.lock && pip install -e . --no-deps
       - run: ruff check .
       - run: mypy app
       - run: pytest
@@ -59,7 +62,8 @@ jobs:
       # non-existent MyApp).
       - run: flutter create . --project-name mindos --platforms=android
       - run: rm -f test/widget_test.dart
-      - run: flutter pub get
+      # Reproducible install from the committed pubspec.lock (D-001).
+      - run: flutter pub get --enforce-lockfile
       # Drift generates app_database.g.dart (the `part` file) via build_runner.
       # It is not checked in, so it must be generated before analyze/test or
       # the generated companions/classes are missing and analysis fails.
