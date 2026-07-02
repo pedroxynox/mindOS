@@ -1,0 +1,20 @@
+{
+  "id": "case-01",
+  "language": "es",
+  "description": "Tarea clara con persona, evento, tema y proyecto (español).",
+  "text": "Llamar a Marcos mañana para revisar el presupuesto del proyecto Aurora.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Marcos" },
+      { "type": "event", "label": "mañana" },
+      { "type": "topic", "label": "presupuesto" },
+      { "type": "project", "label": "Aurora" }
+    ],
+    "tasks": [
+      { "label": "Llamar a Marcos mañana para revisar el presupuesto del proyecto Aurora" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "Llamar a Marcos mañana para revisar el presupuesto del proyecto Aurora", "target": "Marcos" }
+    ]
+  }
+}

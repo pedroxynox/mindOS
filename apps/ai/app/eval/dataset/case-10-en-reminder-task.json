@@ -1,0 +1,13 @@
+{
+  "id": "case-10",
+  "language": "en",
+  "description": "Short reminder phrased as a task without named entities (English).",
+  "text": "Reminder: buy milk and eggs.",
+  "gold": {
+    "entities": [],
+    "tasks": [
+      { "label": "buy milk and eggs" }
+    ],
+    "connections": []
+  }
+}

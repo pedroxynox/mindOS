@@ -1,0 +1,13 @@
+{
+  "id": "case-03",
+  "language": "es",
+  "description": "Nota reflexiva sin tareas; solo un tema (español).",
+  "text": "Hoy fue un día tranquilo, estuve pensando en la salud y en cómo mejorar mi rutina.",
+  "gold": {
+    "entities": [
+      { "type": "topic", "label": "salud" }
+    ],
+    "tasks": [],
+    "connections": []
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "case-02",
+  "language": "en",
+  "description": "Clear task with a person, an event and a topic (English).",
+  "text": "Call Ana tomorrow to send the invoice.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Ana" },
+      { "type": "event", "label": "tomorrow" },
+      { "type": "topic", "label": "invoice" }
+    ],
+    "tasks": [
+      { "label": "Call Ana tomorrow to send the invoice" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "Call Ana tomorrow to send the invoice", "target": "Ana" }
+    ]
+  }
+}

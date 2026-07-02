@@ -1,0 +1,18 @@
+{
+  "id": "case-09",
+  "language": "es",
+  "description": "Tarea con asignación a persona y proyecto (español).",
+  "text": "Recordar a María que revise el contrato del proyecto Delta.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "María" },
+      { "type": "project", "label": "Delta" }
+    ],
+    "tasks": [
+      { "label": "Recordar a María que revise el contrato del proyecto Delta" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "Recordar a María que revise el contrato del proyecto Delta", "target": "María" }
+    ]
+  }
+}
