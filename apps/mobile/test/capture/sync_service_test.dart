@@ -84,7 +84,10 @@ void main() {
       expect(row.retryCount, 1);
       expect(row.nextAttemptAt, isNotNull);
       // base * 2^0 = 2s after now.
-      expect(row.nextAttemptAt, now.add(const Duration(seconds: 2)));
+      expect(
+        row.nextAttemptAt!.isAtSameMomentAs(now.add(const Duration(seconds: 2))),
+        isTrue,
+      );
       expect(api.createCount, 0);
     });
 
@@ -97,7 +100,10 @@ void main() {
       await sync.drainOnce(now: now);
       var row = await repo.findByClientId(clientId);
       expect(row!.retryCount, 1);
-      expect(row.nextAttemptAt, now.add(const Duration(seconds: 2)));
+      expect(
+        row.nextAttemptAt!.isAtSameMomentAs(now.add(const Duration(seconds: 2))),
+        isTrue,
+      );
 
       // Second failure (attempt after it is due): delay = 2s * 2^1 = 4s.
       final later = now.add(const Duration(seconds: 3));
@@ -105,7 +111,10 @@ void main() {
       await sync.drainOnce(now: later);
       row = await repo.findByClientId(clientId);
       expect(row!.retryCount, 2);
-      expect(row.nextAttemptAt, later.add(const Duration(seconds: 4)));
+      expect(
+        row.nextAttemptAt!.isAtSameMomentAs(later.add(const Duration(seconds: 4))),
+        isTrue,
+      );
     });
 
     test('a not-yet-due retry is skipped by the batch', () async {

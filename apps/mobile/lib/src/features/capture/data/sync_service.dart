@@ -74,7 +74,7 @@ class SyncService {
     }
     _draining = true;
     try {
-      final at = now ?? DateTime.now();
+      final at = (now ?? DateTime.now()).toUtc();
       final batch = await _db.pendingBatch(at, batchSize);
       var synced = 0;
       var failed = 0;
