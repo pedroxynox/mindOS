@@ -35,6 +35,7 @@
 | D-005 | Sin rastreo de errores (Sentry) ni gestión formal de secretos. | Incidentes ciegos en prod y secretos mal gestionados. | Adoptar Sentry (móvil+backends) y un gestor de secretos antes de pre-beta. | 🟠 Abierto | 2026-07-02 |
 | D-006 | El barrido de reconciliación y el janitor de blobs iteran sobre TODOS los usuarios por lote | Coste O(usuarios) por ejecución; no escala a millones | Acotar a usuarios con actividad reciente / índice dedicado antes de escala | 🟠 Abierto | 2026-07-02 |
 | D-007 | El código Flutter solo se valida en CI (no hay SDK de Flutter en el entorno de desarrollo) → bucles de iteración lentos | Feedback lento en cambios móviles; riesgo de fallos detectados tarde | Aceptar CI-driven para móvil o provisionar un entorno con Flutter cuando el volumen lo justifique | 🟢 Mitigado — (2026-07-02) SDK de Flutter instalado y operativo en el entorno; el móvil ya se valida localmente, no solo en CI. | 2026-07-02 |
+| D-008 | Dimensión del vector de embedding y elección de proveedor LLM sin fijar (depende de la PoC de F2) | Cambiarla tras poblar embeddings exige reindexar todo | Fijar con datos tras superar el umbral del arnés de evaluación de F2 (PoC de R-001) | 🟠 Abierto | 2026-07-02 |
 | D-009 | El widget test de la pantalla de captura se cuelga en CI (timeout) y no es depurable sin un entorno Flutter local; queda skippeado | Cobertura de UI ausente para la pantalla de captura (la pantalla sí pasa `flutter analyze`; la lógica sí tiene tests) | Depurar con Flutter local (probable `tester.runAsync` para el stream Drift) y reactivar los tests; relacionado con D-007 | 🟢 Cerrado — (2026-07-02) Flutter ejecutable localmente; diagnosticada la causa real (un `Timer(Duration.zero)` de cierre del stream de Drift quedaba pendiente al disponer el árbol → cuelgue). Arreglado desmontando el árbol y vaciando ese timer con un `pump` acotado; widget tests reactivados (16/16 verde). | 2026-07-02 |
 
 ## Historial de versiones
@@ -45,5 +46,6 @@
 | 1.2 | 2026-07-02 | R-003 mitigado tras aprobación de ADR-011. |
 | 1.3 | 2026-07-02 | Alta de R-005 (offline sync) y D-005 (observabilidad/secretos) tras ADR-012. |
 | 1.4 | 2026-07-02 | Alta de R-006, D-006, D-007; D-001 en progreso tras hardening de reproducibilidad de la API. |
-| 1.5 | 2026-07-02 | Alta de D-009 (widget test de captura skippeado, pendiente de entorno Flutter). |
-| 1.6 | 2026-07-02 | D-009 cerrado y D-007 mitigado: SDK de Flutter instalado y operativo localmente; widget tests de captura estabilizados (fix del timer de cierre del stream de Drift al disponer el árbol) y reactivados; suite móvil 16/16 en verde. |
+| 1.5 | 2026-07-02 | Alta de D-008 (dimensión del vector de embedding / elección de proveedor LLM) desde el diseño y la PoC de F2. |
+| 1.6 | 2026-07-02 | Alta de D-009 (widget test de captura skippeado, pendiente de entorno Flutter). |
+| 1.7 | 2026-07-02 | D-009 cerrado y D-007 mitigado: SDK de Flutter instalado y operativo localmente; widget tests de captura estabilizados (fix del timer de cierre del stream de Drift al disponer el árbol) y reactivados; suite móvil 16/16 en verde. |

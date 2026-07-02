@@ -21,13 +21,20 @@ import { UnderstandingJobData } from './understanding.queue.port';
  * (`removeOnFail: false`).
  *
  * Validates: Requirements R9.2, R9.3 · Property P7.
+ *
+ * Gated on RUN_INTEGRATION=1: default `npm test` skips it; `RUN_INTEGRATION=1
+ * npm test` runs it against the Redis in infra/docker-compose.test.yml.
  */
 const connection = {
   host: process.env.REDIS_HOST ?? 'localhost',
   port: Number(process.env.REDIS_PORT ?? 6379),
 };
 
-describe.skip('BullUnderstandingQueue (integration, Redis)', () => {
+const describeIntegration = process.env.RUN_INTEGRATION
+  ? describe
+  : describe.skip;
+
+describeIntegration('BullUnderstandingQueue (integration, Redis)', () => {
   let queue: Queue<UnderstandingJobData>;
   let producer: BullUnderstandingQueue;
 

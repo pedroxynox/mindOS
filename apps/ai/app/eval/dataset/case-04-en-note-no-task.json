@@ -1,0 +1,13 @@
+{
+  "id": "case-04",
+  "language": "en",
+  "description": "Reflective note without tasks; one topic (English).",
+  "text": "Just some thoughts about the design of the new dashboard, nothing urgent.",
+  "gold": {
+    "entities": [
+      { "type": "topic", "label": "design" }
+    ],
+    "tasks": [],
+    "connections": []
+  }
+}
