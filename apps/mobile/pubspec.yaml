@@ -20,6 +20,10 @@ dependencies:
   sqlite3_flutter_libs: ^0.5.0
   path_provider: ^2.1.0
   path: ^1.9.0
+  # Client-generated ids (used as Idempotency-Key for the offline outbox).
+  uuid: ^4.4.0
+  # Connectivity signal that triggers the outbox drain (SyncService).
+  connectivity_plus: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -28,6 +32,8 @@ dev_dependencies:
   # Drift code generation (used from F1 onwards)
   drift_dev: ^2.19.0
   build_runner: ^2.4.0
+  # Native SQLite library so `NativeDatabase.memory()` works under `flutter test`.
+  sqlite3: ^2.4.0
 
 flutter:
   uses-material-design: true

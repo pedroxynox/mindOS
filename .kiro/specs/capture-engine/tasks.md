@@ -197,21 +197,21 @@ graph TD
     - Subir un objeto vía presign sin crear captura; avanzar el reloj/superar TTL; verificar que el janitor lo purga y que un objeto **referenciado** por una captura **no** se elimina.
     - _Valida: Requisitos R2.1, R2.4_
 
-- [~] 11. Checkpoint — backend completo (API + cola + reconciliación + janitor)
+- [x] 11. Checkpoint — backend completo (API + cola + reconciliación + janitor)
   - Asegurar que todos los tests pasan; consultar al usuario si surgen dudas.
 
 - [ ] 12. Flutter: captura offline-first (Drift + Repository + SyncService)
-  - [~] 12.1 Definir el esquema Drift del outbox
+  - [x] 12.1 Definir el esquema Drift del outbox
     - Crear `apps/mobile/lib/src/features/capture/data/local/capture_tables.dart` con `LocalCaptures` (PK `clientId`, `type`, `content`, `audioLocalPath`, `audioRef`, `occurredAt`, `createdAtLocal`, `syncState` default `pending`, `serverId`, `retryCount`, `nextAttemptAt`) según diseño §11.1.
     - _Requisitos: R6.1 · Diseño §11.1_
-  - [~] 12.2 Implementar `CaptureRepository` (escritura local optimista)
+  - [x] 12.2 Implementar `CaptureRepository` (escritura local optimista)
     - Repositorio sobre Drift que genera `client_id` UUID v4, inserta con `sync_state=pending` y expone lectura de capturas locales; la UI no llama a red directamente (capas #07 §4).
     - _Requisitos: R6.1 · Diseño §11.2_
-  - [~] 12.3 Implementar `SyncService` (drenado idempotente del outbox)
+  - [x] 12.3 Implementar `SyncService` (drenado idempotente del outbox)
     - Al recuperar conectividad / periódicamente: leer lote `pending|failed` con `next_attempt_at <= now` en orden FIFO; para voz sin `audio_ref`, presign + subir a S3 y guardar `audio_ref`; `POST /v1/captures` con `Idempotency-Key = client_id`.
     - Manejo de resultados: `202/200` → `synced` + `server_id`; `4xx` de validación → `failed` sin reintento; `5xx`/timeout/sin red → `retry_count++` y backoff exponencial en `next_attempt_at` (diseño §11.2).
     - _Requisitos: R6.2, R6.3, R6.4, R6.5, R6.6 · Propiedades P9, P3 · Diseño §11.2_
-  - [ ]* 12.4 Tests de `CaptureRepository`/`SyncService` (Drift en memoria)
+  - [ ]* 12.4 Tests de `CaptureRepository`/`SyncService` (Drift en memoria) — _ESCRITA, NO EJECUTADA: el sandbox no tiene SDK de Flutter/Dart. Tests en `apps/mobile/test/capture/` (`capture_repository_test.dart`, `sync_service_test.dart`, `fake_capture_api.dart`). Requiere `flutter pub get` + `dart run build_runner build` + `flutter test`._
     - **Property 9: Sync offline idempotente** — *para toda* captura del outbox reenviada N veces con el mismo `client_id`, se crea exactamente una Captura en el servidor (API mockeada que respeta idempotencia por `(user_id, key)`).
     - Verificar persistencia offline (no se pierde al cerrar la app), máquina de estados de sync y backoff.
     - **Feature: capture-engine, Property 9** (≥100 iteraciones).
