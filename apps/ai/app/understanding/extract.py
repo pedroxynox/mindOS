@@ -4,9 +4,9 @@
 validates it with Pydantic. It is provider-agnostic: the same code runs against
 the deterministic ``FakeProvider`` (offline eval) and a real ``OpenAIProvider``.
 
-The prompt is a versioned constant (currently ``EXTRACTION_PROMPT_V4``; the
-previous ``EXTRACTION_PROMPT_V1``/``EXTRACTION_PROMPT_V2``/``EXTRACTION_PROMPT_V3``
-are kept for history) so prompt changes are explicit and diffable — the eval
+The prompt is a versioned constant (currently ``EXTRACTION_PROMPT_V5``, a lean
+consolidation of v2+v3+v4; the previous ``EXTRACTION_PROMPT_V1``..``V4`` are
+kept for history) so prompt changes are explicit and diffable — the eval
 harness (design §13) iterates on exactly this string when de-risking R-001.
 """
 
@@ -357,7 +357,8 @@ EXTRACTION_PROMPT_V3 = EXTRACTION_PROMPT_V2 + _V3_ADDENDUM
 # NO gold, matcher, metric or threshold is changed. v3 is retained above so the
 # change stays diffable and reversible. PENDING VALIDATION with a real Groq run
 # (this is a reasoned hypothesis, not yet measured — no Groq key in this env).
-EXTRACTION_PROMPT_VERSION = "v4"
+# NOTE: v4 was superseded at runtime by the consolidated v5 below; the string
+# is kept only for history/diff. ``EXTRACTION_PROMPT_VERSION`` is set with v5.
 
 # INVENTED few-shot for v4 (like the v2/v3 examples, NOTHING here is taken from
 # the eval set — no farmacia/pan/paquete/cajero/colegio/mamá/jefe/cliente, no
@@ -427,11 +428,157 @@ _V4_ADDENDUM = (
 
 EXTRACTION_PROMPT_V4 = EXTRACTION_PROMPT_V3 + _V4_ADDENDUM
 
+# --- v5 (current) -------------------------------------------------------------
+# WHY v5 EXISTS (debt D-010): v1..v4 grew by STACKING addenda, so at RUNTIME we
+# sent ``EXTRACTION_PROMPT_V4 = V2 + _V3_ADDENDUM + _V4_ADDENDUM`` plus the JSON
+# schema — one very large prompt in which several rules were stated two or three
+# times (the anti-hallucination framing, the "roles/kinship are not a person"
+# rule, the "vague reference is not an entity" rule, the four few-shot examples).
+# Multiplied by the ~45 eval calls this blew past Groq's free-tier TOKENS-per-
+# minute ceiling (and pressures the daily cap), so the exam could not COMPLETE
+# (two aborted runs, ~6 min and ~16 min — see R-001/§history), and in production
+# it inflates per-capture cost and latency at scale.
+#
+# v5 is the CONSOLIDATION: a SINGLE, self-contained prompt that states each rule
+# EXACTLY ONCE, with no duplication, while preserving ALL the distinct semantic
+# rules that were spread across v2 + _V3_ADDENDUM + _V4_ADDENDUM:
+#   - the ABSOLUTE anti-hallucination rule (extract only the EXPLICIT; when in
+#     doubt OMIT; empty is better than invented; never invent to avoid emptiness);
+#   - per-type inclusion/exclusion for person/project/event/topic/note (person =
+#     proper name only, not roles/titles/kinship; project = name only, drop
+#     "project/proyecto"; event = explicit time reference, not a vague deadline;
+#     topic = abstract canonical core noun, and PLACES/instrumental objects are
+#     NOT topics/entities; `note` is discouraged — pure mood/reflection is empty);
+#   - the task-phrasing rule (label starts at the action verb, drop fillers,
+#     keep the rest);
+#   - the connection rules (assigned_to/mentions/relates_to, only between emitted
+#     labels, omit if unsure);
+#   - the FINAL SELF-CHECK (point to the literal words; if you can't, delete it;
+#     a vague reference with no concrete name/date/time is not an entity);
+#   - the OUTPUT FORMAT (JSON only, no prose/markdown, matching EXTRACTION_SCHEMA,
+#     [] for empty sections) and the "preserve original language" instruction.
+# It keeps only TWO compact INVENTED few-shot examples (reusing _V3_EXAMPLE_3 and
+# _V4_EXAMPLE_4, neither of which uses any word/label from the eval set): one with
+# an explicit task + owner and a deliberate OMISSION (unnamed actor + vague
+# deadline), and one errands line whose places/objects are NOT entities (entities
+# empty). The other two old examples were dropped as redundant — that redundancy
+# was part of the bloat.
+#
+# v1..v4 and the `_V2_*`/`_V3_*`/`_V4_*` constants are RETAINED above (they are
+# strings only, never sent) so the history stays diffable/reversible. Behaviour
+# is expected to be VERY CLOSE to v4 (same rules), but v5 is a FRESH prompt to be
+# RE-MEASURED with a completing Groq run, NOT guaranteed byte-for-byte identical.
+EXTRACTION_PROMPT_VERSION = "v5"
+
+EXTRACTION_PROMPT_V5 = (
+    "You are a precise information-extraction engine for a personal knowledge\n"
+    "graph. Read ONE capture (delimited below) and return structured knowledge\n"
+    "as JSON. The capture may be in Spanish or English; preserve the ORIGINAL\n"
+    "language of every label, exactly as written in the text.\n"
+    "\n"
+    "==== ABSOLUTE RULE (read first) ====\n"
+    "Extract ONLY information that is EXPLICITLY present in the capture. Do NOT\n"
+    "infer, do NOT invent, do NOT add outside knowledge, do NOT complete\n"
+    "patterns. If something is not clearly stated, OMIT it — when in doubt,\n"
+    "LEAVE IT OUT; a missing item is far better than an invented one. If a\n"
+    "capture has nothing concrete (pure mood/reflection), the CORRECT answer is\n"
+    "every section empty ([]); never manufacture an item just to avoid an empty\n"
+    "result.\n"
+    "\n"
+    "==== ENTITIES (each has a closed-set \"type\") ====\n"
+    "- person : a human named by a PROPER NAME. A bare role, title or kinship\n"
+    "  with NO name is NOT a person — \"the boss\"/\"el jefe\", \"the client\"/\"el\n"
+    "  cliente\", \"the team\"/\"el equipo\", \"mom\"/\"mamá\", \"someone\", "
+    "pronouns. A\n"
+    "  project/product name is not a person either. If no proper name is\n"
+    "  present, emit NO person (the role may still appear inside a task label).\n"
+    "- project: a named initiative/product, by its NAME ONLY. Drop the word\n"
+    "  \"project\"/\"proyecto\" (write \"Aurora\", never \"proyecto Aurora\").\n"
+    "- event  : an EXPLICIT time reference or scheduled happening — a date, a\n"
+    "  weekday, a clock time, \"tomorrow\"/\"mañana\", \"next week\". NOT a generic\n"
+    "  activity, and NOT a vague deadline with no concrete date/time (\"antes del\n"
+    "  cierre\", \"the deadline\", \"soon\", \"algún día\").\n"
+    "- topic  : ABSTRACT subject matter — a theme, concept, feature or area of\n"
+    "  concern — written as its CANONICAL CORE NOUN: lowercase, singular,\n"
+    "  WITHOUT articles or possessives (\"the budget\" -> \"budget\"; \"la salud\" ->\n"
+    "  \"salud\"). One concept per topic; split a compound subject into separate\n"
+    "  topics. A physical PLACE/location where an errand happens (a shop,\n"
+    "  pharmacy, bank, ATM, school, office, gym) is NOT a topic and NOT any\n"
+    "  entity; a purely instrumental object handled in passing (a package, a\n"
+    "  form, a document, a receipt) is NOT an entity either. Such words belong\n"
+    "  INSIDE a task label, never as a standalone entity.\n"
+    "- note   : DO NOT USE this type. A vague/mood/journal capture with no\n"
+    "  concrete task and no explicitly named entity or abstract subject returns\n"
+    "  every section empty — do NOT manufacture a `note` or a topic to fill it.\n"
+    "- Never emit an empty or whitespace-only label.\n"
+    "\n"
+    "==== TASKS ====\n"
+    "Concrete action items the author intends to do (imperatives, \"need to\",\n"
+    "\"hay que\", \"tengo que\", \"TODO\", reminders, tentative \"I should\"/\"quizás\n"
+    "debería\"). Write the label as the ACTION PHRASE STARTING AT THE ACTION\n"
+    "VERB, dropping filler openers (\"need to\", \"reminder:\", \"quizás debería\",\n"
+    "\"tengo que\") but KEEPING the rest of the clause (object, person, when).\n"
+    "Past facts, opinions, or a description of a scheduled event are NOT tasks.\n"
+    "\n"
+    "==== CONNECTIONS ====\n"
+    "Relations SUPPORTED by the text, only between labels you already emitted:\n"
+    "- assigned_to: task label (source) -> responsible person (target), ONLY\n"
+    "  when the owner is explicit.\n"
+    "- mentions   : a light co-occurrence link between two labels.\n"
+    "- relates_to : a generic semantic link between two labels.\n"
+    "Emit a connection ONLY if BOTH endpoints are labels you extracted. If\n"
+    "unsure, omit it — connections are optional.\n"
+    "\n"
+    "==== FINAL SELF-CHECK (do this before you answer) ====\n"
+    "For EVERY item you are about to emit, locate the LITERAL word(s) in the\n"
+    "capture that justify it. If you cannot point to explicit words — because\n"
+    "it is implied, guessed, generic, or merely 'probably there' — DELETE it. A\n"
+    "vague reference with no concrete name/date/time (e.g. \"the client\", \"the\n"
+    "team\", \"the deadline\", \"soon\", \"later\") is NOT an entity. Never round a\n"
+    "partial hint up into a full entity, and never add a project/person/event\n"
+    "the text does not name outright. Keeping every EXPLICIT item is still\n"
+    "required — this check removes only inventions, not real content.\n"
+    "\n"
+    "==== OUTPUT FORMAT ====\n"
+    "Return ONLY a JSON object (no prose, no markdown fences) with EXACTLY these\n"
+    "keys, matching this JSON schema:\n"
+    + json.dumps(EXTRACTION_SCHEMA, ensure_ascii=False)
+    + "\n"
+    "- \"entities\": list of {\"type\",\"label\"} (\"confidence\" 0..1 is optional).\n"
+    "- \"tasks\": list of {\"label\"}.\n"
+    "- \"connections\": list of {\"type\",\"source\",\"target\"}.\n"
+    "- Use [] for any section with nothing to extract. Never fabricate to fill\n"
+    "  it.\n"
+    "\n"
+    "==== TWO ILLUSTRATIVE EXAMPLES (invented — NOT from your data; do not "
+    "reuse) ====\n"
+    "They teach only the FORMAT and the JUDGEMENT, including when to OMIT.\n"
+    "\n"
+    "Example 1 (ES) — an explicit task with an owner; omit every implicit hint.\n"
+    "Capture: \"Tengo que revisar el informe con Laura; seguramente el cliente\n"
+    "querrá verlo antes del cierre.\"\n"
+    "JSON: " + _V3_EXAMPLE_3 + "\n"
+    "Why: keep the explicit task (\"revisar el informe con Laura\", filler \"tengo\n"
+    "que\" dropped) and its explicit topic (\"informe\"). \"el cliente\" has NO name\n"
+    "-> no person; \"antes del cierre\" is a vague deadline with no date/time ->\n"
+    "no event; no project is named -> none invented.\n"
+    "\n"
+    "Example 2 (ES) — an errands list: tasks only; places/objects are NOT\n"
+    "entities.\n"
+    "Capture: \"Recados de hoy: pasar por la tintorería, dejar unos documentos en\n"
+    "la notaría y hacer cola en el ayuntamiento.\"\n"
+    "JSON: " + _V4_EXAMPLE_4 + "\n"
+    "Why: \"tintorería\", \"notaría\" and \"ayuntamiento\" are PLACES where errands\n"
+    "happen, and \"documentos\" is an instrumental object handled in passing —\n"
+    "none is an entity; they live inside the task labels only. No proper name\n"
+    "and no abstract subject, so entities is []."
+)
+
 
 def build_extraction_prompt(text: str) -> str:
     """Render the current versioned prompt with the capture text embedded."""
     return (
-        f"{EXTRACTION_PROMPT_V4}\n\n"
+        f"{EXTRACTION_PROMPT_V5}\n\n"
         f"Capture:\n{CAPTURE_OPEN}\n{text}\n{CAPTURE_CLOSE}\n"
     )
 
