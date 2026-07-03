@@ -44,12 +44,15 @@ class Settings(BaseSettings):
     # is notably more generous than Groq's (~15 req/min, ~1M tokens/min). If the
     # default model is deprecated, override it with GEMINI_MODEL without any code
     # change (see https://ai.google.dev/gemini-api/docs/models).
-    # Default is gemini-1.5-flash because its free DAILY request quota
-    # (~1500/day) lets the ~45-call F2 exam complete on the free tier without a
-    # card (gemini-2.0-flash's free cap is ~200/day); switch to 2.0-flash via
-    # the GEMINI_MODEL repo Variable once paid billing is enabled.
+    # Default is gemini-2.0-flash because it is confirmed available/working on
+    # the founder's key (an earlier run executed for ~6 min against it).
+    # gemini-1.5-flash was retired by Google for new projects and now fails fast
+    # with an APIError (effectively 404/unavailable), so it is not usable here.
+    # The trade-off: gemini-2.0-flash's free tier has a low daily request cap
+    # (~200/day) that resets daily, and enabling paid billing lifts it. Override
+    # the model via the GEMINI_MODEL repo Variable if needed.
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-2.0-flash"
 
     # Resilience against transient failures / rate limits (HTTP 429). Applied
     # by OpenAIProvider around every API call: exponential backoff + jitter,
