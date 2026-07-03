@@ -4,10 +4,10 @@
 validates it with Pydantic. It is provider-agnostic: the same code runs against
 the deterministic ``FakeProvider`` (offline eval) and a real ``OpenAIProvider``.
 
-The prompt is a versioned constant (currently ``EXTRACTION_PROMPT_V2``; the
-previous ``EXTRACTION_PROMPT_V1`` is kept for history) so prompt changes are
-explicit and diffable — the eval harness (design §13) iterates on exactly this
-string when de-risking R-001.
+The prompt is a versioned constant (currently ``EXTRACTION_PROMPT_V3``; the
+previous ``EXTRACTION_PROMPT_V1``/``EXTRACTION_PROMPT_V2`` are kept for history)
+so prompt changes are explicit and diffable — the eval harness (design §13)
+iterates on exactly this string when de-risking R-001.
 """
 
 import json
@@ -171,8 +171,6 @@ EXTRACTION_PROMPT_V1 = (
 # the eval cases as examples would be dataset contamination and would make the
 # score meaningless. The examples only teach FORMAT and JUDGEMENT (including an
 # explicit OMISSION), not answers.
-EXTRACTION_PROMPT_VERSION = "v2"
-
 _V2_EXAMPLE_1 = (
     '{"entities":['
     '{"type":"person","label":"Elena"},'
@@ -270,11 +268,65 @@ EXTRACTION_PROMPT_V2 = (
     "is OMITTED."
 )
 
+# --- v3 (current) -------------------------------------------------------------
+# The first REAL Groq/Llama run with v2 + the fair matcher (2026-07-03, 2nd
+# iteration) passed entity F1 (0.864) and task precision (0.90) but FAILED the
+# hallucination gate hard: 0.191 vs the 0.05 ceiling. Diagnosis: the model still
+# rounds implicit hints up into full entities — an unnamed actor ("el cliente"),
+# a vague deadline with no concrete date ("antes del cierre"), a project that is
+# only alluded to. v3 keeps EVERYTHING in v2 verbatim (so recall — F1 0.864, only
+# just above the 0.80 floor — is NOT disturbed) and appends TWO precision-only
+# reinforcements that fire ONLY on non-explicit items:
+#   1. a FINAL SELF-CHECK step: for every item, point to the literal words that
+#      justify it; if you cannot, delete it.
+#   2. a third INVENTED few-shot (again, no eval-set names/labels) that models
+#      the exact failure mode — a plausible-but-absent person, event and project
+#      that MUST be omitted, while the one explicit task + topic are kept.
+# It deliberately does NOT touch the inclusion rules for explicit entities/tasks,
+# so it trims invention without shrinking coverage. v2 is retained above so the
+# change stays diffable and reversible.
+EXTRACTION_PROMPT_VERSION = "v3"
+
+_V3_EXAMPLE_3 = (
+    '{"entities":['
+    '{"type":"person","label":"Laura"},'
+    '{"type":"topic","label":"informe"}],'
+    '"tasks":[{"label":"revisar el informe con Laura"}],'
+    '"connections":[{"type":"assigned_to",'
+    '"source":"revisar el informe con Laura","target":"Laura"}]}'
+)
+
+_V3_ADDENDUM = (
+    "\n"
+    "\n"
+    "Example 3 (ES) — keep ONLY the explicit; omit every implicit hint.\n"
+    'Capture: "Tengo que revisar el informe con Laura; seguramente el cliente\n'
+    'querrá verlo antes del cierre."\n'
+    "JSON: " + _V3_EXAMPLE_3 + "\n"
+    'Why: "el cliente" has NO name -> no person. "antes del cierre" is a vague\n'
+    "deadline with no date/weekday/clock time -> NOT an event. No project is\n"
+    'named -> none invented. Only the explicit task ("revisar el informe con\n'
+    'Laura", filler "tengo que" dropped) and its explicit topic ("informe") are\n'
+    "kept.\n"
+    "\n"
+    "==== FINAL SELF-CHECK (do this before you answer) ====\n"
+    "For EVERY item you are about to emit, locate the LITERAL word(s) in the\n"
+    "capture that justify it. If you cannot point to explicit words — because the\n"
+    "item is implied, guessed, generic, or merely 'probably there' — DELETE it.\n"
+    "A vague reference with no concrete name/date/time (e.g. \"the client\", \"the\n"
+    'team", "the deadline", "soon", "later") is NOT an entity. Never round a\n'
+    "partial hint up into a full entity, and never add a project/person/event\n"
+    "that the text does not name outright. Keeping every EXPLICIT item is still\n"
+    "required — this check removes only inventions, not real content."
+)
+
+EXTRACTION_PROMPT_V3 = EXTRACTION_PROMPT_V2 + _V3_ADDENDUM
+
 
 def build_extraction_prompt(text: str) -> str:
     """Render the current versioned prompt with the capture text embedded."""
     return (
-        f"{EXTRACTION_PROMPT_V2}\n\n"
+        f"{EXTRACTION_PROMPT_V3}\n\n"
         f"Capture:\n{CAPTURE_OPEN}\n{text}\n{CAPTURE_CLOSE}\n"
     )
 

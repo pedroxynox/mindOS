@@ -6,7 +6,8 @@
   "gold": {
     "entities": [
       { "type": "person", "label": "María" },
-      { "type": "project", "label": "Delta" }
+      { "type": "project", "label": "Delta" },
+      { "type": "topic", "label": "contrato" }
     ],
     "tasks": [
       { "label": "Recordar a María que revise el contrato del proyecto Delta" }
