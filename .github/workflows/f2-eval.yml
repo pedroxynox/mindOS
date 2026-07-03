@@ -116,6 +116,14 @@ jobs:
           if [ "${{ inputs.gate }}" = "true" ]; then
             GATE_FLAG="--gate"
           fi
+          # Optional: try a different Groq model without touching code. Set a
+          # repository *Variable* (not a secret) named GROQ_MODEL. Only exported
+          # when non-empty, so leaving it unset keeps the code default (an empty
+          # value would otherwise blank the model).
+          if [ -n "${{ vars.GROQ_MODEL }}" ]; then
+            export GROQ_MODEL="${{ vars.GROQ_MODEL }}"
+            echo "Usando GROQ_MODEL=${GROQ_MODEL} (variable del repositorio)."
+          fi
           echo "Ejecutando: python -m app.eval.run_eval --provider ${{ inputs.provider }} ${GATE_FLAG}"
           set +e
           python -m app.eval.run_eval --provider "${{ inputs.provider }}" ${GATE_FLAG} > eval_report.txt 2>&1

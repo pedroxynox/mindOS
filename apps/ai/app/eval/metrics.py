@@ -5,19 +5,27 @@ unit-tested with known inputs -> known outputs. Higher-level helpers adapt an
 :class:`Extraction` and a gold :class:`Extraction` into the primitive
 multiset comparisons.
 
-Matching rule: entities match by ``(type, normalized_label)``, tasks by
-``normalized_label``, connections by ``(type, normalized_source,
-normalized_target)`` — see :func:`app.understanding.text_utils.normalize_label`.
+Matching rule (design §13.1): entities match by ``type`` PLUS a FAIR label
+match, tasks by a fair label match, connections by exact ``(type,
+normalized_source, normalized_target)``. "Fair" means we do not demand a
+byte-identical normalized string — a correct extraction worded differently
+(articles/plurals/project-prefix aside, or a free-text task trimmed
+differently) still counts — while a match still requires the same core content
+and is assigned one-to-one so nothing is double-credited. See
+:func:`app.understanding.text_utils.labels_match`. This measures comprehension
+fairly; it does not relax the acceptance thresholds.
 """
 
 import math
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Hashable
+from typing import Hashable, TypeVar
 
 from app.understanding.extract import Extraction
-from app.understanding.text_utils import normalize_label
+from app.understanding.text_utils import labels_match, normalize_label
+
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -109,6 +117,98 @@ def connection_triples(extraction: Extraction) -> list[tuple[str, str, str]]:
     ]
 
 
+# --- Fair (relaxed but honest) matching for entities and tasks ----------------
+# Entities and tasks are compared with :func:`labels_match` rather than exact
+# normalized equality (see module docstring). Connections keep exact matching
+# via :func:`prf` — they are diagnostic only and not part of the acceptance
+# gate, so there is no need to relax them.
+
+
+def soft_prf(
+    predicted: Sequence[T],
+    gold: Sequence[T],
+    match: Callable[[T, T], bool],
+) -> PRF:
+    """Precision/recall counts under a custom, possibly-relaxed ``match``.
+
+    Matching is greedy and ONE-TO-ONE: each predicted item may claim at most one
+    still-unclaimed gold item, and each gold item is claimed at most once. This
+    keeps a relaxed predicate honest — a single prediction cannot be credited
+    against several gold items, and duplicates cannot inflate the score.
+    """
+    claimed = [False] * len(gold)
+    tp = 0
+    for p in predicted:
+        for i, g in enumerate(gold):
+            if not claimed[i] and match(p, g):
+                claimed[i] = True
+                tp += 1
+                break
+    fp = len(predicted) - tp
+    fn = len(gold) - tp
+    return PRF(tp=tp, fp=fp, fn=fn)
+
+
+def _raw_entity_items(extraction: Extraction) -> list[tuple[str, str]]:
+    """``(type, raw_label)`` across all node types (tasks folded in as task).
+
+    Raw (un-normalized) labels are kept so :func:`labels_match` can tokenize
+    them itself; it normalizes internally.
+    """
+    return list(extraction.typed_entities())
+
+
+def _raw_task_labels(extraction: Extraction) -> list[str]:
+    """Raw labels of extracted tasks only (fair matching normalizes them)."""
+    return [t.label for t in extraction.tasks]
+
+
+def _entity_match(a: tuple[str, str], b: tuple[str, str]) -> bool:
+    """Entities match iff their type is identical AND labels match fairly.
+
+    Type stays strict on purpose: calling a person a topic is a real content
+    error, not a wording difference, so it should not be forgiven.
+    """
+    (type_a, label_a), (type_b, label_b) = a, b
+    return type_a == type_b and labels_match(label_a, label_b, min_shared_tokens=1)
+
+
+def _task_match(a: str, b: str) -> bool:
+    """Tasks match by fair label match, requiring >= 2 shared core tokens.
+
+    The higher bar reflects that a task is a free-text phrase: a single shared
+    word (e.g. "report") must not let a fragment claim a whole action item.
+    """
+    return labels_match(a, b, min_shared_tokens=2)
+
+
+def entity_prf(predicted: Extraction, gold: Extraction) -> PRF:
+    """Fair entity-level P/R/F1 (all node types, tasks folded in)."""
+    return soft_prf(
+        _raw_entity_items(predicted), _raw_entity_items(gold), _entity_match
+    )
+
+
+def task_prf(predicted: Extraction, gold: Extraction) -> PRF:
+    """Fair task-level P/R/F1."""
+    return soft_prf(_raw_task_labels(predicted), _raw_task_labels(gold), _task_match)
+
+
+def soft_hallucination_rate(predicted: Extraction, gold: Extraction) -> float:
+    """Fraction of predicted entities unsupported by gold under fair matching.
+
+    Uses the same one-to-one fair matching as :func:`entity_prf`, so an entity
+    that is correct-but-worded-differently is NOT miscounted as a hallucination
+    (which exact matching would do). Zero when nothing is proposed.
+    """
+    predicted_items = _raw_entity_items(predicted)
+    total = len(predicted_items)
+    if total == 0:
+        return 0.0
+    scores = soft_prf(predicted_items, _raw_entity_items(gold), _entity_match)
+    return scores.fp / total
+
+
 # --- Per-case and aggregate reports -------------------------------------------
 @dataclass(frozen=True)
 class CaseScore:
@@ -178,11 +278,15 @@ def score_case(
     cost_usd: float,
     latency_ms: float,
 ) -> CaseScore:
-    """Score one predicted extraction against its gold labels."""
-    ent = prf(entity_pairs(predicted), entity_pairs(gold))
-    tsk = prf(task_labels(predicted), task_labels(gold))
+    """Score one predicted extraction against its gold labels.
+
+    Entities and tasks use FAIR matching (:func:`entity_prf`/:func:`task_prf`);
+    connections keep exact multiset matching (diagnostic only, not gated).
+    """
+    ent = entity_prf(predicted, gold)
+    tsk = task_prf(predicted, gold)
     con = prf(connection_triples(predicted), connection_triples(gold))
-    hall = hallucination_rate(entity_pairs(predicted), entity_pairs(gold))
+    hall = soft_hallucination_rate(predicted, gold)
     return CaseScore(
         case_id=case_id,
         entity=ent,

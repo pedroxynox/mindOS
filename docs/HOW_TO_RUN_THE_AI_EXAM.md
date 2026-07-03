@@ -52,9 +52,26 @@ calidad real y **coste cero**.
 
 > **Sobre la calidad:** Groq usa un modelo abierto (Llama), no el de OpenAI. Es
 > gratis y suficiente para este examen; los resultados pueden diferir un poco de
-> OpenAI. Si Groq deja de ofrecer el modelo por defecto, se puede cambiar sin
-> tocar código mediante la variable `GROQ_MODEL` (ver
-> https://console.groq.com/docs/models).
+> OpenAI. El modelo por defecto es `llama-3.3-70b-versatile`.
+
+### (Opcional) Probar un modelo de Groq distinto — sin tocar código
+
+Si Groq deja de ofrecer el modelo por defecto, o quieres comparar otro (ver la
+lista en https://console.groq.com/docs/models), puedes cambiarlo **sin editar
+código** añadiendo una **Variable** del repositorio (no un secret):
+
+1. Ve a **Settings → Secrets and variables → Actions** y abre la pestaña
+   **Variables** (no "Secrets").
+2. Pulsa **New repository variable**.
+3. En **Name** escribe exactamente: `GROQ_MODEL`
+4. En **Value** pon el identificador del modelo (por ejemplo
+   `llama-3.1-8b-instant`).
+5. Guarda y vuelve a ejecutar el workflow con **provider = groq**. El Summary
+   indicará qué modelo se usó.
+
+> Si dejas la variable sin definir (o vacía), se usa el modelo por defecto. Para
+> ejecuciones locales por terminal es lo mismo: `GROQ_MODEL="..."` antes del
+> comando `python -m app.eval.run_eval --provider groq`.
 
 ---
 

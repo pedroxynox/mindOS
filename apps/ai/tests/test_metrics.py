@@ -10,14 +10,19 @@ from app.eval.metrics import (
     aggregate,
     connection_triples,
     entity_pairs,
+    entity_prf,
     hallucination_rate,
     mean,
     p95,
     prf,
     score_case,
+    soft_hallucination_rate,
+    soft_prf,
     task_labels,
+    task_prf,
 )
 from app.understanding.extract import Connection, Entity, Extraction, TaskItem
+from app.understanding.text_utils import core_tokens, labels_match
 
 
 def test_prf_basic_counts() -> None:
@@ -154,3 +159,78 @@ def test_prf_bounds(predicted: list, gold: list) -> None:
     assert 0.0 <= scores.f1 <= 1.0
     assert scores.tp + scores.fp == len(predicted)
     assert scores.tp + scores.fn == len(gold)
+
+
+
+# --- Fair label matching (design §13.1) ---------------------------------------
+def test_core_tokens_drops_structure_and_folds_plurals() -> None:
+    # Articles, prepositions and the "proyecto"/"project" prefix are dropped;
+    # trailing plural 's' is folded.
+    assert core_tokens("el presupuesto") == frozenset({"presupuesto"})
+    assert core_tokens("proyecto Aurora") == core_tokens("Aurora")
+    assert core_tokens("the budgets") == frozenset({"budget"})
+
+
+def test_labels_match_is_fair_but_not_lax() -> None:
+    # FAIR: same concept worded differently should match.
+    assert labels_match("el presupuesto", "presupuesto")  # article
+    assert labels_match("proyecto Aurora", "Aurora")  # project prefix
+    assert labels_match("budgets", "budget")  # plural
+    assert labels_match("Reunión", "reunion")  # accent/case
+    # FAIR for free-text tasks: a differently-trimmed span matches.
+    assert labels_match(
+        "Need to finish the Q3 report before Friday",
+        "finish the Q3 report before Friday",
+        min_shared_tokens=2,
+    )
+    # NOT LAX: unrelated labels must not match.
+    assert not labels_match("Marcos", "Ana")
+    assert not labels_match("presupuesto", "diseño")
+    # NOT LAX: a single shared word cannot claim a whole task (tasks need >= 2).
+    assert not labels_match("report", "finish the Q3 report before Friday",
+                            min_shared_tokens=2)
+
+
+def test_soft_prf_is_one_to_one_and_honest() -> None:
+    # Two identical predictions cannot both claim one gold item.
+    scores = soft_prf(["buy milk", "buy milk"], ["buy milk"], labels_match)
+    assert (scores.tp, scores.fp, scores.fn) == (1, 1, 0)
+    # A relaxed match recovers a real hit exact matching would miss.
+    good = soft_prf(
+        ["finish the Q3 report before Friday"],
+        ["Need to finish the Q3 report before Friday"],
+        lambda a, b: labels_match(a, b, min_shared_tokens=2),
+    )
+    assert (good.tp, good.fp, good.fn) == (1, 0, 0)
+
+
+def test_entity_prf_keeps_type_strict() -> None:
+    # Same label, different type is a real content error, not a wording diff.
+    predicted = Extraction(entities=[Entity(type="topic", label="Ana")])
+    gold = Extraction(entities=[Entity(type="person", label="Ana")])
+    scores = entity_prf(predicted, gold)
+    assert (scores.tp, scores.fp, scores.fn) == (0, 1, 1)
+
+
+def test_task_prf_matches_trimmed_free_text() -> None:
+    predicted = Extraction(
+        tasks=[TaskItem(label="Reminder: buy milk and eggs")]
+    )
+    gold = Extraction(tasks=[TaskItem(label="buy milk and eggs")])
+    scores = task_prf(predicted, gold)
+    assert (scores.tp, scores.fp, scores.fn) == (1, 0, 0)
+
+
+def test_soft_hallucination_does_not_penalize_correct_wording() -> None:
+    # "el presupuesto" is the same entity as gold "presupuesto": not a hallucination.
+    predicted = Extraction(entities=[Entity(type="topic", label="el presupuesto")])
+    gold = Extraction(entities=[Entity(type="topic", label="presupuesto")])
+    assert soft_hallucination_rate(predicted, gold) == 0.0
+    # An invented entity IS counted as a hallucination.
+    invented = Extraction(
+        entities=[
+            Entity(type="topic", label="presupuesto"),
+            Entity(type="person", label="Fantasma"),
+        ]
+    )
+    assert soft_hallucination_rate(invented, gold) == 0.5
