@@ -1,0 +1,13 @@
+{
+  "id": "case-42",
+  "language": "es",
+  "description": "Recordatorio corto: una sola tarea, sin entidades (objetos físicos no son topics) (español).",
+  "text": "Recordatorio: cambiar las pilas del detector de humo.",
+  "gold": {
+    "entities": [],
+    "tasks": [
+      { "label": "cambiar las pilas del detector de humo" }
+    ],
+    "connections": []
+  }
+}

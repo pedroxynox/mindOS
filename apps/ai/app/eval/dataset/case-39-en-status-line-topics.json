@@ -1,0 +1,14 @@
+{
+  "id": "case-39",
+  "language": "en",
+  "description": "CI status line: only topics, no person/event/task (measures no invention) (English).",
+  "text": "The build passed and everything is green on staging.",
+  "gold": {
+    "entities": [
+      { "type": "topic", "label": "build" },
+      { "type": "topic", "label": "staging" }
+    ],
+    "tasks": [],
+    "connections": []
+  }
+}

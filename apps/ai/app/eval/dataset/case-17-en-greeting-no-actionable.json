@@ -1,0 +1,11 @@
+{
+  "id": "case-17",
+  "language": "en",
+  "description": "Greeting/filler with nothing actionable; gold is empty (measures no invention) (English).",
+  "text": "Good morning! Just checking in, hope everyone had a nice weekend. Talk soon.",
+  "gold": {
+    "entities": [],
+    "tasks": [],
+    "connections": []
+  }
+}

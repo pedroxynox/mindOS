@@ -1,0 +1,15 @@
+{
+  "id": "case-31",
+  "language": "es",
+  "description": "Recados de voz: solo tareas; 'mamá' (parentesco sin nombre) y objetos físicos se omiten (español).",
+  "text": "a ver: llevar a los niños al colegio, comprar pan y llamar a mamá",
+  "gold": {
+    "entities": [],
+    "tasks": [
+      { "label": "llevar a los niños al colegio" },
+      { "label": "comprar pan" },
+      { "label": "llamar a mamá" }
+    ],
+    "connections": []
+  }
+}

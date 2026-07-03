@@ -1,0 +1,18 @@
+{
+  "id": "case-37",
+  "language": "en",
+  "description": "Study task with a compound topic split and a deadline event (English).",
+  "text": "Submit the essay on climate policy by next Monday.",
+  "gold": {
+    "entities": [
+      { "type": "event", "label": "Monday" },
+      { "type": "topic", "label": "essay" },
+      { "type": "topic", "label": "climate" },
+      { "type": "topic", "label": "policy" }
+    ],
+    "tasks": [
+      { "label": "Submit the essay on climate policy by next Monday" }
+    ],
+    "connections": []
+  }
+}

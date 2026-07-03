@@ -1,0 +1,13 @@
+{
+  "id": "case-43",
+  "language": "en",
+  "description": "Tentative intention counted as a task; the unnamed 'Google folks' and vague 'at some point' are omitted (English).",
+  "text": "Might be worth reaching out to the Google folks at some point.",
+  "gold": {
+    "entities": [],
+    "tasks": [
+      { "label": "reaching out to the Google folks at some point" }
+    ],
+    "connections": []
+  }
+}

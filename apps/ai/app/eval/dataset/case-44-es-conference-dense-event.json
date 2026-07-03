@@ -1,0 +1,19 @@
+{
+  "id": "case-44",
+  "language": "es",
+  "description": "Evento denso: congreso con rango de fechas y dos personas; lugar y grupo genérico se omiten, sin tarea (español).",
+  "text": "Congreso de tecnología en Madrid del 10 al 12 de junio; asistirán Andrea, Bruno y el equipo de producto.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Andrea" },
+      { "type": "person", "label": "Bruno" },
+      { "type": "event", "label": "10 al 12 de junio" },
+      { "type": "topic", "label": "congreso" },
+      { "type": "topic", "label": "tecnología" }
+    ],
+    "tasks": [],
+    "connections": [
+      { "type": "mentions", "source": "10 al 12 de junio", "target": "Andrea" }
+    ]
+  }
+}

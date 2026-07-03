@@ -1,0 +1,13 @@
+{
+  "id": "case-15",
+  "language": "es",
+  "description": "Nota reflexiva de salud sin tareas; un solo tema explícito (español).",
+  "text": "Últimamente he estado durmiendo mal y creo que el estrés me está afectando bastante.",
+  "gold": {
+    "entities": [
+      { "type": "topic", "label": "estrés" }
+    ],
+    "tasks": [],
+    "connections": []
+  }
+}

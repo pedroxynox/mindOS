@@ -1,0 +1,11 @@
+{
+  "id": "case-18",
+  "language": "es",
+  "description": "Reflexión vaga sin nada concreto; gold vacío (mide que no se invente) (español).",
+  "text": "Qué raro el día de hoy, no sé, me quedé pensando en muchas cosas.",
+  "gold": {
+    "entities": [],
+    "tasks": [],
+    "connections": []
+  }
+}

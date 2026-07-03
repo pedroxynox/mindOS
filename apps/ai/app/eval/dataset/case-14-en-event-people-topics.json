@@ -1,0 +1,22 @@
+{
+  "id": "case-14",
+  "language": "en",
+  "description": "Scheduled sync described as a noun phrase: several people, times and topics, no action item (English).",
+  "text": "Sync-up with Karen, Miguel and Tom next Tuesday at 10am about the migration and the hiring plan.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Karen" },
+      { "type": "person", "label": "Miguel" },
+      { "type": "person", "label": "Tom" },
+      { "type": "event", "label": "Tuesday" },
+      { "type": "event", "label": "10am" },
+      { "type": "topic", "label": "migration" },
+      { "type": "topic", "label": "hiring" },
+      { "type": "topic", "label": "plan" }
+    ],
+    "tasks": [],
+    "connections": [
+      { "type": "mentions", "source": "Tuesday", "target": "Karen" }
+    ]
+  }
+}

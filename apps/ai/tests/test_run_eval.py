@@ -21,7 +21,8 @@ from app.providers.fake_provider import FakeProvider
 
 def test_dataset_loads_expected_cases() -> None:
     dataset = load_dataset()
-    assert 8 <= len(dataset) <= 12
+    # Eval set expanded to ~45 cases for a stable, low-noise measurement (R-001).
+    assert 40 <= len(dataset) <= 50
     ids = [c.id for c in dataset.cases]
     assert ids == sorted(ids)  # deterministic ordering
     assert len(set(ids)) == len(ids)  # unique ids
