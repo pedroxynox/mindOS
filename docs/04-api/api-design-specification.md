@@ -8,7 +8,7 @@
 >
 > ⚠️ **REVISADO por [ADR-010](../02-architecture/adr/ADR-010-final-stack-and-two-backends.md)
 > (2026-07-01):** la API la sirve **NestJS** (no FastAPI); el tiempo real usa
-> **WebSocket** (ADR-A1 pasa de SSE a WebSocket); el servicio de IA (Python)
+> **WebSocket** ([ADR-013](../02-architecture/adr/ADR-013-rest-json-sse-api-style.md) pasa de SSE a WebSocket); el servicio de IA (Python)
 > expone su propia API interna consumida por NestJS. Los recursos y endpoints
 > definidos aquí siguen siendo el contrato de referencia.
 
@@ -51,23 +51,22 @@ MVP.
 
 ## 2. Decisiones de estilo de API
 
-### ADR-A1 — REST/JSON como estilo primario + SSE para streaming
-
-- **Decisión:** API **REST sobre JSON** para operaciones de recursos.
-  **Server-Sent Events (SSE)** para respuestas de IA que se transmiten token a
-  token (consultas contextuales).
-- **Estado:** 🟠 Decisión de CTO, sujeta a veto.
-- **Por qué:** REST es universal, cacheable, fácil de consumir desde cualquier
-  cliente y de depurar. SSE cubre el streaming de respuestas del LLM con mínima
-  complejidad (unidireccional servidor→cliente, sobre HTTP, sin la sobrecarga de
-  WebSockets).
-- **Alternativa considerada:** *GraphQL.* Potente para consultas flexibles del
-  grafo, pero añade complejidad de caché, seguridad (queries costosas) y
-  tooling que no se justifica en el MVP. **Punto de reevaluación:** si las
-  superficies necesitan consultas de grafo muy variables, se evalúa GraphQL para
-  el subdominio de lectura del grafo.
-- **Alternativa considerada:** *WebSockets* para todo. Rechazada: bidireccional
-  y con estado, innecesario para el MVP; SSE basta para streaming.
+> La decisión de estilo de API se registra ahora como un ADR individual en
+> [`../02-architecture/adr/`](../02-architecture/adr/README.md) (consolidación de
+> ADRs, deuda [D-004](../000_SYSTEM/012_RISK_AND_DEBT_REGISTER.md)). Antes vivía
+> embebida aquí como "ADR-A1".
+>
+> - **[ADR-013 — REST/JSON como estilo primario + SSE para streaming](../02-architecture/adr/ADR-013-rest-json-sse-api-style.md)**
+>   (🟠 Decisión de CTO, sujeta a veto — revisada parcialmente por
+>   [ADR-010](../02-architecture/adr/ADR-010-final-stack-and-two-backends.md): el
+>   tiempo real pasa de SSE a **WebSocket**, SSE queda opcional; NestJS como capa
+>   API): REST sobre JSON para operaciones de recursos y SSE para el streaming
+>   token a token de las respuestas de IA. Alternativas consideradas: GraphQL
+>   (pospuesto por complejidad de caché/seguridad/tooling en el MVP) y WebSockets
+>   para todo (innecesario en su momento).
+>
+> El índice completo de TODOS los ADR vive en
+> [`../02-architecture/adr/README.md`](../02-architecture/adr/README.md).
 
 ---
 
@@ -367,4 +366,5 @@ Cómo el cliente descubre que una captura ya fue comprendida (ADR-02):
 
 | Versión | Fecha | Autor | Cambios |
 |---------|-------|-------|---------|
-| 0.1 | 2026-07-01 | CTO | Borrador inicial. Estilo REST/JSON + SSE (ADR-A1), convenciones globales, mapa de recursos por contexto, endpoints del MVP (auth, captura, grafo, query streaming, briefing, feedback), contrato async, seguridad a nivel de API y non-goals. |
+| 0.1 | 2026-07-01 | CTO | Borrador inicial. Estilo REST/JSON + SSE (ADR-013, antes "ADR-A1"), convenciones globales, mapa de recursos por contexto, endpoints del MVP (auth, captura, grafo, query streaming, briefing, feedback), contrato async, seguridad a nivel de API y non-goals. |
+| 0.2 | 2026-07-03 | CPTO | Consolidación de ADRs (D-004): la decisión de estilo de API embebida ("ADR-A1") se extrajo a un archivo individual [ADR-013](../02-architecture/adr/ADR-013-rest-json-sse-api-style.md) en `../02-architecture/adr/`; §2 deja solo un índice con enlace. Referencia cruzada normalizada a 3 dígitos. |

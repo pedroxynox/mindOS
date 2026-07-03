@@ -3,8 +3,11 @@
 > Registro de decisiones de arquitectura de mindOS. Esquema canónico de
 > numeración: **3 dígitos, `ADR-0NN`** (ver [003 §7](../../000_SYSTEM/003_DECISION_FRAMEWORK.md)).
 > Todo ADR es un archivo propio en esta carpeta. Los ADR-001..ADR-009 estaban
-> antes embebidos en el [TAD #02](../technical-architecture.md) y se consolidaron
-> aquí (deuda [D-004](../../000_SYSTEM/012_RISK_AND_DEBT_REGISTER.md)).
+> antes embebidos en el [TAD #02](../technical-architecture.md), el ADR-013 en la
+> [API #04](../../04-api/api-design-specification.md) (antes "ADR-A1") y los
+> ADR-014..ADR-017 en la [Infraestructura #06](../../06-infrastructure/infrastructure-and-deployment-strategy.md)
+> (antes "ADR-I1".."ADR-I4"); todos se consolidaron aquí como archivos individuales
+> (deuda [D-004](../../000_SYSTEM/012_RISK_AND_DEBT_REGISTER.md), cerrada).
 
 | Nº | Título | Estado | Archivo |
 |----|--------|--------|---------|
@@ -20,14 +23,21 @@
 | ADR-010 | Stack definitivo y arquitectura de dos backends | 🟢 Aprobado | [ADR-010-final-stack-and-two-backends.md](./ADR-010-final-stack-and-two-backends.md) |
 | ADR-011 | Definición de Hecho de F0 y estrategia de infraestructura | 🟢 Aceptado | [ADR-011-f0-definition-of-done-and-infra.md](./ADR-011-f0-definition-of-done-and-infra.md) |
 | ADR-012 | Stack canónico confirmado (edge, almacenamiento de objetos y colas) | 🟢 Aceptado | [ADR-012-canonical-stack.md](./ADR-012-canonical-stack.md) |
+| ADR-013 | REST/JSON como estilo primario + SSE para streaming | 🟠 Decisión de CTO (revisada parcialmente por ADR-010: SSE → WebSocket) | [ADR-013-rest-json-sse-api-style.md](./ADR-013-rest-json-sse-api-style.md) |
+| ADR-014 | Contenedores (Docker) como unidad de despliegue | 🟢 Firme | [ADR-014-docker-containers-deployment-unit.md](./ADR-014-docker-containers-deployment-unit.md) |
+| ADR-015 | Plataforma gestionada sobre un cloud mayor, con portabilidad | 🟠 Decisión de CTO (complementado por ADR-012) | [ADR-015-managed-cloud-platform-portability.md](./ADR-015-managed-cloud-platform-portability.md) |
+| ADR-016 | Toda la infraestructura se define como código | 🟢 Firme (ejecución diferida a pre-beta por ADR-011/012) | [ADR-016-infrastructure-as-code.md](./ADR-016-infrastructure-as-code.md) |
+| ADR-017 | Estrategia de despliegue: rolling con health checks (MVP) | 🟠 Decisión de CTO | [ADR-017-rolling-deployment-strategy.md](./ADR-017-rolling-deployment-strategy.md) |
 
 ## Notas
 
 - **Esquema de numeración:** 3 dígitos (`ADR-0NN`), correlativo y estable. No se
   reutilizan números.
 - **Superseción:** cada ADR declara qué documentos o ADRs supersede. ADR-010
-  supersede parcialmente a ADR-001, ADR-003 y ADR-008.
-- **ADR aún embebidos (fuera de esta consolidación):** el [#04 API](../../04-api/api-design-specification.md)
-  contiene `ADR-A1` y el [#06 Infraestructura](../../06-infrastructure/infrastructure-and-deployment-strategy.md)
-  contiene `ADR-I1..ADR-I4`. Su migración a archivos individuales queda pendiente
-  dentro de la deuda [D-004](../../000_SYSTEM/012_RISK_AND_DEBT_REGISTER.md).
+  supersede parcialmente a ADR-001, ADR-003 y ADR-008 y revisa ADR-013 (antes
+  "ADR-A1" del #04: SSE → WebSocket).
+- **Consolidación completa (D-004 cerrada):** ya no quedan ADR embebidos en otros
+  documentos. Los que vivían en el [#04 API](../../04-api/api-design-specification.md)
+  (`ADR-A1` → **ADR-013**) y en el [#06 Infraestructura](../../06-infrastructure/infrastructure-and-deployment-strategy.md)
+  (`ADR-I1..ADR-I4` → **ADR-014..ADR-017**) se migraron a archivos individuales en
+  esta carpeta; esos documentos conservan solo un índice con enlaces.
