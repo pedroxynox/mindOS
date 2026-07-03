@@ -1,0 +1,19 @@
+{
+  "id": "case-30",
+  "language": "en",
+  "description": "Informal voice memo: one task with a person and two topics; the demo is a topic, not an event (English).",
+  "text": "hey so i gotta ping Alex about the deck before the demo, don't let me forget",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Alex" },
+      { "type": "topic", "label": "deck" },
+      { "type": "topic", "label": "demo" }
+    ],
+    "tasks": [
+      { "label": "ping Alex about the deck before the demo" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "ping Alex about the deck before the demo", "target": "Alex" }
+    ]
+  }
+}

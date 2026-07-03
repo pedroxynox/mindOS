@@ -1,0 +1,15 @@
+{
+  "id": "case-25",
+  "language": "es",
+  "description": "Voz informal, intención tentativa que se anota como tarea; un tema (español).",
+  "text": "no sé quizás debería empezar a hacer ejercicio otra vez pero bueno ya veremos",
+  "gold": {
+    "entities": [
+      { "type": "topic", "label": "ejercicio" }
+    ],
+    "tasks": [
+      { "label": "empezar a hacer ejercicio otra vez" }
+    ],
+    "connections": []
+  }
+}

@@ -32,6 +32,11 @@ código (design §13.1). Los casos se cargan y validan con
 
 ### Reglas de anotación
 
+> La **convención semántica completa** (qué cuenta como `person`/`project`/
+> `event`/`topic`/`task` y cómo se anotan las conexiones y los casos difíciles)
+> está en [`ANNOTATION_GUIDELINES.md`](./ANNOTATION_GUIDELINES.md). Ese documento
+> guía TODO el gold para que sea consistente y defendible.
+
 - **Gold = verdad**, independiente de cualquier proveedor. No se ajusta para
   que un provider concreto puntúe mejor.
 - Los `label` se comparan **normalizados** (minúsculas, sin acentos, sin

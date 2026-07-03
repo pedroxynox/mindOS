@@ -1,0 +1,17 @@
+{
+  "id": "case-21",
+  "language": "es",
+  "description": "Evento familiar con día y una persona nombrada; parentesco sin nombre se omite, sin tarea (español).",
+  "text": "El domingo es el cumpleaños de mi hermana Laura y viene toda la familia.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Laura" },
+      { "type": "event", "label": "domingo" },
+      { "type": "topic", "label": "cumpleaños" }
+    ],
+    "tasks": [],
+    "connections": [
+      { "type": "mentions", "source": "domingo", "target": "Laura" }
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "case-13",
+  "language": "es",
+  "description": "Transcripción de voz informal: tarea con persona, evento, tema y proyecto (español).",
+  "text": "eh nada que tengo que llamar a Rodrigo mañana para ver lo del despliegue del proyecto Fénix",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Rodrigo" },
+      { "type": "event", "label": "mañana" },
+      { "type": "topic", "label": "despliegue" },
+      { "type": "project", "label": "Fénix" }
+    ],
+    "tasks": [
+      { "label": "llamar a Rodrigo mañana para ver lo del despliegue del proyecto Fénix" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "llamar a Rodrigo mañana para ver lo del despliegue del proyecto Fénix", "target": "Rodrigo" }
+    ]
+  }
+}

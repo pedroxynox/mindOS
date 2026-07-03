@@ -1,0 +1,15 @@
+{
+  "id": "case-16",
+  "language": "es",
+  "description": "Recados: solo tareas, sin entidades (objetos físicos no son topics) (español).",
+  "text": "Pasar por la farmacia, recoger el paquete y sacar dinero del cajero.",
+  "gold": {
+    "entities": [],
+    "tasks": [
+      { "label": "Pasar por la farmacia" },
+      { "label": "recoger el paquete" },
+      { "label": "sacar dinero del cajero" }
+    ],
+    "connections": []
+  }
+}

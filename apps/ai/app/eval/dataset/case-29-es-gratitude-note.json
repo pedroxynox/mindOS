@@ -1,0 +1,14 @@
+{
+  "id": "case-29",
+  "language": "es",
+  "description": "Nota reflexiva de gratitud sin tareas; temas de reflexión (español).",
+  "text": "Hoy me sentí muy agradecido por mi familia y por la salud que tengo.",
+  "gold": {
+    "entities": [
+      { "type": "topic", "label": "familia" },
+      { "type": "topic", "label": "salud" }
+    ],
+    "tasks": [],
+    "connections": []
+  }
+}

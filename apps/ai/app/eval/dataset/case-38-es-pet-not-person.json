@@ -1,0 +1,16 @@
+{
+  "id": "case-38",
+  "language": "es",
+  "description": "Tarea con evento y tema; 'Toby, el perro' es una mascota, NO una persona (español).",
+  "text": "Llevar a Toby, el perro, al veterinario el jueves para la vacuna.",
+  "gold": {
+    "entities": [
+      { "type": "event", "label": "jueves" },
+      { "type": "topic", "label": "vacuna" }
+    ],
+    "tasks": [
+      { "label": "Llevar a Toby, el perro, al veterinario el jueves para la vacuna" }
+    ],
+    "connections": []
+  }
+}

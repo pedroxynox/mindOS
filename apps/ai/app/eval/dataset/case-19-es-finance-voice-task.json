@@ -1,0 +1,18 @@
+{
+  "id": "case-19",
+  "language": "es",
+  "description": "Transcripción de voz: tarea financiera con persona y tema; muletillas al inicio y al final (español).",
+  "text": "oye acordate de transferirle la plata a Sofía por lo del alquiler antes de que se me olvide",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Sofía" },
+      { "type": "topic", "label": "alquiler" }
+    ],
+    "tasks": [
+      { "label": "transferirle la plata a Sofía por lo del alquiler" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "transferirle la plata a Sofía por lo del alquiler", "target": "Sofía" }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "case-45",
+  "language": "en",
+  "description": "Personal finance: two tasks with topics; physical 'money' is not a topic (English).",
+  "text": "Set aside some money for the trip and cancel the unused subscription.",
+  "gold": {
+    "entities": [
+      { "type": "topic", "label": "trip" },
+      { "type": "topic", "label": "subscription" }
+    ],
+    "tasks": [
+      { "label": "Set aside some money for the trip" },
+      { "label": "cancel the unused subscription" }
+    ],
+    "connections": []
+  }
+}
