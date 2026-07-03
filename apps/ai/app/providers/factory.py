@@ -15,6 +15,7 @@ def build_provider(settings: Settings) -> AIProvider:
     - ``"fake"`` (default): deterministic, offline, zero-cost — tests/eval.
     - ``"openai"``: real OpenAI-backed provider (needs ``OPENAI_API_KEY``).
     - ``"groq"``: free OpenAI-compatible provider (needs ``GROQ_API_KEY``).
+    - ``"gemini"``: free OpenAI-compatible provider (needs ``GEMINI_API_KEY``).
     - anything else: :class:`ValueError` with a clear message.
     """
     match settings.llm_provider:
@@ -30,8 +31,13 @@ def build_provider(settings: Settings) -> AIProvider:
             from app.providers.groq_provider import GroqProvider
 
             return GroqProvider(settings)
+        case "gemini":
+            # Imported lazily so offline runs don't require the 'openai' dep.
+            from app.providers.gemini_provider import GeminiProvider
+
+            return GeminiProvider(settings)
         case other:
             raise ValueError(
                 f"unknown LLM provider: {other!r} "
-                "(expected 'fake', 'openai' or 'groq')"
+                "(expected 'fake', 'openai', 'groq' or 'gemini')"
             )

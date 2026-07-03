@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # LLM provider selection (provider-agnostic layer, ADR-09 / ADR-012 D4).
     # 'fake' is the default so the comprehension PoC and its evaluation harness
     # run fully offline with zero cost. Set to 'openai' for a real (paid) run,
-    # or 'groq' for a free (no credit card) OpenAI-compatible run.
+    # or 'groq'/'gemini' for a free (no credit card) OpenAI-compatible run.
     llm_provider: str = "fake"
 
     # OpenAI provider (only required when llm_provider = 'openai').
@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     # any code change (see https://console.groq.com/docs/models).
     groq_api_key: str | None = None
     groq_model: str = "llama-3.3-70b-versatile"
+
+    # Gemini provider (only required when llm_provider = 'gemini'). Google
+    # exposes an OpenAI-compatible endpoint for its Gemini models, so it reuses
+    # the same client and the resilience settings below. Get a free key (no
+    # credit card) at https://aistudio.google.com/app/apikey. Gemini's free tier
+    # is notably more generous than Groq's (~15 req/min, ~1M tokens/min). If the
+    # default model is deprecated, override it with GEMINI_MODEL without any code
+    # change (see https://ai.google.dev/gemini-api/docs/models).
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.0-flash"
 
     # Resilience against transient failures / rate limits (HTTP 429). Applied
     # by OpenAIProvider around every API call: exponential backoff + jitter,
