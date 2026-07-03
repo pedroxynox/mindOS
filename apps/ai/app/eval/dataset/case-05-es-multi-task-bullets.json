@@ -6,6 +6,7 @@
   "gold": {
     "entities": [
       { "type": "person", "label": "Lucía" },
+      { "type": "topic", "label": "café" },
       { "type": "topic", "label": "informe" },
       { "type": "topic", "label": "factura" }
     ],

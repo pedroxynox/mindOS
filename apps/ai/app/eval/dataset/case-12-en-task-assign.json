@@ -6,7 +6,8 @@
   "gold": {
     "entities": [
       { "type": "person", "label": "Robert" },
-      { "type": "topic", "label": "marketing" }
+      { "type": "topic", "label": "marketing" },
+      { "type": "topic", "label": "plan" }
     ],
     "tasks": [
       { "label": "Send Robert the marketing plan and ask for feedback" }
