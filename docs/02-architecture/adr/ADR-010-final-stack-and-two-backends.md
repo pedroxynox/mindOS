@@ -3,13 +3,14 @@
 > **Architecture Decision Record — revisión.**
 > Modifica decisiones previas de [TAD #02](../technical-architecture.md)
 > (ADR-03, ADR-08), [PRD #01](../../01-product/prd.md) (D1), [API #04](../../04-api/api-design-specification.md)
-> (ADR-A1) y [Security #07](../../07-security/security-and-privacy-framework.md) (P3).
+> ([ADR-013](./ADR-013-rest-json-sse-api-style.md), antes "ADR-A1") y
+> [Security #07](../../07-security/security-and-privacy-framework.md) (P3).
 
 | Metadato | Valor |
 |----------|-------|
 | Estado | 🟢 Aprobado (decisión del founder + CTO) |
 | Fecha | 2026-07-01 |
-| Reemplaza parcialmente | ADR-03, ADR-08 (#02); D1 (#01); ADR-A1 (#04); P3 (#07) |
+| Reemplaza parcialmente | ADR-03, ADR-08 (#02); D1 (#01); ADR-013 (#04, antes "ADR-A1"); P3 (#07) |
 
 ---
 
@@ -131,5 +132,5 @@ modular de ADR-01):
 | #02 ADR-03 | Backend único en Python/FastAPI | Backend de negocio en NestJS; IA en Python/FastAPI |
 | #02 ADR-08 | Frontend React/TS (web) + PWA | Frontend Flutter (móvil primero); web secundaria/futura |
 | #01 D1 | Web desktop-primary + captura móvil | **Mobile-first** (Flutter); web como complemento posterior |
-| #04 ADR-A1 | REST + SSE | REST + **WebSocket** (SSE opcional); NestJS como capa API |
+| #04 ADR-013 (antes "ADR-A1") | REST + SSE | REST + **WebSocket** (SSE opcional); NestJS como capa API |
 | #07 P3 | Comprar auth gestionada | **Construir** auth JWT propia en NestJS |

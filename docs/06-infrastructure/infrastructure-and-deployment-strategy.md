@@ -46,12 +46,11 @@ desde un commit hasta producción de forma segura, repetible y observable.
 
 ## 2. Empaquetado y ejecución
 
-### ADR-I1 — Contenedores (Docker) como unidad de despliegue
-- **Decisión:** todo componente (API, workers, frontend) se empaqueta en
-  imágenes Docker.
-- **Estado:** 🟢 Firme.
-- **Por qué:** portabilidad total (evita lock-in de proveedor, principio del
-  #02), paridad entre entornos y base para escalar horizontalmente.
+> **[ADR-014 — Contenedores (Docker) como unidad de despliegue](../02-architecture/adr/ADR-014-docker-containers-deployment-unit.md)**
+> (🟢 Firme): todo componente (API, workers, frontend) se empaqueta en imágenes
+> Docker. Portabilidad total (evita lock-in de proveedor, principio del #02),
+> paridad entre entornos y base para escalar horizontalmente. *(Antes embebido
+> aquí como "ADR-I1"; extraído a archivo individual — consolidación D-004.)*
 
 ### Componentes desplegables (del #02)
 ```
@@ -77,24 +76,15 @@ desde un commit hasta producción de forma segura, repetible y observable.
 
 ## 3. Elección de proveedor cloud
 
-### ADR-I2 — Plataforma gestionada sobre un cloud mayor, con portabilidad
-- **Decisión:** desplegar sobre un **proveedor cloud mayor** usando **servicios
-  gestionados** (BD, colas, cómputo de contenedores), manteniendo portabilidad
-  vía Docker + IaC. Recomendación inicial: **AWS** (madurez, PostgreSQL
-  gestionado con soporte pgvector, ecosistema).
-- **Estado:** 🟠 Decisión de CTO, sujeta a veto.
-- **Por qué:** los servicios gestionados (BD, caché, secretos, logs) eliminan
-  trabajo operativo que un equipo pequeño no puede permitirse. Un cloud mayor
-  ofrece el camino de escalado a millones sin migrar de casa.
-- **Alternativas consideradas:**
-  - *PaaS simplificado (Render/Fly/Railway):* excelente velocidad inicial y
-    menor curva; **punto de reevaluación válido** si se prioriza time-to-market
-    extremo en el MVP. Trade-off: menos control y posible migración futura.
-  - *Kubernetes propio desde el día uno:* rechazado. Sobre-ingeniería para el
-    MVP; complejidad operativa enorme sin equipo de plataforma.
-- **Regla anti-lock-in:** favorecer servicios estándar (PostgreSQL, Redis,
-  almacenamiento S3-compatible) sobre servicios propietarios difíciles de
-  migrar, salvo justificación clara.
+> **[ADR-015 — Plataforma gestionada sobre un cloud mayor, con portabilidad](../02-architecture/adr/ADR-015-managed-cloud-platform-portability.md)**
+> (🟠 Decisión de CTO, sujeta a veto — complementado por
+> [ADR-012](../02-architecture/adr/ADR-012-canonical-stack.md)): desplegar sobre un
+> proveedor cloud mayor usando servicios gestionados (BD, colas, cómputo de
+> contenedores), manteniendo portabilidad vía Docker + IaC (recomendación inicial:
+> AWS). Regla anti-lock-in: favorecer servicios estándar (PostgreSQL, Redis, S3-
+> compatible). Alternativas consideradas: PaaS simplificado (Render/Fly/Railway) y
+> Kubernetes propio desde el día uno (rechazado). *(Antes embebido aquí como
+> "ADR-I2"; extraído a archivo individual — consolidación D-004.)*
 
 ### Servicios gestionados objetivo (MVP)
 | Necesidad | Servicio gestionado |
@@ -110,12 +100,14 @@ desde un commit hasta producción de forma segura, repetible y observable.
 
 ## 4. Infraestructura como código (IaC)
 
-### ADR-I3 — Toda la infraestructura se define como código
-- **Decisión:** la infraestructura se declara con **Terraform** (o equivalente),
-  versionada en el repositorio. Nada se crea a mano en la consola del cloud.
-- **Estado:** 🟢 Firme.
-- **Por qué:** reproducibilidad, revisión por PR (igual que el código, #05),
-  recuperación ante desastres y trazabilidad de cambios de infraestructura.
+> **[ADR-016 — Toda la infraestructura se define como código](../02-architecture/adr/ADR-016-infrastructure-as-code.md)**
+> (🟢 Firme; ejecución completa diferida a pre-beta por
+> [ADR-011](../02-architecture/adr/ADR-011-f0-definition-of-done-and-infra.md)/[ADR-012](../02-architecture/adr/ADR-012-canonical-stack.md)):
+> la infraestructura se declara con Terraform (o equivalente), versionada en el
+> repositorio; nada se crea a mano en la consola del cloud. Aporta
+> reproducibilidad, revisión por PR (igual que el código, #05), recuperación ante
+> desastres y trazabilidad. *(Antes embebido aquí como "ADR-I3"; extraído a archivo
+> individual — consolidación D-004.)*
 
 ---
 
@@ -137,14 +129,12 @@ merge a main → build + push de imágenes versionadas → deploy a staging
              → smoke tests en staging → aprobación → deploy a production
 ```
 
-### ADR-I4 — Estrategia de despliegue: rolling con health checks (MVP)
-- **Decisión:** despliegues **rolling** con health checks; migraciones de BD
-  compatibles hacia atrás (expand/contract).
-- **Estado:** 🟠 Decisión de CTO, sujeta a veto.
-- **Por qué:** cero downtime con complejidad razonable. Blue/green o canary se
-  adoptan cuando el volumen de usuarios lo justifique.
-- **Migraciones:** versionadas (Alembic para el backend Python), siempre
-  compatibles hacia atrás para permitir rollback sin pérdida.
+> **[ADR-017 — Estrategia de despliegue: rolling con health checks (MVP)](../02-architecture/adr/ADR-017-rolling-deployment-strategy.md)**
+> (🟠 Decisión de CTO, sujeta a veto): despliegues rolling con health checks;
+> migraciones de BD compatibles hacia atrás (expand/contract), versionadas
+> (Alembic), para permitir rollback sin pérdida. Cero downtime con complejidad
+> razonable; blue/green o canary cuando el volumen lo justifique. *(Antes embebido
+> aquí como "ADR-I4"; extraído a archivo individual — consolidación D-004.)*
 
 ---
 
@@ -228,4 +218,5 @@ Tres pilares, desde el día uno (no como añadido posterior):
 
 | Versión | Fecha | Autor | Cambios |
 |---------|-------|-------|---------|
-| 0.1 | 2026-07-01 | CTO | Borrador inicial. Entornos, contenedores (ADR-I1), elección de cloud gestionado con portabilidad (ADR-I2), IaC (ADR-I3), CI/CD y estrategia de despliegue rolling (ADR-I4), observabilidad (logs/métricas/trazas + SLOs), fiabilidad/backups/recuperación, escalado y gestión de costos. |
+| 0.1 | 2026-07-01 | CTO | Borrador inicial. Entornos, contenedores (ADR-014, antes "ADR-I1"), elección de cloud gestionado con portabilidad (ADR-015, antes "ADR-I2"), IaC (ADR-016, antes "ADR-I3"), CI/CD y estrategia de despliegue rolling (ADR-017, antes "ADR-I4"), observabilidad (logs/métricas/trazas + SLOs), fiabilidad/backups/recuperación, escalado y gestión de costos. |
+| 0.2 | 2026-07-03 | CPTO | Consolidación de ADRs (D-004): los ADR embebidos "ADR-I1".."ADR-I4" se extrajeron a archivos individuales [ADR-014](../02-architecture/adr/ADR-014-docker-containers-deployment-unit.md)..[ADR-017](../02-architecture/adr/ADR-017-rolling-deployment-strategy.md) en `../02-architecture/adr/`; §2/§3/§4/§5 dejan solo índices con enlace. Referencias cruzadas normalizadas al esquema canónico de 3 dígitos. |
