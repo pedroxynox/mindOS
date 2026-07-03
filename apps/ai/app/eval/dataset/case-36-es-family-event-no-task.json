@@ -1,0 +1,18 @@
+{
+  "id": "case-36",
+  "language": "es",
+  "description": "Evento familiar con día y dos personas; parentesco sin nombre y lugar se omiten, sin tarea (español).",
+  "text": "El sábado tenemos comida familiar en casa de la abuela, van a venir Carlos y Elena.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Carlos" },
+      { "type": "person", "label": "Elena" },
+      { "type": "event", "label": "sábado" },
+      { "type": "topic", "label": "comida" }
+    ],
+    "tasks": [],
+    "connections": [
+      { "type": "mentions", "source": "sábado", "target": "Carlos" }
+    ]
+  }
+}

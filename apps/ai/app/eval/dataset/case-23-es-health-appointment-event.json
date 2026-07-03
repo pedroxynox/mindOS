@@ -1,0 +1,16 @@
+{
+  "id": "case-23",
+  "language": "es",
+  "description": "Cita agendada con fecha y hora; describe un evento, no una acción, así que tasks vacío (español).",
+  "text": "Tengo cita con el dentista el 15 de marzo a las 9 de la mañana.",
+  "gold": {
+    "entities": [
+      { "type": "event", "label": "15 de marzo" },
+      { "type": "event", "label": "9 de la mañana" },
+      { "type": "topic", "label": "cita" },
+      { "type": "topic", "label": "dentista" }
+    ],
+    "tasks": [],
+    "connections": []
+  }
+}

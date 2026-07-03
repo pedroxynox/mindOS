@@ -1,0 +1,14 @@
+{
+  "id": "case-33",
+  "language": "es",
+  "description": "Idea/reflexión sin intención concreta; no es tarea, aporta temas (español).",
+  "text": "Se me ocurrió una idea para la app: estaría bien tener un modo oscuro algún día.",
+  "gold": {
+    "entities": [
+      { "type": "topic", "label": "app" },
+      { "type": "topic", "label": "modo oscuro" }
+    ],
+    "tasks": [],
+    "connections": []
+  }
+}

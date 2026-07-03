@@ -1,0 +1,27 @@
+{
+  "id": "case-41",
+  "language": "en",
+  "description": "Long, dense journal paragraph: one named person, a project, times, many topics and two tasks (English).",
+  "text": "Long day. Met with the investors this afternoon — Rachel and a couple of others — and they liked the traction. Still, we need to tighten the financial model and send the updated pitch deck to Rachel by Friday. Also, the Nimbus integration is behind schedule.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Rachel" },
+      { "type": "project", "label": "Nimbus" },
+      { "type": "event", "label": "this afternoon" },
+      { "type": "event", "label": "Friday" },
+      { "type": "topic", "label": "traction" },
+      { "type": "topic", "label": "financial" },
+      { "type": "topic", "label": "model" },
+      { "type": "topic", "label": "pitch" },
+      { "type": "topic", "label": "deck" },
+      { "type": "topic", "label": "integration" }
+    ],
+    "tasks": [
+      { "label": "tighten the financial model" },
+      { "label": "send the updated pitch deck to Rachel by Friday" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "send the updated pitch deck to Rachel by Friday", "target": "Rachel" }
+    ]
+  }
+}

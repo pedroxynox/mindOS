@@ -1,0 +1,16 @@
+{
+  "id": "case-24",
+  "language": "en",
+  "description": "Reminder with tasks; the vague 'client' (no name) and 'delivery date' (no date) must be omitted (English).",
+  "text": "Remember to email the client back and confirm the delivery date.",
+  "gold": {
+    "entities": [
+      { "type": "topic", "label": "delivery" }
+    ],
+    "tasks": [
+      { "label": "email the client back" },
+      { "label": "confirm the delivery date" }
+    ],
+    "connections": []
+  }
+}

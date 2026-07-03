@@ -1,0 +1,21 @@
+{
+  "id": "case-28",
+  "language": "en",
+  "description": "Task to schedule a call with a person for a relative date, with topics (English).",
+  "text": "Let's schedule a call with Marta for next week to discuss the onboarding flow.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Marta" },
+      { "type": "event", "label": "next week" },
+      { "type": "topic", "label": "call" },
+      { "type": "topic", "label": "onboarding" },
+      { "type": "topic", "label": "flow" }
+    ],
+    "tasks": [
+      { "label": "schedule a call with Marta for next week to discuss the onboarding flow" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "schedule a call with Marta for next week to discuss the onboarding flow", "target": "Marta" }
+    ]
+  }
+}

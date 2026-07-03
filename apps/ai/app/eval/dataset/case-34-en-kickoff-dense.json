@@ -1,0 +1,24 @@
+{
+  "id": "case-34",
+  "language": "en",
+  "description": "Dense kickoff note: project, two named people, a date and explicit action items (English).",
+  "text": "Kickoff for project Helios on March 3rd with Sofia, Raj and the design team. Action items: draft the spec and set up the repo.",
+  "gold": {
+    "entities": [
+      { "type": "project", "label": "Helios" },
+      { "type": "person", "label": "Sofia" },
+      { "type": "person", "label": "Raj" },
+      { "type": "event", "label": "March 3rd" },
+      { "type": "topic", "label": "kickoff" },
+      { "type": "topic", "label": "spec" },
+      { "type": "topic", "label": "repo" }
+    ],
+    "tasks": [
+      { "label": "draft the spec" },
+      { "label": "set up the repo" }
+    ],
+    "connections": [
+      { "type": "mentions", "source": "March 3rd", "target": "Sofia" }
+    ]
+  }
+}

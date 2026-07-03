@@ -1,0 +1,18 @@
+{
+  "id": "case-32",
+  "language": "en",
+  "description": "Note plus a tentative task; a named doctor is a person, the appointment is a topic (English).",
+  "text": "Feeling a bit under the weather. Should probably book an appointment with Dr. Nguyen.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Dr. Nguyen" },
+      { "type": "topic", "label": "appointment" }
+    ],
+    "tasks": [
+      { "label": "book an appointment with Dr. Nguyen" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "book an appointment with Dr. Nguyen", "target": "Dr. Nguyen" }
+    ]
+  }
+}

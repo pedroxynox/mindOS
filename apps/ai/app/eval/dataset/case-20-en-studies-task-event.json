@@ -1,0 +1,17 @@
+{
+  "id": "case-20",
+  "language": "en",
+  "description": "Study task with a topic and a deadline event; the exam is a topic, the weekday is the event (English).",
+  "text": "Need to study for the history exam on Friday.",
+  "gold": {
+    "entities": [
+      { "type": "event", "label": "Friday" },
+      { "type": "topic", "label": "history" },
+      { "type": "topic", "label": "exam" }
+    ],
+    "tasks": [
+      { "label": "study for the history exam on Friday" }
+    ],
+    "connections": []
+  }
+}

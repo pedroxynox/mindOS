@@ -1,0 +1,18 @@
+{
+  "id": "case-26",
+  "language": "en",
+  "description": "Standup notes: a person, a project and several topics; status update, no action item (English).",
+  "text": "Notes from standup: Emma is blocked on the API redesign, and the Phoenix rollout slipped to next sprint.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Emma" },
+      { "type": "project", "label": "Phoenix" },
+      { "type": "topic", "label": "standup" },
+      { "type": "topic", "label": "API" },
+      { "type": "topic", "label": "redesign" },
+      { "type": "topic", "label": "rollout" }
+    ],
+    "tasks": [],
+    "connections": []
+  }
+}

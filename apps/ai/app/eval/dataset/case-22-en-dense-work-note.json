@@ -1,0 +1,20 @@
+{
+  "id": "case-22",
+  "language": "en",
+  "description": "Dense work note: two people, a project, several topics and one task with no explicit owner (English).",
+  "text": "Quick note from the call: Priya owns the Q4 budget, Daniel is handling the Orion launch, and we still need to sign the vendor contract.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Priya" },
+      { "type": "person", "label": "Daniel" },
+      { "type": "project", "label": "Orion" },
+      { "type": "topic", "label": "budget" },
+      { "type": "topic", "label": "launch" },
+      { "type": "topic", "label": "contract" }
+    ],
+    "tasks": [
+      { "label": "sign the vendor contract" }
+    ],
+    "connections": []
+  }
+}

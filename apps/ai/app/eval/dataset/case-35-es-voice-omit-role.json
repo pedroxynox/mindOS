@@ -1,0 +1,15 @@
+{
+  "id": "case-35",
+  "language": "es",
+  "description": "Voz: tarea con un tema; 'el jefe' (cargo, sin nombre) y el 'cuándo' vago se omiten (español).",
+  "text": "eh tengo que hablar con el jefe sobre lo del aumento pero no sé cuándo todavía",
+  "gold": {
+    "entities": [
+      { "type": "topic", "label": "aumento" }
+    ],
+    "tasks": [
+      { "label": "hablar con el jefe sobre lo del aumento" }
+    ],
+    "connections": []
+  }
+}

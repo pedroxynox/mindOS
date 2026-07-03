@@ -1,0 +1,20 @@
+{
+  "id": "case-27",
+  "language": "es",
+  "description": "Finanzas: varias tareas y varios temas compuestos separados (español).",
+  "text": "Revisar el presupuesto de marketing, pagar la factura de la luz y cuadrar las cuentas del trimestre.",
+  "gold": {
+    "entities": [
+      { "type": "topic", "label": "presupuesto" },
+      { "type": "topic", "label": "marketing" },
+      { "type": "topic", "label": "factura" },
+      { "type": "topic", "label": "cuentas" }
+    ],
+    "tasks": [
+      { "label": "Revisar el presupuesto de marketing" },
+      { "label": "pagar la factura de la luz" },
+      { "label": "cuadrar las cuentas del trimestre" }
+    ],
+    "connections": []
+  }
+}

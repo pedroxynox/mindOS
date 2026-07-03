@@ -1,0 +1,20 @@
+{
+  "id": "case-40",
+  "language": "mixed",
+  "description": "Code-switching español/inglés: dos tareas, una persona y dos temas (mixto).",
+  "text": "El deploy de Q4 quedó listo, pero need to update the changelog y avisar a Pablo.",
+  "gold": {
+    "entities": [
+      { "type": "person", "label": "Pablo" },
+      { "type": "topic", "label": "deploy" },
+      { "type": "topic", "label": "changelog" }
+    ],
+    "tasks": [
+      { "label": "update the changelog" },
+      { "label": "avisar a Pablo" }
+    ],
+    "connections": [
+      { "type": "assigned_to", "source": "avisar a Pablo", "target": "Pablo" }
+    ]
+  }
+}
