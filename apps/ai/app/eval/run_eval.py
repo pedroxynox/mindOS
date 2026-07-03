@@ -185,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
             run_eval(provider, dataset, request_delay_s=s.eval_request_delay_s)
         )
     except Exception as exc:  # noqa: BLE001 - narrowed via _classify_provider_error
-        message = _classify_provider_error(exc)
+        message = _classify_provider_error(exc, s.llm_provider)
         if message is None:
             raise
         print(message, file=sys.stderr)
@@ -198,9 +198,13 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def _classify_provider_error(exc: BaseException) -> str | None:
+def _classify_provider_error(
+    exc: BaseException, provider_name: str
+) -> str | None:
     """Map a provider failure to a clear operator message, or ``None``.
 
+    ``provider_name`` is the ACTUAL provider in use (e.g. ``groq``/``openai``)
+    so the message never hardcodes "OpenAI" when another provider failed.
     Returns ``None`` when the error is not a recognised provider/transport
     problem, so unexpected bugs still surface as a normal traceback.
     """
@@ -208,17 +212,20 @@ def _classify_provider_error(exc: BaseException) -> str | None:
         from openai import APIError, RateLimitError
     except ImportError:  # pragma: no cover - openai is a core dependency
         return None
+    label = provider_name or "el proveedor"
     if isinstance(exc, RateLimitError):
         return (
-            "ERROR: límite de OpenAI alcanzado; revisa facturación/saldo o los "
-            "límites de peticiones de tu cuenta. La evaluación se ha detenido "
-            "tras agotar los reintentos."
+            f"ERROR: límite de peticiones de {label} alcanzado (puede ser el "
+            f"límite POR MINUTO o la cuota diaria del plan gratuito). La "
+            f"evaluación se detuvo tras agotar los reintentos; espera unos "
+            f"minutos e inténtalo de nuevo más tarde (la cuota diaria gratuita "
+            f"de Groq se reinicia)."
         )
     if isinstance(exc, APIError):
         return (
-            "ERROR: no se pudo completar la evaluación por un problema "
-            "transitorio con OpenAI tras agotar los reintentos. Inténtalo de "
-            "nuevo más tarde."
+            f"ERROR: no se pudo completar la evaluación por un problema "
+            f"transitorio con {label} tras agotar los reintentos. Inténtalo de "
+            f"nuevo más tarde."
         )
     return None
 

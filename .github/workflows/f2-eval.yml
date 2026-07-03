@@ -124,6 +124,36 @@ jobs:
             export GROQ_MODEL="${{ vars.GROQ_MODEL }}"
             echo "Usando GROQ_MODEL=${GROQ_MODEL} (variable del repositorio)."
           fi
+          # --- Espaciado entre llamadas (límite por minuto del plan gratuito) ---
+          # Groq gratis limita peticiones/tokens POR MINUTO. Este examen dispara
+          # ~45 llamadas de evaluación; sin espaciado salen en ráfaga seguida,
+          # superan el límite por minuto, agotan los reintentos y el run muere.
+          # Insertamos una pausa por llamada (EVAL_REQUEST_DELAY_S) para mantener
+          # las 45 llamadas por debajo del límite. 'fake' es offline (sin red),
+          # así que se queda en 0. Se puede AJUSTAR sin tocar código con una
+          # *Variable* del repositorio llamada EVAL_REQUEST_DELAY_S (mismo patrón
+          # que GROQ_MODEL); si está definida y no vacía, gana sobre el defecto.
+          case "${{ inputs.provider }}" in
+            groq) EVAL_REQUEST_DELAY_S=4 ;;
+            openai) EVAL_REQUEST_DELAY_S=1 ;;
+            *) EVAL_REQUEST_DELAY_S=0 ;;
+          esac
+          if [ -n "${{ vars.EVAL_REQUEST_DELAY_S }}" ]; then
+            EVAL_REQUEST_DELAY_S="${{ vars.EVAL_REQUEST_DELAY_S }}"
+            echo "Usando EVAL_REQUEST_DELAY_S=${EVAL_REQUEST_DELAY_S}s (variable del repositorio)."
+          else
+            echo "Usando EVAL_REQUEST_DELAY_S=${EVAL_REQUEST_DELAY_S}s (valor por defecto para ${{ inputs.provider }})."
+          fi
+          if [ "${EVAL_REQUEST_DELAY_S}" != "0" ]; then
+            export EVAL_REQUEST_DELAY_S
+          fi
+          # Más margen de reintentos para una cuenta nueva/gratuita frente a 429
+          # transitorios (usa el setting compartido openai_max_retries). Solo
+          # para proveedores reales; 'fake' nunca toca la red.
+          if [ "${{ inputs.provider }}" != "fake" ]; then
+            export OPENAI_MAX_RETRIES=8
+            echo "Usando OPENAI_MAX_RETRIES=${OPENAI_MAX_RETRIES}."
+          fi
           echo "Ejecutando: python -m app.eval.run_eval --provider ${{ inputs.provider }} ${GATE_FLAG}"
           set +e
           python -m app.eval.run_eval --provider "${{ inputs.provider }}" ${GATE_FLAG} > eval_report.txt 2>&1

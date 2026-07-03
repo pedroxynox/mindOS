@@ -100,7 +100,26 @@ def test_main_reports_clear_message_on_rate_limit(
         code = main(["--provider", "openai"])
     assert code == EXIT_PROVIDER_UNAVAILABLE
     err = capsys.readouterr().err
-    assert "límite de OpenAI" in err
+    # The message must name the ACTUAL provider in use (not a hardcoded
+    # "OpenAI") and mention the rate limit so the operator knows to wait/retry.
+    assert "openai" in err
+    assert "límite" in err
+
+
+def test_rate_limit_message_names_the_actual_provider() -> None:
+    # A Groq run that hits the limit must say "groq", never a hardcoded "OpenAI".
+    from openai import RateLimitError
+
+    from app.eval.run_eval import _classify_provider_error
+
+    response = httpx.Response(
+        429, request=httpx.Request("POST", "https://api.groq.com/openai/v1/x")
+    )
+    exc = RateLimitError("429", response=response, body=None)
+    message = _classify_provider_error(exc, "groq")
+    assert message is not None
+    assert "groq" in message
+    assert "OpenAI" not in message
 
 
 async def test_run_eval_propagates_rate_limit_error() -> None:
