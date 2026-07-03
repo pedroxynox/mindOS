@@ -125,16 +125,21 @@ jobs:
             echo "Usando GROQ_MODEL=${GROQ_MODEL} (variable del repositorio)."
           fi
           # --- Espaciado entre llamadas (límite por minuto del plan gratuito) ---
-          # Groq gratis limita peticiones/tokens POR MINUTO. Este examen dispara
-          # ~45 llamadas de evaluación; sin espaciado salen en ráfaga seguida,
-          # superan el límite por minuto, agotan los reintentos y el run muere.
-          # Insertamos una pausa por llamada (EVAL_REQUEST_DELAY_S) para mantener
-          # las 45 llamadas por debajo del límite. 'fake' es offline (sin red),
-          # así que se queda en 0. Se puede AJUSTAR sin tocar código con una
-          # *Variable* del repositorio llamada EVAL_REQUEST_DELAY_S (mismo patrón
-          # que GROQ_MODEL); si está definida y no vacía, gana sobre el defecto.
+          # Groq gratis limita los TOKENS por minuto (TPM), no solo el número de
+          # peticiones. El prompt de extracción de F2 es GRANDE (concatena v2+v3+v4
+          # íntegros, ver D-010), así que cada una de las ~45 llamadas del examen
+          # gasta muchos tokens; con poco espaciado se supera el techo de TPM en
+          # cada minuto, se agotan los reintentos y el run muere (pasó dos veces:
+          # ~6 min y ~16 min). Por eso subimos el espaciado a ~20s (~3 llamadas/min)
+          # para quedarnos por debajo del límite de TOKENS por minuto: un examen
+          # completo tarda ahora ~20 min POR DISEÑO (priorizamos fiabilidad sobre
+          # velocidad; completar el examen importa más que correrlo rápido).
+          # 'fake' es offline (sin red), así que se queda en 0. Se puede AJUSTAR
+          # sin tocar código con una *Variable* del repositorio llamada
+          # EVAL_REQUEST_DELAY_S (mismo patrón que GROQ_MODEL); si está definida y
+          # no vacía, gana sobre el defecto.
           case "${{ inputs.provider }}" in
-            groq) EVAL_REQUEST_DELAY_S=4 ;;
+            groq) EVAL_REQUEST_DELAY_S=20 ;;
             openai) EVAL_REQUEST_DELAY_S=1 ;;
             *) EVAL_REQUEST_DELAY_S=0 ;;
           esac
@@ -151,7 +156,7 @@ jobs:
           # transitorios (usa el setting compartido openai_max_retries). Solo
           # para proveedores reales; 'fake' nunca toca la red.
           if [ "${{ inputs.provider }}" != "fake" ]; then
-            export OPENAI_MAX_RETRIES=8
+            export OPENAI_MAX_RETRIES=10
             echo "Usando OPENAI_MAX_RETRIES=${OPENAI_MAX_RETRIES}."
           fi
           echo "Ejecutando: python -m app.eval.run_eval --provider ${{ inputs.provider }} ${GATE_FLAG}"
