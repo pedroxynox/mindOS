@@ -4,10 +4,10 @@
 validates it with Pydantic. It is provider-agnostic: the same code runs against
 the deterministic ``FakeProvider`` (offline eval) and a real ``OpenAIProvider``.
 
-The prompt is a versioned constant (currently ``EXTRACTION_PROMPT_V3``; the
-previous ``EXTRACTION_PROMPT_V1``/``EXTRACTION_PROMPT_V2`` are kept for history)
-so prompt changes are explicit and diffable — the eval harness (design §13)
-iterates on exactly this string when de-risking R-001.
+The prompt is a versioned constant (currently ``EXTRACTION_PROMPT_V4``; the
+previous ``EXTRACTION_PROMPT_V1``/``EXTRACTION_PROMPT_V2``/``EXTRACTION_PROMPT_V3``
+are kept for history) so prompt changes are explicit and diffable — the eval
+harness (design §13) iterates on exactly this string when de-risking R-001.
 """
 
 import json
@@ -285,7 +285,6 @@ EXTRACTION_PROMPT_V2 = (
 # It deliberately does NOT touch the inclusion rules for explicit entities/tasks,
 # so it trims invention without shrinking coverage. v2 is retained above so the
 # change stays diffable and reversible.
-EXTRACTION_PROMPT_VERSION = "v3"
 
 _V3_EXAMPLE_3 = (
     '{"entities":['
@@ -322,11 +321,117 @@ _V3_ADDENDUM = (
 
 EXTRACTION_PROMPT_V3 = EXTRACTION_PROMPT_V2 + _V3_ADDENDUM
 
+# --- v4 (current) -------------------------------------------------------------
+# The STABLE 45-case Groq/Llama run with v3 + the fair matcher passed entity F1
+# (0.826) and task precision (0.889) but STILL failed the hallucination gate:
+# 0.160 vs the 0.05 ceiling. Reading the worst cases isolated THREE concrete
+# over-extraction patterns, all of them pure INVENTION (false positives), not
+# missed recall:
+#   1. physical OBJECTS/PLACES emitted as a `topic` (a pharmacy, a package, an
+#      ATM, a school) when they are merely the object/location of an errand —
+#      the gold never treats a place/errand-location as a topic (case-16,
+#      case-31).
+#   2. ROLES/TITLES/KINSHIP emitted as a `person` ("el jefe", "el cliente",
+#      "mamá", "the team") when no proper name is present — every gold `person`
+#      is a proper name (case-24, case-35).
+#   3. VAGUE mood/filler captures rounded up into an invented `note` or topic
+#      instead of returning empty — the gold NEVER uses the `note` type, and a
+#      pure-reflection capture is gold-empty (case-18).
+# v4 keeps EVERYTHING in v3 (hence v2) verbatim so recall is NOT disturbed, and
+# appends precision-only reinforcements that fire ONLY on these invented items;
+# it does NOT touch the inclusion rules for explicit entities/tasks, so it trims
+# invention without shrinking coverage.
+#
+# RECALL-SAFETY was verified against ALL 45 gold files before writing this:
+#   - `note` appears 0 times in gold -> forbidding it can only remove FPs.
+#   - every gold `person` is a proper name -> the role/kinship rule drops no
+#     gold person.
+#   - gold `topic`s are abstract subjects and errand PLACES/locations are never
+#     topics. ONE CAVEAT was found and honored: the gold is INCONSISTENT about a
+#     bought consumable (case-05 "café" IS a topic while case-31 "pan" is NOT).
+#     To stay recall-safe, rule 1 is deliberately SCOPED to places/locations and
+#     purely instrumental objects (which the gold omits 100% consistently); it
+#     does NOT tell the model that every purchased good is a non-topic, because
+#     that would risk dropping "café". Residual: "pan"-type consumables may still
+#     be over-extracted in case-31 — an accepted, honest trade to protect recall.
+# NO gold, matcher, metric or threshold is changed. v3 is retained above so the
+# change stays diffable and reversible. PENDING VALIDATION with a real Groq run
+# (this is a reasoned hypothesis, not yet measured — no Groq key in this env).
+EXTRACTION_PROMPT_VERSION = "v4"
+
+# INVENTED few-shot for v4 (like the v2/v3 examples, NOTHING here is taken from
+# the eval set — no farmacia/pan/paquete/cajero/colegio/mamá/jefe/cliente, no
+# gold topic words). It only teaches JUDGEMENT: errand places/objects stay
+# inside task labels, and a vague mood line yields an all-empty result.
+_V4_EXAMPLE_4 = (
+    '{"entities":[],'
+    '"tasks":['
+    '{"label":"pasar por la tintorería"},'
+    '{"label":"dejar unos documentos en la notaría"},'
+    '{"label":"hacer cola en el ayuntamiento"}],'
+    '"connections":[]}'
+)
+
+_V4_ADDENDUM = (
+    "\n"
+    "\n"
+    "==== v4 PRECISION REINFORCEMENT (remove inventions only) ====\n"
+    "Everything above still applies. The rules below ONLY stop three specific\n"
+    "inventions; they NEVER tell you to drop an explicitly named entity or a\n"
+    "real task. Keeping every EXPLICIT item is still required — this section\n"
+    "removes fabrications, not real content.\n"
+    "\n"
+    "1) OBJECTS & PLACES ARE NOT ENTITIES. A place or location named only as\n"
+    "   WHERE an errand happens — a shop, a pharmacy, a bank, an ATM, a school,\n"
+    "   an office, a gym — is NOT a `topic` and NOT any entity. A purely\n"
+    "   instrumental object handled in passing during an errand — a package, a\n"
+    "   form, a document, a receipt — is NOT an entity either. Such words may\n"
+    "   appear INSIDE a task label (that is where they belong), but never as a\n"
+    "   standalone entity. `topic` is reserved for ABSTRACT subject matter — a\n"
+    "   theme, a concept, a feature, an area of concern — NEVER a physical place\n"
+    "   or location.\n"
+    "\n"
+    "2) ROLES, TITLES AND KINSHIP ARE NOT `person`. Only a PROPER NAME is a\n"
+    '   person. A bare role or relationship with no name — "the boss"/"el jefe",\n'
+    '   "the client"/"el cliente", "the team"/"el equipo", "mom"/"mamá",\n'
+    '   "someone" — is NOT a person entity. It may still appear inside a task\n'
+    "   label, but if no proper name is present, emit NO person.\n"
+    "\n"
+    "3) DO NOT USE `note`, AND NEVER INVENT TO AVOID EMPTINESS. For a vague,\n"
+    "   mood, or filler capture with no concrete task and no explicitly named\n"
+    "   entity or abstract subject, return EVERY section empty ([]). Only emit\n"
+    "   an explicit abstract subject as a `topic`; if there is none, an empty\n"
+    "   result is the CORRECT answer. Pure reflection with nothing concrete\n"
+    "   yields all-empty output — do NOT manufacture a `note` or a topic to\n"
+    "   fill the gap.\n"
+    "\n"
+    "==== ILLUSTRATIVE EXAMPLE 4 (invented — NOT from your data; do not reuse) ====\n"
+    "Two contrasting captures: the errands case and the empty case.\n"
+    "\n"
+    "Example 4a (ES) — an errands list: tasks only, places/objects NOT entities.\n"
+    'Capture: "Recados de hoy: pasar por la tintorería, dejar unos documentos en\n'
+    'la notaría y hacer cola en el ayuntamiento."\n'
+    "JSON: " + _V4_EXAMPLE_4 + "\n"
+    'Why: "tintorería", "notaría" and "ayuntamiento" are PLACES where errands\n'
+    'happen, and "documentos" is an instrumental object handled in passing — none\n'
+    "is an entity. They live inside the task labels only. No proper name and no\n"
+    "abstract subject, so entities is [].\n"
+    "\n"
+    "Example 4b (ES) — a vague mood line: everything empty.\n"
+    'Capture: "No sé, hoy ando un poco disperso, con la cabeza en las nubes."\n'
+    'JSON: {"entities":[],"tasks":[],"connections":[]}\n'
+    "Why: pure mood/filler — no concrete task, no named entity, no abstract\n"
+    "subject -> every section is []. Emptiness is the correct answer; do NOT\n"
+    "invent a `note` or a topic to avoid it."
+)
+
+EXTRACTION_PROMPT_V4 = EXTRACTION_PROMPT_V3 + _V4_ADDENDUM
+
 
 def build_extraction_prompt(text: str) -> str:
     """Render the current versioned prompt with the capture text embedded."""
     return (
-        f"{EXTRACTION_PROMPT_V3}\n\n"
+        f"{EXTRACTION_PROMPT_V4}\n\n"
         f"Capture:\n{CAPTURE_OPEN}\n{text}\n{CAPTURE_CLOSE}\n"
     )
 
