@@ -177,13 +177,19 @@ jobs:
           # queda en 0. Se puede AJUSTAR sin tocar código con una *Variable* del
           # repositorio llamada EVAL_REQUEST_DELAY_S (mismo patrón que
           # GROQ_MODEL); si está definida y no vacía, gana sobre el defecto.
-          # Gemini gratis limita ~15 peticiones por minuto (RPM), así que un
-          # espaciado de ~5s (~12 llamadas/min) queda con holgura por debajo del
-          # techo; un examen completo tarda ~4-5 min. Ajustable sin código con
-          # la *Variable* del repositorio EVAL_REQUEST_DELAY_S (igual que groq).
+          # Gemini gratis está limitado por PETICIONES por minuto (RPM ~10-15),
+          # NO por tokens: su techo de TOKENS por minuto (TPM) es enorme (~1M),
+          # así que aquí solo manda el ritmo de peticiones. Con 5s (~12
+          # llamadas/min) el examen quedaba justo en el borde del RPM y una tanda
+          # sostenida agotaba los reintentos (429 "límite de peticiones
+          # alcanzado"). Subimos el espaciado a 12s (~5 llamadas/min): deja
+          # holgura cómoda bajo el techo de RPM (el TPM ni se roza) para que el
+          # examen COMPLETE; un examen completo tarda ahora ~10-11 min. Ajustable
+          # sin código con la *Variable* del repositorio EVAL_REQUEST_DELAY_S
+          # (igual que groq).
           case "${{ inputs.provider }}" in
             groq) EVAL_REQUEST_DELAY_S=10 ;;
-            gemini) EVAL_REQUEST_DELAY_S=5 ;;
+            gemini) EVAL_REQUEST_DELAY_S=12 ;;
             openai) EVAL_REQUEST_DELAY_S=1 ;;
             *) EVAL_REQUEST_DELAY_S=0 ;;
           esac
