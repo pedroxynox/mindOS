@@ -20,13 +20,22 @@ class Settings(BaseSettings):
 
     # LLM provider selection (provider-agnostic layer, ADR-09 / ADR-012 D4).
     # 'fake' is the default so the comprehension PoC and its evaluation harness
-    # run fully offline with zero cost. Set to 'openai' for a real run.
+    # run fully offline with zero cost. Set to 'openai' for a real (paid) run,
+    # or 'groq' for a free (no credit card) OpenAI-compatible run.
     llm_provider: str = "fake"
 
     # OpenAI provider (only required when llm_provider = 'openai').
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
     openai_embedding_model: str = "text-embedding-3-small"
+
+    # Groq provider (only required when llm_provider = 'groq'). Groq exposes an
+    # OpenAI-compatible API, so it reuses the same client and the resilience
+    # settings below. Get a free key (no card) at https://console.groq.com.
+    # If Groq deprecates the default model, override it with GROQ_MODEL without
+    # any code change (see https://console.groq.com/docs/models).
+    groq_api_key: str | None = None
+    groq_model: str = "llama-3.3-70b-versatile"
 
     # Resilience against transient failures / rate limits (HTTP 429). Applied
     # by OpenAIProvider around every API call: exponential backoff + jitter,
