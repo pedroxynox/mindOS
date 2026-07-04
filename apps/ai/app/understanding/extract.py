@@ -4,10 +4,11 @@
 validates it with Pydantic. It is provider-agnostic: the same code runs against
 the deterministic ``FakeProvider`` (offline eval) and a real ``OpenAIProvider``.
 
-The prompt is a versioned constant (currently ``EXTRACTION_PROMPT_V5``, a lean
-consolidation of v2+v3+v4; the previous ``EXTRACTION_PROMPT_V1``..``V4`` are
-kept for history) so prompt changes are explicit and diffable — the eval
-harness (design §13) iterates on exactly this string when de-risking R-001.
+The prompt is a versioned constant (currently ``EXTRACTION_PROMPT_V6``, a
+targeted edit of the lean v5 consolidation that tightens the task exclusions;
+the previous ``EXTRACTION_PROMPT_V1``..``V5`` are kept for history) so prompt
+changes are explicit and diffable — the eval harness (design §13) iterates on
+exactly this string when de-risking R-001.
 """
 
 import json
@@ -468,7 +469,8 @@ EXTRACTION_PROMPT_V4 = EXTRACTION_PROMPT_V3 + _V4_ADDENDUM
 # strings only, never sent) so the history stays diffable/reversible. Behaviour
 # is expected to be VERY CLOSE to v4 (same rules), but v5 is a FRESH prompt to be
 # RE-MEASURED with a completing Groq run, NOT guaranteed byte-for-byte identical.
-EXTRACTION_PROMPT_VERSION = "v5"
+# NOTE: v5 was superseded at runtime by v6 below; the string is kept only for
+# history/diff. ``EXTRACTION_PROMPT_VERSION`` is set with v6.
 
 EXTRACTION_PROMPT_V5 = (
     "You are a precise information-extraction engine for a personal knowledge\n"
@@ -574,11 +576,77 @@ EXTRACTION_PROMPT_V5 = (
     "and no abstract subject, so entities is []."
 )
 
+# --- v6 (current) -------------------------------------------------------------
+# WHY v6 EXISTS: the FIRST COMPLETE Groq/Llama run of the 45-case exam (v5 + the
+# fair matcher) FAILED the gate — hallucination 0.137 vs the ≤0.05 ceiling
+# (entities F1 0.739, task precision 0.830). Reading the worst cases isolated a
+# SINGLE dominant remaining pattern, all pure INVENTION into `tasks` (false
+# positives), NOT missed recall: the model turns NON-ACTIONS into tasks —
+#   1. an IDEA/WISH invented as a task — case-33 (hall 1.0): "…estaría bien tener
+#      un modo oscuro algún día." (gold tasks: []).
+#   2. a STATUS/STATE update invented as tasks — case-26 (hall 0.6): "Emma is
+#      blocked on the API redesign, and the Phoenix rollout slipped…"
+#      (gold tasks: []).
+#   3. an APPOINTMENT/EVENT confused as a task — case-23 (hall 0.667): "Tengo
+#      cita con el dentista el 15 de marzo…" (gold tasks: []), because "tengo"
+#      resembles the "tengo que" task trigger.
+# v5 already said "Past facts, opinions, or a description of a scheduled event
+# are NOT tasks." but did NOT explicitly cover ideas/wishes, status/state
+# updates, or "tengo cita" vs "tengo que". v6 strengthens ONLY the task-exclusion
+# wording + adds ONE task line to the FINAL SELF-CHECK. Nothing else changes:
+# entities, connections, output format, examples, the gold dataset, the matcher,
+# thresholds and metrics are all untouched.
+#
+# RECALL-SAFETY AUDIT (done BEFORE writing v6, against the `gold.tasks` of ALL 45
+# case-*.json files): every real gold task is a genuine ACTION the author
+# performs — NONE is an idea/wish, a status/state description, or an
+# appointment/scheduled-event description. The event-adjacent gold tasks are all
+# active verbs, not "having/attending": case-32 "book an appointment with Dr.
+# Nguyen" (the ACT of booking), case-38 "Llevar a Toby… al veterinario el jueves"
+# (taking), case-20 "study for the history exam on Friday" (studying) — none is
+# excluded by the new wording, which targets only the STATE of having/attending
+# ("tengo cita"). Status lines the gold already omits (case-41 "Nimbus… is behind
+# schedule", case-39, case-26) and the idea in case-33 confirm the direction.
+# CONCLUSION: the change drops NO real gold task -> recall is not hurt; it can
+# only remove the false-positive task inventions above.
+#
+# v6 is defined as a TARGETED edit of the v5 string (via str.replace on exactly
+# the two anchors below), so the base stays BYTE-IDENTICAL to v5, no rule is
+# duplicated, and the runtime prompt remains ONE lean self-contained string
+# (respecting debt D-010). v1..v5 strings are RETAINED above for history/diff and
+# are never sent. This is a REASONED HYPOTHESIS, PENDING RE-MEASUREMENT with a
+# completing Groq run (no Groq key in this env).
+EXTRACTION_PROMPT_VERSION = "v6"
+
+EXTRACTION_PROMPT_V6 = EXTRACTION_PROMPT_V5.replace(
+    # (a) Strengthen the TASKS exclusion: a task must be an action the AUTHOR
+    # will actively DO; ideas/wishes, status/state updates, and
+    # having/attending a scheduled event/appointment are NOT tasks.
+    "Past facts, opinions, or a description of a scheduled event are NOT tasks.\n",
+    "A task must be an action the AUTHOR will actively DO. Past facts, opinions,\n"
+    "IDEAS or WISHES (\"would be nice to…\", \"estaría bien…\", \"someday\"/\"algún\n"
+    "día\"), STATUS or STATE updates about someone/something (\"X is\n"
+    "blocked\"/\"está bloqueado\", \"the rollout slipped\"/\"se corrió\", \"is\n"
+    "behind\"), and having or attending a SCHEDULED EVENT or APPOINTMENT (\"tengo\n"
+    "cita\", \"I have a meeting\", \"la reunión es el jueves\") are NOT tasks — an\n"
+    "event is something that happens, not an action you perform. Note: \"tengo\n"
+    "cita\" (an appointment) is NOT a task, unlike \"tengo que\" (an obligation to\n"
+    "act).\n",
+).replace(
+    # (b) Add one task-focused line to the FINAL SELF-CHECK.
+    "the text does not name outright. Keeping every EXPLICIT item is still\n"
+    "required — this check removes only inventions, not real content.\n",
+    "the text does not name outright. For EVERY task, confirm it is an action\n"
+    "the author will perform — not a state, wish, opinion, or scheduled\n"
+    "event/appointment; if not, DELETE it. Keeping every EXPLICIT item is still\n"
+    "required — this check removes only inventions, not real content.\n",
+)
+
 
 def build_extraction_prompt(text: str) -> str:
     """Render the current versioned prompt with the capture text embedded."""
     return (
-        f"{EXTRACTION_PROMPT_V5}\n\n"
+        f"{EXTRACTION_PROMPT_V6}\n\n"
         f"Capture:\n{CAPTURE_OPEN}\n{text}\n{CAPTURE_CLOSE}\n"
     )
 
