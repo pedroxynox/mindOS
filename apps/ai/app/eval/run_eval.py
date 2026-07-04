@@ -17,6 +17,9 @@ owner. They are read from Settings so they can be tuned without code changes.
 import argparse
 import asyncio
 import sys
+from dataclasses import dataclass
+
+from openai import APIError
 
 from app.config import Settings
 from app.config import settings as default_settings
@@ -30,6 +33,14 @@ from app.eval.metrics import (
 from app.providers.base import AIProvider
 from app.providers.factory import build_provider
 from app.understanding.extract import Extraction, run_extraction
+
+
+@dataclass(frozen=True)
+class ProviderCaseError:
+    """One un-evaluated case: its id plus the raw provider error detail."""
+
+    case_id: str
+    detail: str
 
 
 def thresholds_from_settings(s: Settings) -> Thresholds:
@@ -46,16 +57,25 @@ async def run_eval(
     dataset: EvalDataset,
     *,
     request_delay_s: float = 0.0,
-) -> EvalReport:
+) -> tuple[EvalReport, list[ProviderCaseError]]:
     """Score every case in the dataset and aggregate into a report.
 
     Cases run strictly sequentially (never a concurrent burst) and an optional
     ``request_delay_s`` pause is inserted between them so a real-provider run
-    stays under the requests-per-minute limit of a fresh account. A transient
-    provider error such as a rate limit (429) — already retried inside the
-    provider — is allowed to propagate so the caller can surface a clear
-    message instead of a partial, misleading report.
+    stays under the requests-per-minute limit of a fresh account.
+
+    Provider/transport errors are isolated PER CASE: an ``openai.APIError``
+    (or subclass such as ``RateLimitError``) raised for a single case — after
+    the provider's own retries are exhausted — is recorded as a
+    :class:`ProviderCaseError`, logged to stderr, and skipped so the run still
+    completes over every other evaluable case. Those errored cases are excluded
+    from scoring entirely (never counted as empty extractions). The function
+    returns ``(report, errors)`` so the caller can render the completed-case
+    metrics and the un-evaluated cases separately. A malformed/invalid provider
+    *output* (``ValueError``) is unchanged: it stays a genuine quality miss
+    scored as an empty extraction.
     """
+    errors: list[ProviderCaseError] = []
     scores = []
     for index, case in enumerate(dataset.cases):
         if index > 0 and request_delay_s > 0:
@@ -71,10 +91,67 @@ async def run_eval(
             predicted = Extraction()
             cost = 0.0
             latency = 0.0
+        except APIError as exc:
+            # Provider/transport failure for THIS case only: record, log, and
+            # skip scoring so it is never counted as an empty extraction.
+            detail = _describe_provider_error(exc)
+            errors.append(ProviderCaseError(case.id, detail))
+            print(
+                f"[run_eval] provider error on {case.id}: {detail}",
+                file=sys.stderr,
+            )
+            continue
         scores.append(
             score_case(case.id, predicted, case.gold, cost, latency)
         )
-    return aggregate(scores)
+    return aggregate(scores), errors
+
+
+def _describe_provider_error(exc: BaseException) -> str:
+    """Return a readable single-line diagnostic for a provider exception.
+
+    Surfaces the exception type name plus any of ``status_code``, ``code``,
+    ``message`` and ``body``/``response`` that are present. All attribute access
+    is defensive (``getattr(..., None)``) and the whole body is wrapped so this
+    helper NEVER raises — diagnostics must not crash the run.
+    """
+    try:
+        parts: list[str] = [type(exc).__name__]
+        status = getattr(exc, "status_code", None)
+        if status is not None:
+            parts.append(f"status={status}")
+        code = getattr(exc, "code", None)  # e.g. RESOURCE_EXHAUSTED
+        if code:
+            parts.append(f"code={code}")
+        message = getattr(exc, "message", None) or str(exc)
+        if message:
+            parts.append(f"message={message!r}")
+        body = getattr(exc, "body", None)
+        if body is not None:
+            parts.append(f"body={body!r}")
+        else:
+            response = getattr(exc, "response", None)
+            if response is not None:
+                text = getattr(response, "text", None)
+                parts.append(
+                    f"response={text!r}" if text else f"response={response!r}"
+                )
+        return " ".join(parts).replace("\n", " ").replace("\r", " ")
+    except Exception:  # noqa: BLE001 - diagnostics must never crash the run
+        return type(exc).__name__
+
+
+def _render_unevaluated(errors: list[ProviderCaseError]) -> str:
+    """Render the delimited "casos no evaluados" section for the error list."""
+    lines = [
+        "=" * 68,
+        f"  CASOS NO EVALUADOS (provider error): {len(errors)}",
+        "-" * 68,
+    ]
+    for e in errors:
+        lines.append(f"  {e.case_id:<12} {e.detail}")
+    lines.append("=" * 68)
+    return "\n".join(lines)
 
 
 def render_report(
@@ -181,10 +258,10 @@ def main(argv: list[str] | None = None) -> int:
     provider = build_provider(s)
     dataset = load_dataset()
     try:
-        report = asyncio.run(
+        report, errors = asyncio.run(
             run_eval(provider, dataset, request_delay_s=s.eval_request_delay_s)
         )
-    except Exception as exc:  # noqa: BLE001 - narrowed via _classify_provider_error
+    except Exception as exc:  # noqa: BLE001 - catastrophic whole-run failure only
         message = _classify_provider_error(exc, s.llm_provider)
         if message is None:
             raise
@@ -192,6 +269,10 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_PROVIDER_UNAVAILABLE
     thresholds = thresholds_from_settings(s)
     print(render_report(report, thresholds, s.llm_provider))
+    if errors:
+        # A partial run (any un-evaluated case) is never a clean pass.
+        print(_render_unevaluated(errors), file=sys.stderr)
+        return EXIT_PROVIDER_UNAVAILABLE
     if args.gate:
         passed, _ = report.gate(thresholds)
         return 0 if passed else 1
