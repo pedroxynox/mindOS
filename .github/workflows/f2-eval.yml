@@ -202,11 +202,17 @@ jobs:
           if [ "${EVAL_REQUEST_DELAY_S}" != "0" ]; then
             export EVAL_REQUEST_DELAY_S
           fi
-          # Más margen de reintentos para una cuenta nueva/gratuita frente a 429
-          # transitorios (usa el setting compartido openai_max_retries). Solo
-          # para proveedores reales; 'fake' nunca toca la red.
+          # Reintentos ACOTADOS (usa el setting compartido openai_max_retries).
+          # 3 reintentos absorben un 429 transitorio puntual, pero limitan el
+          # tiempo perdido por caso cuando la cuota está agotada: si TODOS los
+          # casos reciben 429, un valor alto (p. ej. 10) con backoff exponencial
+          # largo (~60s) convierte un run de 45 casos en un zombi de varias horas.
+          # Con 3 el run entero se queda en minutos aunque cada caso esté
+          # limitado; los casos saltados siguen apareciendo como "CASOS NO
+          # EVALUADOS" y el run sigue saliendo con código 2 (nunca un pase
+          # limpio). Solo para proveedores reales; 'fake' nunca toca la red.
           if [ "${{ inputs.provider }}" != "fake" ]; then
-            export OPENAI_MAX_RETRIES=10
+            export OPENAI_MAX_RETRIES=3
             echo "Usando OPENAI_MAX_RETRIES=${OPENAI_MAX_RETRIES}."
           fi
           echo "Ejecutando: python -m app.eval.run_eval --provider ${{ inputs.provider }} ${GATE_FLAG}"
