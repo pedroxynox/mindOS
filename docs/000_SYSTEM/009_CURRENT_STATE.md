@@ -1,71 +1,98 @@
 # 009 — Current State (estado vivo del proyecto)
 
-> 🔴 DOCUMENTO OBLIGATORIO. Se actualiza al CIERRE de CADA sesión (ritual en [008](./008_AI_COLLABORATION_PROTOCOL.md)). Es una FOTO que se sobreescribe. La historia de riesgos/deuda vive en [012](./012_RISK_AND_DEBT_REGISTER.md).
+> 🔴 DOCUMENTO OBLIGATORIO. Se actualiza al CIERRE de CADA sesión (ritual en [008](./008_AI_COLLABORATION_PROTOCOL.md)). Es una FOTO que se sobreescribe. La historia cronológica y el detalle de riesgos/deuda viven en [012](./012_RISK_AND_DEBT_REGISTER.md).
 
 | Metadato | Valor |
 |----------|-------|
 | Última actualización | 2026-07-03 |
-| Fase actual | F1 (Capture Engine) COMPLETA y usable de punta a punta en main (incl. pantalla de captura + login endurecido). F2 (comprensión) diseñada con PoC/arnés listo. Pendiente: validar F1 contra infra real y ejecutar el examen de F2 con LLM real. |
-| Avance estimado del MVP (F0–F5) | ~28-30 % |
+| Fase actual | F1 (Capture Engine) **COMPLETA y validada contra infra real** (R-006 cerrado). F2 (Comprensión) en **fase de de-risking del arnés de evaluación** (R-001) — el motor de F2 **NO** está construido aún. |
+| Avance estimado del MVP (F0–F5) | ~30 % |
 
 ## 1. Resumen ejecutivo
-F1 (Capture Engine) es usable de punta a punta en main: captura offline-first (outbox Drift + `SyncService`) con **pantalla de captura** operativa, sincronización idempotente y grafo `nodes`/`edges` + RLS fail-closed en la API. La **autenticación está endurecida** (rate limiting, rotación de refresh tokens con detección de reuso, anti-enumeración). Flutter está operativo localmente y las 3 apps tienen builds reproducibles. Falta la **validación de integración de F1** contra infraestructura real (R-006) y el **veredicto de calidad de F2** ejecutando el examen/arnés con un LLM real (R-001).
+F1 (Capture Engine) está **cerrada y verificada contra infraestructura real**: captura offline-first (outbox Drift + `SyncService`), pantalla de captura, grafo `nodes`/`edges` con RLS fail-closed, `POST /v1/captures` idempotente, cola BullMQ, reconciliación y janitor de blobs; suite de integración **8/8 en verde** (R-006 cerrado). La autenticación está endurecida y las 3 apps tienen builds reproducibles.
 
-## 2. Qué existe hoy (verificado en repo)
-- **apps/api (NestJS):** health `/v1/health`; auth `register/login/refresh/logout` con bcrypt(cost 12) + JWT access/refresh **endurecida** (`@nestjs/throttler` con baseline global + límite estricto en `/auth/*`; tabla `refresh_tokens` con rotación de un solo uso y detección de reuso que revoca la familia/sesión; anti-enumeración por timing en login); `JwtAuthGuard`; Prisma con `nodes`/`edges` + `idempotency_keys` + RLS fail-closed; `POST /v1/captures` (texto/voz) con idempotencia (por `client_id`), cola BullMQ de comprensión, barrido de reconciliación y janitor de blobs.
-- **apps/ai (FastAPI):** `/health`; contrato abstracto `AIProvider` (complete/embed); PoC/arnés de comprensión de F2 listo para ejecutar contra un LLM real.
-- **apps/mobile (Flutter):** pantalla de health (móvil→API) y **PANTALLA de captura** (escribir/guardar offline + lista con estado de sync); captura offline-first con outbox Drift + `SyncService` (reintento con backoff, tiempo en UTC). Instalable/operativo localmente.
-- **infra:** docker-compose (postgres+pgvector, redis, api, ai). Sin IaC/CD.
-- **CI:** 3 jobs (api/ai/mobile) con lint+tipos+test+build. Las 3 apps con **builds reproducibles** (`npm ci` + lockfile para api; `pubspec.lock` con `--enforce-lockfile` para móvil; `requirements.lock` para ai). Sin CD.
+El trabajo de HOY es **F2 / R-001**: de-riesgar la CALIDAD de la comprensión con el arnés de evaluación (`apps/ai/app/eval/`) **antes** de construir el motor. Ya hay una **medición estable de 45 casos con Groq/Llama** (prompt v3): entities F1 **0.826** (PASA), task precision **0.889** (PASA), pero **hallucination 0.160** (FALLA vs 0.05 provisional). El founder decidió **iterar honestamente hacia hallucination ≤0.10** (aspiración 0.05) protegiendo recall y calidad de tareas, **sin relajar umbrales ni gold**. Se consolidó el prompt en **v5** (mismas reglas, ~28% menos tokens). **BLOQUEO ACTUAL:** no se ha logrado COMPLETAR una corrida del examen con v5 por trabas de los proveedores gratuitos de LLM. Todo esto vive en el **PR #40 abierto** (rama `fix/f2-eval-prompt-v4`), **NO mergeado**.
 
-## 3. Última decisión
-ADR-012 (2026-07-02, ACEPTADO): stack canónico confirmado — Drift local, pgvector, Cloudflare (edge), MinIO/R2 (blobs S3-compatible), BullMQ (colas).
-ADR-011 (2026-07-02, ACEPTADO): DoD de F0 = CD mínimo a un staging (sin K8s) + IaC mínima; infra pesada diferida a pre-beta.
-Norma de gobernanza [008](./008_AI_COLLABORATION_PROTOCOL.md): **"aprovisionar antes de degradar"** (lección del episodio Flutter/D-007): provisionar la herramienta antes de degradar el alcance o el rigor.
+## 2. Qué existe hoy (verificado, ya en main)
+- **F1 end-to-end:** captura offline-first (outbox Drift + `SyncService` con backoff, tiempo en UTC), pantalla de captura (escribir/guardar offline + lista con estado de sync), grafo `nodes`/`edges` + `idempotency_keys` con **RLS fail-closed**, `POST /v1/captures` (texto/voz) con **idempotencia** por `client_id`, cola **BullMQ** de comprensión, barrido de **reconciliación** y **janitor de blobs**.
+- **Auth endurecida:** rate limiting (`@nestjs/throttler`, baseline global + límite estricto en `/auth/*`), rotación de refresh tokens de un solo uso con **detección de reuso** que revoca la familia/sesión, y **anti-enumeración** por timing en login.
+- **Builds reproducibles** en las 3 apps: API (`npm ci` + lockfile), móvil (`pubspec.lock` + `--enforce-lockfile`), IA (`requirements.lock`).
+- **Validación de integración de F1 contra infra REAL:** Postgres 15 (rol no-owner `mindos_app`) + Redis 6 + MinIO aprovisionados nativamente → **8/8 tests, 5/5 suites verde** (P1/P8 aislamiento RLS, P2 no-pérdida, P7 dedup de cola, P6 blobs, janitor). **R-006 cerrado**, incl. el fix del bug de producto RLS de empty-context (GUC a `''` en pool de Prisma → migración `NULLIF(current_setting(...), '')::uuid`).
+- **ADRs consolidados** en archivos individuales `ADR-001..017` con índice (**D-004 cerrado**).
+- **Arnés de evaluación de F2** (`apps/ai/app/eval/`), **extractor** (`app/understanding/extract.py`) y capa **`AIProvider`** intercambiable con proveedores `fake`/`openai`/`groq`/`gemini`.
 
-## 4. Próximo objetivo
-Validar F1 contra infra real (docker-compose + tests de integración + `flutter test`) → cerrar R-006. Ejecutar el examen de F2 con clave LLM real → veredicto R-001. Según resultado, construir el motor completo de F2 o iterar prompts.
+## 3. F2 / R-001 — estado detallado (lo que estamos haciendo AHORA)
+- **Medición ESTABLE (45 casos, Groq/Llama, prompt v3):** entities F1 **0.826** (PASA ≥0.80, recall **0.811**), task precision **0.889** (PASA ≥0.85), **hallucination 0.160** (FALLA vs 0.05 provisional), connections F1 **0.34**, coste **$0**, p95 **~10.7 s**.
+- **Decisión del founder:** iterar honestamente hacia **hallucination ≤0.10** (aspiración 0.05) **ANTES** de construir el motor de F2, **protegiendo** el recall de entidades (0.811) y la task precision (0.889). **NO** se tocan umbrales para "aprobar".
+- **Prompt v4 → v5:** se diagnosticaron **3 patrones de sobre-extracción** (objetos/lugares→`topic`; roles/parentesco→`person`; `note`-relleno) y se **consolidó** el prompt en **v5** (mismas reglas semánticas, ~28% menos tokens: 9263→6633 chars, recall-safe verificado contra los 45 gold; deuda **D-010** en progreso). Todo esto vive en el **PR #40 abierto** (rama `fix/f2-eval-prompt-v4`), **NO mergeado**.
+- **BLOQUEO ACTUAL:** no se ha logrado **COMPLETAR** una corrida del examen con v5 por trabas de proveedores gratuitos:
+  - Groq gratis → cupo diario agotado hoy.
+  - Groq pago → deshabilitado por Groq.
+  - Gemini 1.5 → retirado por Google (falla en ~20-30 s).
+  - Gemini 2.0-flash gratis → **FUNCIONA**, pero su cupo diario (~200/día) se agotó hoy.
+  - Gemini 2.0 pago → error de Google `OR_BACR2_44` al activar billing.
+  - OpenAI → mínimo $5, descartado por el founder.
+  - El proveedor por defecto de gemini quedó fijado en **`gemini-2.0-flash`** (el que sí funciona en la clave).
 
-## 5. Bloqueadores
-Ninguno técnico. La ruta crítica (validación F1 con Docker + examen F2 con clave LLM) depende del entorno/credenciales del founder.
+## 4. Última decisión
+- **Iterar honestamente hacia hallucination ≤0.10** (aspiración 0.05) antes de construir el motor de F2, sin relajar umbrales ni gold (protegiendo recall 0.811 y task precision 0.889).
+- **Consolidar el prompt en v5** (misma semántica, ~28% menos tokens) para bajar la presión sobre los límites por minuto/token del proveedor y poder completar el examen.
+- **Fijar el proveedor Gemini por defecto en `gemini-2.0-flash`** (confirmado funcional en la clave; el bloqueo es solo el cupo diario, que se reinicia).
+- Vigentes de sesiones previas: **ADR-012** (stack canónico) y **ADR-011** (DoD de F0), y la norma de gobernanza [008](./008_AI_COLLABORATION_PROTOCOL.md) **"aprovisionar antes de degradar"**.
 
-## 6. Riesgos vivos (detalle e historia en [012](./012_RISK_AND_DEBT_REGISTER.md))
-- R-001 (Alto, abierto): calidad de comprensión de F2 aún no de-riesgada; pendiente ejecutar el examen/arnés con LLM real.
-- R-006 (Medio, abierto): integración de F1 sin ejecutar contra infra real (aislamiento P1/P8, no-pérdida P2, dedup de cola P7, blobs).
-- R-005 (Abordado en diseño): estrategia offline-first (outbox Drift + idempotencia por client_id) definida e implementada en F1; pendiente de validar en integración.
-- R-002 (Mitigado): auth propia endurecida (rate limiting, rotación de refresh con detección de reuso, anti-enumeración).
-- R-003 (Mitigado): DoD de F0 redefinida por ADR-011 (aceptado).
+## 5. Próxima acción inmediata (para la nueva sesión)
+1. **Lanzar el examen de F2** desde la rama `fix/f2-eval-prompt-v4` (workflow **"F2 comprehension eval"** en Actions, `provider=gemini`), preferiblemente **MAÑANA** con el cupo diario de Gemini 2.0-flash reiniciado (o si el founder logra activar el pago de Gemini). Tarda **~10 min** (pausa 12 s entre llamadas).
+2. **Con los 3 números** (entities F1 / task precision / hallucination):
+   - Si **hallucination ≤0.10** y entities/tasks se mantienen → **mergear PR #40**, cerrar/actualizar **D-010**, **ratificar umbrales realistas por ADR**, y proceder a **construir el motor de F2**.
+   - Si **no** → otra iteración honesta o reevaluar modelo/enfoque (**NO** relajar umbrales ni gold).
+3. Tras el veredicto, **volver a refrescar este 009**.
 
-## 7. Deuda técnica top (detalle en [012](./012_RISK_AND_DEBT_REGISTER.md))
-- D-001 (Cerrado): builds reproducibles en las 3 apps (npm ci + lockfile; pubspec.lock; requirements.lock).
-- D-002 (Cerrado-implementación, pendiente validación): grafo `nodes`/`edges` + `idempotency_keys` y RLS fail-closed implementados en F1; falta validar contra Postgres real (R-006).
-- D-003 (Cerrado): dummy compare + respuesta uniforme en login, con test.
-- D-004 (abierto): ADRs inconsistentes (embebidos vs archivo suelto, sin cero-padding uniforme).
-- D-005 (abierto): sin rastreo de errores (Sentry) ni gestión formal de secretos.
-- D-006 (abierto): reconciliación y janitor iteran sobre TODOS los usuarios (coste O(usuarios)).
-- D-007 (Mitigado): SDK de Flutter instalado y operativo localmente; el móvil ya se valida fuera de CI.
-- D-008 (abierto): dimensión del vector de embedding y elección de proveedor LLM sin fijar (depende de la PoC de F2).
-- D-009 (Cerrado): widget tests de la pantalla de captura estabilizados y reactivados (fix del timer de cierre del stream de Drift).
+## 6. Bloqueadores
+La medición de calidad de F2 depende de **completar una corrida del examen**, hoy **bloqueada por cupos de free-tier** de los proveedores de LLM. Se resuelve con **cupo fresco mañana** (Gemini 2.0-flash) o con **billing** funcionando. Sin este dato no hay veredicto de R-001 ni luz verde para el motor de F2.
 
-## 8. Salud de la arquitectura
-Alta coherencia doc→código. La frontera de dos backends está bien definida. Riesgo de complejidad distribuida asumido conscientemente (ADR-010).
+## 7. Riesgos vivos (detalle e historia en [012](./012_RISK_AND_DEBT_REGISTER.md))
+- **R-001 (Alto, abierto — en de-risking):** calidad de comprensión de F2; medición estable con v3 pasa entities/tasks pero falla hallucination (0.160); iterando hacia ≤0.10 con v5, pendiente de una corrida que complete.
+- **R-005 (abordado en diseño):** offline-first (outbox Drift + idempotencia por `client_id`) definido, implementado y ahora **validado** en la integración de F1.
+- **R-002 (mitigado):** auth endurecida (rate limiting, rotación de refresh con detección de reuso, anti-enumeración).
+- **R-003 (mitigado):** DoD de F0 redefinida por ADR-011.
+- **R-006 (cerrado):** integración de F1 validada 8/8 contra infra real (incl. fix del bug RLS empty-context).
+- **R-004 (en corrección/mitigado):** deriva documental del roadmap #08 vs ADR-010.
 
-## 9. Cambios recientes
-- F1: **pantalla de captura mergeada** (escribir/guardar offline + lista con estado de sync).
-- **Login endurecido** (R-002 mitigado / D-003 cerrado): rate limiting, rotación de refresh con detección de reuso, anti-enumeración.
-- **Flutter operativo localmente** (D-007 mitigado / D-009 cerrado): widget tests estabilizados y reactivados.
-- **Builds reproducibles** en las 3 apps (D-001 cerrado): npm ci + lockfile, pubspec.lock, requirements.lock.
-- Norma de gobernanza 008 **"aprovisionar antes de degradar"**.
-- **PoC/arnés de F2** (comprensión) listo para el examen con LLM real.
+## 8. Deuda técnica top (detalle en [012](./012_RISK_AND_DEBT_REGISTER.md))
+- **D-005 (abierto):** sin rastreo de errores (Sentry) ni gestión formal de secretos.
+- **D-006 (abierto):** reconciliación y janitor iteran sobre TODOS los usuarios (coste O(usuarios)).
+- **D-008 (abierto):** dimensión de embeddings y elección de proveedor LLM sin fijar; **se fija tras superar el gate de calidad de F2**.
+- **D-010 (en progreso):** prompt de extracción sobredimensionado; consolidado en v5 (~28% menos tokens), pendiente de re-medir calidad con una corrida que complete.
+- **Mitigados/cerrados:** D-001 (builds reproducibles), D-002 (grafo + RLS, validado por R-006), D-003 (anti-enumeración login), D-004 (ADRs consolidados), D-007 (Flutter local), D-009 (widget tests reactivados).
 
-## 10. Preguntas abiertas
-- ¿PoC de comprensión (F2) en paralelo a F1? → **sí** (en marcha; PoC/arnés listo).
-- Proveedor LLM y dimensión de embeddings (dependencia de #07; ver D-008).
+## 9. Salud de la arquitectura
+Alta coherencia doc→código. La frontera de dos backends (NestJS + FastAPI) está bien definida y la capa `AIProvider` intercambiable ya está demostrando su valor (permite cambiar de Groq a Gemini sin tocar la lógica de eval). Riesgo de complejidad distribuida asumido conscientemente (ADR-010).
 
-## 11. Acciones recomendadas (priorizadas)
-1. Validar F1 con Docker: levantar docker-compose (Postgres+RLS rol no-owner, Redis, MinIO), ejecutar los `*.integration.spec.ts` y `flutter test` → cerrar R-006.
-2. Ejecutar el examen de F2 con un LLM real (clave) → veredicto de R-001.
-3. Según el veredicto: construir el motor completo de F2 o iterar prompts.
+## 10. Cambios recientes
+- **R-006 cerrado:** integración de F1 validada 8/8 contra infra real; corregido el bug de producto RLS de empty-context.
+- **D-004 cerrado:** ADRs consolidados en archivos individuales `ADR-001..017`.
+- **F2 / R-001:** medición estable de 45 casos con Groq/Llama (prompt v3) → entities 0.826 / taskP 0.889 / hallucination 0.160.
+- **Prompt consolidado en v5** (misma semántica, ~28% menos tokens; D-010 en progreso).
+- **Proveedor Gemini añadido** (gratis, sin tarjeta) y fijado por defecto en `gemini-2.0-flash`; resiliencia del workflow del examen mejorada (espaciado por proveedor, reintentos, mensajes de error correctos).
+- Todo lo de F2 anterior vive en el **PR #40 abierto** (rama `fix/f2-eval-prompt-v4`), aún **sin mergear**.
+
+## 11. Preguntas abiertas
+- **¿v5 baja la hallucination a ≤0.10 sin dañar recall/tareas?** → pendiente de una corrida de Gemini/Groq que **COMPLETE** (bloqueada hoy por cupos).
+- **Proveedor LLM y dimensión de embeddings** (ver D-008) → se fija con datos **tras** superar el gate de calidad de F2.
+
+## 12. Acciones recomendadas (priorizadas)
+1. **Completar el examen de F2** con `provider=gemini` (mañana, cupo fresco) desde `fix/f2-eval-prompt-v4`.
+2. Según el veredicto de los 3 números: **mergear PR #40 + ratificar umbrales por ADR + construir el motor de F2**, o iterar honestamente.
+3. **Refrescar 009 y 012** al cierre (ritual [008](./008_AI_COLLABORATION_PROTOCOL.md)).
+
+## 13. PRs abiertos
+- **PR #40** (rama `fix/f2-eval-prompt-v4`): prompt **v5** + proveedor **Gemini** + arreglos de resiliencia del examen. **NO mergear** hasta validar v5 con una corrida que **COMPLETE**.
+
+## 14. Nota para la nueva sesión (importante)
+- El **detalle completo y cronológico** de la saga de F2 vive en [012](./012_RISK_AND_DEBT_REGISTER.md); su versión más reciente (**v1.26**) está **en el PR #40, NO en main** (en main, 012 va una versión por detrás).
+- **Mantener el ritual:** actualizar **009 y 012 al cierre** de cada sesión.
+- **Hablar en español y en lenguaje no técnico** con el founder (CEO no programador); actuar como **CPTO con pensamiento crítico**.
+- **NO relajar umbrales ni gold** para "aprobar" el examen: el rigor es el producto.
 
 ## Historial de versiones
 | Versión | Fecha | Cambios |
@@ -75,7 +102,8 @@ Alta coherencia doc→código. La frontera de dos backends está bien definida. 
 | 1.2 | 2026-07-02 | ADR-011 aceptado; F0 DoD y próximo objetivo actualizados. |
 | 1.3 | 2026-07-02 | ADR-012 aceptado; alta de R-005 y pregunta de sync offline. |
 | 1.4 | 2026-07-02 | Spec de F1 completo (diseño+requisitos+tareas); próximo objetivo = implementación de F1. |
-| 1.5 | 2026-07-02 | Saneado de secciones desactualizadas (resumen, bloqueadores, acciones, preguntas) tras completar el spec de F1. |
+| 1.5 | 2026-07-02 | Saneado de secciones desactualizadas tras completar el spec de F1. |
 | 1.6 | 2026-07-02 | F1 mergeada; hardening de reproducibilidad; alta de R-006/D-006/D-007. |
 | 1.7 | 2026-07-02 | Saneado de §5 (bloqueadores) y §11 (acciones) tras el merge de F1. |
-| 1.8 | 2026-07-03 | Refresco del estado vivo: F1 usable de punta a punta (pantalla de captura), login endurecido, Flutter local y builds reproducibles en las 3 apps; D-002 cerrado (implementación); próximos hitos = validar F1 con Docker (R-006) y examen de F2 con LLM real (R-001). |
+| 1.8 | 2026-07-03 | Refresco del estado vivo: F1 usable de punta a punta, login endurecido, Flutter local y builds reproducibles; D-002 cerrado (implementación); próximos hitos = validar F1 (R-006) y examen de F2 (R-001). |
+| 1.9 | 2026-07-03 | Refresco de cierre de sesión: **R-006 cerrado** (F1 validada 8/8 contra infra real) y **D-004 cerrado** (ADRs consolidados). Fase actual re-enfocada en **F2 / R-001** (de-risking del arnés): medición estable de 45 casos con Groq/Llama (entities 0.826 / taskP 0.889 / hallucination 0.160), decisión de iterar hacia hallucination ≤0.10 sin relajar umbrales ni gold, prompt consolidado en **v5** (~28% menos tokens, D-010 en progreso) y proveedor **Gemini** añadido (por defecto `gemini-2.0-flash`). **Bloqueo actual:** completar una corrida del examen (cupos de free-tier). Trabajo de F2 vive en el **PR #40** (rama `fix/f2-eval-prompt-v4`), no mergeado; 012 v1.26 vive en ese PR, no en main. |
