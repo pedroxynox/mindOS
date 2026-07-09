@@ -21,11 +21,16 @@ ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
 
+# Reuse the builder's node_modules (instead of `npm ci --omit=dev`) so the
+# runtime image keeps the Prisma CLI + generated client + engines available.
+# That lets `npx prisma migrate deploy` run as a Render preDeploy step (the
+# migrations create the tables, RLS policies, the non-owner app role and the
+# pgvector extension). See docs/06-infrastructure/DEPLOY_RENDER.md.
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma ./prisma
 
+# main.ts reads process.env.PORT (Render sets it); defaults to 3000 locally.
 EXPOSE 3000
 CMD ["node", "dist/main"]
