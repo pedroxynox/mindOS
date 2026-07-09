@@ -8,7 +8,7 @@
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 0.3 |
+| Versión | 0.4 |
 | Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00–#07 (toda la cadena) |
@@ -191,6 +191,31 @@ Coherente con los non-goals del PRD (#01 §7) y las fases V2+ del producto:
 
 ---
 
+### 3.1 Ficha reservada — Módulo **Finanzas** (función futura, V4)
+
+> **Estado: RESERVADA (no se construye ahora).** Anotada a petición del founder
+> (2026-07-09) para que el trabajo actual no cierre puertas. **No** forma parte
+> del MVP (F0–F5); es un **módulo de dominio de vida** posterior, coherente con
+> el non-goal del PRD y con la fila "finanzas, salud → V4" de la tabla anterior.
+
+- **Qué sería:** una **sección de Finanzas** donde la IA lee las capturas del
+  usuario ("gasté $50 en el súper", "pagar el alquiler el día 5") y las convierte
+  en **gastos/ingresos ordenados**, con **montos**, **categorías** (comida,
+  transporte, etc.), **resúmenes** y (opcional) **presupuestos**.
+- **Por qué es una AMPLIACIÓN, no un rediseño:** se apoya en lo que ya existe —
+  la capa `AIProvider` intercambiable y el motor de comprensión (F2). Añadiría un
+  **dominio nuevo** (una noción de `amount`/`money`/`category`, que HOY no existe
+  en el modelo de datos — el grafo v1 sólo tiene person/project/event/topic/note/
+  task) y una superficie móvil dedicada.
+- **Por qué DESPUÉS y no ahora:** (1) el bucle de valor central (capturar →
+  comprender → recuperar, F1–F3) debe estar funcionando de punta a punta primero;
+  (2) "controlar finanzas" es una mini-app en sí (montos, categorías, informes)
+  que merece su propio diseño enfocado en vez de mezclarse con el núcleo.
+- **Prerrequisito:** F2 encendido end-to-end (worker consumiendo) y, idealmente,
+  F3 (recuperación de valor) en marcha.
+- **Riesgo si se adelanta:** construir un dominio financiero sobre un motor que
+  aún no corre solo añade complejidad y deuda sin validar el núcleo.
+
 ## 4. Dependencias críticas entre fases
 
 ```
@@ -253,3 +278,4 @@ Con la fundación documental completa (#00–#08 aprobados), el siguiente paso e
 | 0.1 | 2026-07-01 | CTO | Borrador inicial. Secuencia de fases F0–F5 orientada a riesgo y aprendizaje, con resultados demostrables, dependencias críticas, qué queda fuera del MVP, definición de éxito y siguiente paso (iniciar F0). |
 | 0.2 | 2026-07-02 | CPTO | Cabecera de supersesión (ADR-010). Corrección de deriva en F0/F1 (stack de dos backends, auth JWT propia, superficie Flutter). Nota de refinamiento de la DoD de F0 (ADR-011). |
 | 0.3 | 2026-07-02 | CPTO | DoD de F0 actualizada por ADR-011 (aceptado): CD mínimo + diferimiento de infra pesada. |
+| 0.4 | 2026-07-09 | CPTO | Añadida §3.1 "Ficha reservada — Módulo Finanzas (V4)" a petición del founder: sección de Finanzas donde la IA convierte capturas en gastos/ingresos con montos, categorías y resúmenes; es una AMPLIACIÓN sobre F2 (requiere un dominio `amount`/`category` que hoy no existe) y va DESPUÉS de encender el bucle central (F1–F3), no ahora. No forma parte del MVP. |

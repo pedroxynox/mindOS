@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://mindos:mindos@localhost:5432/mindos"
     redis_url: str = "redis://localhost:6379"
 
+    # Comprehension worker (the BullMQ consumer of the 'understanding' queue,
+    # design §8/§11). OFF by default so health-only deployments AND the offline
+    # test suite never try to open Redis/Postgres. Set WORKER_ENABLED=true in
+    # the AI deployment that should drain the queue and enrich the graph; it
+    # then needs the optional 'ai' extras (bullmq, asyncpg) and reachable Redis
+    # + Postgres. A startup failure is logged but does not take /health down.
+    worker_enabled: bool = False
+
     # Embedding vector dimension (design §5 / D-008). Must match the pgvector
     # column `nodes.embedding vector(:dim)` created by the F2 migration. Default
     # 1536 = OpenAI text-embedding-3-small (the design's reference). Changing it
