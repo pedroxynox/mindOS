@@ -135,7 +135,9 @@ class OpenAICompatibleProvider(AIProvider):
         # Prefer deterministic output (temperature=0), but omit the parameter
         # for models that only accept the default (GPT-5 / o-series) — sending
         # it there is rejected with HTTP 400.
-        self._temperature: float | None = 0 if supports_custom_temperature(model) else None
+        self._temperature: float | None = (
+            0 if supports_custom_temperature(model) else None
+        )
 
     def _with_retries(self, func: Callable[[], Awaitable[T]]) -> Awaitable[T]:
         """Wrap an API call with exponential backoff + jitter on 429/5xx/timeouts.
