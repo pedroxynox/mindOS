@@ -5,11 +5,17 @@ import pytest
 from app.config import Settings
 from app.providers.factory import build_provider
 from app.providers.fake_provider import FakeProvider
+from app.providers.gemini_provider import GeminiProvider
 from app.providers.groq_provider import GroqProvider
 
 
 def _settings(**overrides: object) -> Settings:
-    base = {"llm_provider": "fake", "openai_api_key": None, "groq_api_key": None}
+    base = {
+        "llm_provider": "fake",
+        "openai_api_key": None,
+        "groq_api_key": None,
+        "gemini_api_key": None,
+    }
     base.update(overrides)
     return Settings(**base)
 
@@ -47,6 +53,29 @@ async def test_groq_embed_raises_clear_error() -> None:
     # (no network call is made — it raises before touching the client).
     provider = build_provider(
         _settings(llm_provider="groq", groq_api_key="gsk-test-key")
+    )
+    with pytest.raises(NotImplementedError, match="does not support"):
+        await provider.embed("hello world")
+
+
+def test_build_provider_gemini_returns_gemini_provider() -> None:
+    provider = build_provider(
+        _settings(llm_provider="gemini", gemini_api_key="test-key")
+    )
+    assert isinstance(provider, GeminiProvider)
+
+
+def test_build_provider_gemini_without_key_raises() -> None:
+    with pytest.raises(ValueError, match="GEMINI_API_KEY"):
+        build_provider(_settings(llm_provider="gemini", gemini_api_key=None))
+
+
+@pytest.mark.asyncio
+async def test_gemini_embed_raises_clear_error() -> None:
+    # Gemini skips embeddings for the PoC: embed must fail with a clear message
+    # (no network call is made — it raises before touching the client).
+    provider = build_provider(
+        _settings(llm_provider="gemini", gemini_api_key="test-key")
     )
     with pytest.raises(NotImplementedError, match="does not support"):
         await provider.embed("hello world")
