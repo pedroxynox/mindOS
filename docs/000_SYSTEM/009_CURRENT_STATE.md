@@ -5,8 +5,8 @@
 | Metadato | Valor |
 |----------|-------|
 | Última actualización | 2026-07-09 |
-| Fase actual | F1 (Capture Engine) **COMPLETA y validada** (R-006 cerrado). F2 (Comprensión): **gate de calidad RATIFICADO** ([ADR-018](../02-architecture/adr/ADR-018-f2-comprehension-eval-gate.md), camino B), **motor de comprensión CONSTRUIDO** (PR #45 **mergeado**) y **VALIDADO contra infra real** (Postgres+pgvector y Redis/BullMQ; **R-007 cerrado**). Pendiente: cerrar la brecha de recall de *topics* (R-001), cablear el arranque del worker y la transcripción de voz. |
-| Avance estimado del MVP (F0–F5) | ~38 % |
+| Fase actual | F1 (Capture Engine) **COMPLETA y validada** (R-006 cerrado). F2 (Comprensión): **gate de calidad RATIFICADO** ([ADR-018](../02-architecture/adr/ADR-018-f2-comprehension-eval-gate.md), camino B), **motor de comprensión CONSTRUIDO** (PR #45 **mergeado**) y **VALIDADO contra infra real** (Postgres+pgvector y Redis/BullMQ; **R-007 cerrado**). **NUEVO (2026-07-09): el gate se SUPERA por primera vez en corrida REAL COMPLETA con OpenAI de pago (`gpt-5.4-mini`): F1 0.819 / taskP 1.000 / hall 0.059 / $0.0019 = GATE PASSED → R-001 MITIGADO.** Pendiente (no bloqueante): subir el recall (0.726) sin subir la alucinación; cablear el arranque del worker y la transcripción de voz. |
+| Avance estimado del MVP (F0–F5) | ~40 % |
 
 ## 1. Resumen ejecutivo
 F1 (Capture Engine) está **cerrada y verificada contra infraestructura real** (R-006 cerrado): captura offline-first, grafo `nodes`/`edges` con RLS fail-closed, `POST /v1/captures` idempotente, cola BullMQ, reconciliación y janitor; auth endurecida; builds reproducibles en las 3 apps.
@@ -29,21 +29,21 @@ Se **construyó el motor de comprensión (F2)** completo (PR #45, **mergeado**),
 - **Validación contra infra REAL (R-007 cerrado, rama `test/f2-engine-real-infra-validation`):** PostgreSQL 18 + **pgvector compilado desde fuente** + pgcrypto + Redis 6 aprovisionados nativamente; migraciones F1+F2 aplicadas con el rol OWNER; **5/5 tests de integración en verde** como rol no-owner `mindos_app` (FORCE RLS real) — `test_graph_writer_integration` (idempotencia P-COMP-1/2, provenance P-COMP-3, aislamiento P-COMP-4, coste, embedding) y `test_worker_integration` (dedup por `jobId` + consumo end-to-end contra Redis/BullMQ). Esta validación **halló y corrigió un bug de producto**: el SQL crudo del `PgGraphStore` no fijaba `nodes.updated_at` (`NOT NULL`, gestionado por Prisma `@updatedAt`) → arreglado con `updated_at = now()`.
 
 ## 4. Última decisión
+- **(2026-07-09) Proveedor de comprensión = OpenAI `gpt-5.4-mini`.** El founder pagó $5 en OpenAI (giro respecto a v1.21) para de-riesgar el recall. Se probaron dos modelos en corrida REAL de 45 casos: `gpt-5.4-mini` (F1 0.819 / taskP 1.000 / hall 0.059 / $0.0019 = **GATE PASSED**) y el flagship `gpt-5.5` (F1 0.866 / taskP 0.976 / hall 0.072 / $0.0236 = FAIL solo por coste). **Se elige la mini**: la 5.5 atrapa más recall pero **inventa más** (0.072 vs 0.059) y cuesta **~12x**. Cambios habilitadores: PR #47 (cableado GPT-5.x + default mini + Variable `OPENAI_MODEL`), PR #50 (fix `temperature` para GPT-5/o-series), PR #49 (Variable `EVAL_COST_PER_CAPTURE_MAX_USD`).
 - **Camino B (founder):** ratificar umbrales realistas (ADR-018) y **construir el motor de F2 ya**, asumiendo el riesgo del F1 marginal (0.782). **No** se relaja el gold ni el piso de F1 (0.80).
 - **ADR-019:** consumidor BullMQ **nativo en Python** (contingencia documentada a worker Node+HTTP).
 - Vigentes: **ADR-012** (stack canónico), **ADR-011** (DoD de F0), norma "aprovisionar antes de degradar" ([008](./008_AI_COLLABORATION_PROTOCOL.md)).
 
 ## 5. Próxima acción inmediata (para la nueva sesión)
-1. **Cerrar la brecha de recall de *topics* (R-001):** iteración honesta de prompt para subir F1 entities por encima de 0.80 sin subir la alucinación (aprovechar el trabajo de prompt v5, ya en main).
+1. **VALIDAR el prompt v7 (recall-oriented, PR #51) con una corrida de `gpt-5.4-mini` (~$0.09):** ver si sube el recall (0.726→objetivo) manteniendo hallucination ≤0.10 y taskP alto. Es un *fast-follow* de R-001 (YA NO bloqueante: el gate ya se supera con la mini). Si v7 no mejora o daña la precisión, revertir a v6.
 2. **Cablear el arranque del worker** en el servicio de IA (hoy `main.py` solo expone `/health`) y decidir la **transcripción de voz** (hoy el pipeline deja un *seam* que exige `body`).
-3. **Mergear la rama de validación** `test/f2-engine-real-infra-validation` (tests de integración + fix de `updated_at`).
-4. Refrescar 009 y 012 al cierre.
+3. Refrescar 009 y 012 al cierre.
 
 ## 6. Bloqueadores
 Ninguno bloquea el motor: construido, mergeado y **validado contra infra real** (R-007 cerrado). La única deuda de calidad viva es el **recall de *topics*** (R-001), que se cierra con iteración de prompt (depende de completar corridas del examen; cupos de free-tier).
 
 ## 7. Riesgos vivos (detalle e historia en [012](./012_RISK_AND_DEBT_REGISTER.md))
-- **R-001 (Alto, abierto):** calidad de comprensión. Medición estable (Groq): entities F1 **0.782** (por debajo de 0.80 por recall de *topics*), taskP 0.930, hallucination 0.091. Gate ratificado (ADR-018); pendiente iteración de prompt para el recall.
+- **R-001 (Alto, MITIGADO 2026-07-09):** calidad de comprensión. **Gate SUPERADO por primera vez en corrida REAL COMPLETA** con OpenAI `gpt-5.4-mini`: entities F1 **0.819** (P 0.941 / R 0.726), taskP **1.000**, hallucination **0.059**, coste **$0.0019** = **GATE PASSED**. (Antes con Groq/prompt v5: F1 0.782.) Deuda residual viva (no bloqueante): subir el **recall (0.726)** sin subir la alucinación = *fast-follow* de iteración de prompt.
 - **R-007 (cerrado):** motor de F2 validado contra Postgres+pgvector y Redis/BullMQ reales (5/5 integración); bug de `updated_at` hallado y corregido.
 - **R-005 (validado en F1), R-002 (mitigado), R-003 (mitigado), R-006 (cerrado), R-004 (en corrección).**
 
@@ -56,6 +56,8 @@ Ninguno bloquea el motor: construido, mergeado y **validado contra infra real** 
 Alta coherencia doc→código. El motor de F2 respeta el diseño y el estilo de puertos del repo (`AIProvider`, `UnderstandingQueuePort` → nuevo `GraphStore`), lo que permite probar toda la lógica sin infraestructura. La frontera de dos backends sigue bien definida (ADR-010).
 
 ## 10. Cambios recientes
+- **(2026-07-09) Prompt v7 (recall-oriented) escrito (PR #51) — HIPÓTESIS pendiente de medir.** Ataca los dos patrones de omisión de topics de la mini (notas reflexivas → vacío; topics que son objeto de una tarea → descartados) con 3 ediciones quirúrgicas sobre v6, sin tocar las reglas anti-invención. Requiere una corrida de la mini (~$0.09) para validar el efecto sobre el recall (0.726).
+- **(2026-07-09) Gate SUPERADO con OpenAI `gpt-5.4-mini` → R-001 mitigado.** Cableado OpenAI GPT-5.x (PR #47), fix de `temperature` para GPT-5/o-series (PR #50) y Variable de coste (PR #49). Corridas reales: mini = GATE PASSED (0.819 / 1.000 / 0.059 / $0.0019); 5.5 = FAIL solo por coste (0.866 / 0.976 / 0.072 / $0.0236). Decisión: usar la mini.
 - **Gate de F2 ratificado** (ADR-018, camino B) con la corrida estable de Groq (0.782 / 0.930 / 0.091).
 - **Motor de comprensión F2 construido y mergeado** (PR #45): migración pgvector + `llm_usage`, ADR-018/019.
 - **Motor VALIDADO contra infra real** (Postgres 18 + pgvector + Redis 6 nativos): 5/5 tests de integración verdes; **R-007 cerrado**; corregido un bug de producto (`nodes.updated_at`).
@@ -91,3 +93,4 @@ Alta coherencia doc→código. El motor de F2 respeta el diseño y el estilo de 
 | 1.9 | 2026-07-03 | Foco en F2/R-001: medición estable de 45 casos (Groq, prompt v3/v5), decisión de iterar hacia hallucination ≤0.10, proveedor Gemini añadido; bloqueo por cupos de free-tier; trabajo en PR #40. |
 | 1.10 | 2026-07-09 | **Gate de F2 ratificado (ADR-018, camino B) y motor de comprensión CONSTRUIDO** (rama `feat/f2-comprehension-engine`): corrida estable de Groq (0.782/0.930/0.091); ADR-018 (umbrales realistas, sin relajar gold) + ADR-019 (puente cola BullMQ nativo); motor F2 (contrato, `enrichment` puro, puerto `GraphStore`+`InMemory`+`PgGraphStore`, `rls`, `cost_meter`, `pipeline`, `worker`) + migración pgvector/`llm_usage`, verificado **offline** (84 tests, ruff/mypy limpios). Alta de **R-007** (motor no validado aún contra infra real); D-008 a "en progreso" (dim 1536). R-001 sigue abierto por recall de *topics*. |
 | 1.11 | 2026-07-09 | **PR #45 mergeado y motor de F2 VALIDADO contra infra real → R-007 cerrado.** Aprovisionado nativamente (sin Docker) PostgreSQL 18 + **pgvector compilado** + pgcrypto + Redis 6; migraciones F1+F2 aplicadas con el OWNER; **5/5 tests de integración en verde** como rol no-owner `mindos_app` (FORCE RLS real): `PgGraphStore` (idempotencia P-COMP-1/2, provenance P-COMP-3, aislamiento P-COMP-4, coste, embedding) y worker BullMQ (dedup por `jobId` + consumo end-to-end). **Bug de producto corregido** gracias a la validación: el SQL crudo no fijaba `nodes.updated_at` (`NOT NULL`) → `updated_at = now()`. Rama `test/f2-engine-real-infra-validation`. PR #40 también mergeado. Suite: 97 offline + 5 integración; ruff/mypy limpios. |
+| 1.12 | 2026-07-09 | **Gate de F2 SUPERADO por primera vez en corrida REAL COMPLETA → R-001 MITIGADO.** El founder pagó $5 en OpenAI (giro respecto a v1.21) para de-riesgar el recall. Cableada la capa `AIProvider` a OpenAI GPT-5.x (PR #47: precios + default `gpt-5.4-mini` + Variable `OPENAI_MODEL`); corregido un bug que bloqueaba la línea GPT-5/o-series (PR #50: rechazan `temperature` custom con HTTP 400; ahora se omite salvo en modelos que lo soportan); añadida la Variable `EVAL_COST_PER_CAPTURE_MAX_USD` (PR #49). Dos corridas de 45 casos sin tocar gold/umbrales: `gpt-5.4-mini` → F1 **0.819** / taskP **1.000** / hall **0.059** / **$0.0019** = **GATE PASSED**; `gpt-5.5` → F1 0.866 / taskP 0.976 / hall 0.072 / $0.0236 = FAIL solo por coste. **Decisión: usar `gpt-5.4-mini`** (la 5.5 atrapa más recall pero inventa más y cuesta ~12x). Fast-follow vivo: subir el recall (0.726) sin subir la alucinación. Detalle en 012 (R-001, v1.29). |

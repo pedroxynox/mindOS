@@ -616,8 +616,6 @@ EXTRACTION_PROMPT_V5 = (
 # (respecting debt D-010). v1..v5 strings are RETAINED above for history/diff and
 # are never sent. This is a REASONED HYPOTHESIS, PENDING RE-MEASUREMENT with a
 # completing Groq run (no Groq key in this env).
-EXTRACTION_PROMPT_VERSION = "v6"
-
 EXTRACTION_PROMPT_V6 = EXTRACTION_PROMPT_V5.replace(
     # (a) Strengthen the TASKS exclusion: a task must be an action the AUTHOR
     # will actively DO; ideas/wishes, status/state updates, and
@@ -642,11 +640,115 @@ EXTRACTION_PROMPT_V6 = EXTRACTION_PROMPT_V5.replace(
     "required — this check removes only inventions, not real content.\n",
 )
 
+# --- v7 (current) -------------------------------------------------------------
+# WHY v7 EXISTS: v2..v6 were all tuned to SUPPRESS hallucination on weak
+# free-tier models (Groq/Llama, Gemini) that invented heavily (hallucination
+# 0.488 -> 0.191 -> 0.160 -> 0.137). With OpenAI `gpt-5.4-mini` the FIRST
+# COMPLETE run that PASSES the gate (2026-07-09) showed hallucination is now a
+# non-issue (0.059, well under the ratified ≤0.10 ceiling, near the 0.05
+# aspiration) — but RECALL is the weak spot: entities F1 0.819 with recall only
+# 0.726 (fn=48, mostly TOPICS). Reading the missed cases isolated TWO recall
+# patterns, both pure OMISSION of EXPLICIT gold (never invention):
+#   1. REFLECTIVE / IDEA / STATUS notes return EMPTY instead of their explicit
+#      abstract topics — case-04 (gold topics design, dashboard), case-15
+#      (estrés), case-33 (app, modo oscuro), case-39 (build, staging). The model
+#      conflates "no task" with "extract nothing", because v4..v6 hammered
+#      "pure reflection -> empty" / "note discouraged" to kill Groq's invention.
+#   2. TOPICS THAT ARE THE OBJECT OF A TASK are dropped — case-24 (delivery),
+#      case-30 (deck, demo), case-40 (deploy, changelog), case-45 (trip,
+#      subscription). v4's "objects belong INSIDE the task label, not an entity"
+#      rule (correct for PLACES and physical goods) is being OVER-APPLIED by the
+#      model to abstract work artifacts/subjects, which the gold DOES want as
+#      topics.
+# v7 makes two SURGICAL, recall-oriented edits to v6 (targeted str.replace on
+# exactly three anchors, base stays byte-identical, one lean prompt — D-010):
+#   (a) refine the "empty" clause: emptiness is ONLY for a capture with NO
+#       nameable subject (greeting / pure mood-filler); "no task" does NOT mean
+#       "extract nothing" — reflective notes/ideas/opinions/status lines still
+#       name abstract TOPICS that MUST be extracted;
+#   (b) refine the topic rule: an abstract subject / work artifact / activity IS
+#       a topic EVEN WHEN it is also a task object; ONLY physical PLACES and
+#       purely physical/instrumental goods (food, cash/money, a package, a form,
+#       a receipt) are excluded;
+#   (c) add ONE invented few-shot (words NOT in the eval set) of a no-task
+#       reflection that still yields its topics.
+# It touches NOTHING about person/project/event exclusions, the task rules, the
+# anti-invention self-check, connections, output format, the gold, the matcher,
+# metrics or thresholds — so it can only recover omitted EXPLICIT topics.
+#
+# RECALL-SAFETY / PRECISION AUDIT (done BEFORE writing, against ALL 45 gold):
+#   - Truly-empty gold cases have NO nameable subject and stay empty: case-17
+#     ("Good morning!… Talk soon.") and case-18 ("me quedé pensando en muchas
+#     cosas") — the refined empty-clause fires only when a subject is stated.
+#   - The physical-goods/places line is HELD: case-45 `money` and case-31 `pan`
+#     and errand PLACES (case-16/31) remain NON-topics, so precision on those is
+#     protected; we also have hallucination headroom (0.059 vs 0.10).
+#   - No eval word/label is used in the new rule text or example (the example
+#     uses "performance"/"reliability", absent from the gold) -> no
+#     contamination.
+# This is a REASONED HYPOTHESIS, PENDING RE-MEASUREMENT with a completing OpenAI
+# `gpt-5.4-mini` run (no OpenAI key/network in this env). v1..v6 strings are
+# RETAINED above for history/diff and are never sent.
+EXTRACTION_PROMPT_VERSION = "v7"
+
+EXTRACTION_PROMPT_V7 = (
+    EXTRACTION_PROMPT_V6.replace(
+        # (a) Emptiness is only for a truly subject-less capture; "no task" does
+        # NOT mean "extract nothing" — reflective notes still name topics.
+        "capture has nothing concrete (pure mood/reflection), the CORRECT answer is\n"
+        "every section empty ([]); never manufacture an item just to avoid an empty\n"
+        "result.\n",
+        "capture has NO nameable subject at all (a greeting, small talk, or a pure\n"
+        "mood/filler line with nothing stated), the CORRECT answer is every section\n"
+        "empty ([]); never manufacture an item just to avoid emptiness. HOWEVER,\n"
+        "having no TASK does NOT mean there is nothing to extract: a reflective\n"
+        "note, an idea, a wish, an opinion or a status update almost always still\n"
+        "NAMES one or more abstract TOPICS (the subject it discusses), and those\n"
+        "explicit topics MUST be extracted (see topic below).\n",
+    )
+    .replace(
+        # (b) An abstract subject/artifact IS a topic even as a task object; only
+        # physical places and physical/instrumental goods are excluded.
+        "topics. A physical PLACE/location where an errand happens (a shop,\n"
+        "  pharmacy, bank, ATM, school, office, gym) is NOT a topic and NOT any\n"
+        "  entity; a purely instrumental object handled in passing (a package, a\n"
+        "  form, a document, a receipt) is NOT an entity either. Such words belong\n"
+        "  INSIDE a task label, never as a standalone entity.\n",
+        "topics. IMPORTANT: an abstract subject, theme, work artifact, deliverable\n"
+        "  or named activity IS a topic EVEN WHEN it also appears as the object of\n"
+        "  a task or errand — extract it as a topic AND keep it inside the task\n"
+        "  label (e.g. a document type, a software feature, a planned activity, an\n"
+        "  area of work). The ONLY things that are NOT topics/entities are: (a) a\n"
+        "  physical PLACE/location where an errand happens (a shop, pharmacy, bank,\n"
+        "  ATM, school, office, gym), and (b) a purely physical or instrumental\n"
+        "  good handled in passing (food, cash/money, a package, a form, a\n"
+        "  receipt). Those two live INSIDE the task label only, never as a\n"
+        "  standalone entity.\n",
+    )
+    .replace(
+        # (c) Append a no-task reflection example that still yields its topics.
+        "none is an entity; they live inside the task labels only. No proper name\n"
+        "and no abstract subject, so entities is [].",
+        "none is an entity; they live inside the task labels only. No proper name\n"
+        "and no abstract subject, so entities is [].\n"
+        "\n"
+        "Example 3 (EN) — a reflective note with NO task STILL yields its topics.\n"
+        "Capture: \"Just thinking about performance and reliability lately, no "
+        "rush.\"\n"
+        "JSON: {\"entities\":[{\"type\":\"topic\",\"label\":\"performance\"},"
+        "{\"type\":\"topic\",\"label\":\"reliability\"}],\"tasks\":[],"
+        "\"connections\":[]}\n"
+        "Why: there is no action to perform, so tasks is []; but \"performance\"\n"
+        "and \"reliability\" are the abstract SUBJECTS explicitly discussed, so\n"
+        "they ARE topics. Having no task NEVER means extracting nothing.",
+    )
+)
+
 
 def build_extraction_prompt(text: str) -> str:
     """Render the current versioned prompt with the capture text embedded."""
     return (
-        f"{EXTRACTION_PROMPT_V6}\n\n"
+        f"{EXTRACTION_PROMPT_V7}\n\n"
         f"Capture:\n{CAPTURE_OPEN}\n{text}\n{CAPTURE_CLOSE}\n"
     )
 

@@ -25,18 +25,22 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 T = TypeVar("T")
 
-# Model families that reject a custom ``temperature`` and only accept the
-# default (1): the GPT-5 line and the o-series reasoning models. For those we
-# must OMIT the parameter entirely (sending temperature=0 returns HTTP 400
-# "Unsupported value: 'temperature' does not support 0 with this model").
-# Everything else (gpt-4o, Groq's llama, Gemini's OpenAI-compatible endpoint)
-# supports temperature=0, which we prefer for deterministic extraction.
-_TEMPERATURE_LOCKED_PREFIXES = ("gpt-5", "o1", "o3", "o4")
+def _is_unsupported_temperature_error(exc: BaseException) -> bool:
+    """True iff an API 400 says this model rejects a custom ``temperature``.
 
-
-def supports_custom_temperature(model: str) -> bool:
-    """False for models that only allow the default temperature (GPT-5 / o-series)."""
-    return not model.lower().startswith(_TEMPERATURE_LOCKED_PREFIXES)
+    Some models only accept the DEFAULT temperature (1) and return HTTP 400
+    ("Unsupported value: 'temperature' does not support 0 with this model")
+    when we send temperature=0 — e.g. OpenAI's flagship gpt-5.5 and the
+    o-series reasoning models. Others in the SAME family (e.g. gpt-5.4-mini) DO
+    accept temperature=0, so we cannot decide by model name; we detect the
+    rejection at runtime and adapt. Detection is defensive so it never crashes.
+    """
+    if getattr(exc, "param", None) == "temperature":
+        return True
+    message = (getattr(exc, "message", None) or str(exc)).lower()
+    return "temperature" in message and (
+        "does not support" in message or "unsupported" in message
+    )
 
 
 def is_retryable(exc: BaseException) -> bool:
@@ -132,12 +136,13 @@ class OpenAICompatibleProvider(AIProvider):
         self._prices_per_mtok = prices_per_mtok
         self._max_retries = max_retries
         self._backoff_base_s = backoff_base_s
-        # Prefer deterministic output (temperature=0), but omit the parameter
-        # for models that only accept the default (GPT-5 / o-series) — sending
-        # it there is rejected with HTTP 400.
-        self._temperature: float | None = (
-            0 if supports_custom_temperature(model) else None
-        )
+        # Prefer deterministic output (temperature=0). A few models only accept
+        # the DEFAULT temperature (1) and reject 0 with HTTP 400; we cannot tell
+        # by name (gpt-5.4-mini accepts 0, gpt-5.5 does not), so we send it by
+        # default and, on the first rejection, stop sending it for this instance
+        # (the provider is reused across all eval cases, so we learn only once).
+        self._temperature: float = 0.0
+        self._send_temperature: bool = True
 
     def _with_retries(self, func: Callable[[], Awaitable[T]]) -> Awaitable[T]:
         """Wrap an API call with exponential backoff + jitter on 429/5xx/timeouts.
@@ -163,7 +168,9 @@ class OpenAICompatibleProvider(AIProvider):
     async def complete(
         self, prompt: str, *, schema: dict | None = None
     ) -> Completion:
-        create_kwargs: dict = {
+        from openai import BadRequestError
+
+        base_kwargs: dict = {
             "model": self._model,
             "messages": [
                 {
@@ -176,13 +183,25 @@ class OpenAICompatibleProvider(AIProvider):
             ],
             "response_format": {"type": "json_object"},
         }
-        # Only send ``temperature`` when the model supports a custom value;
-        # GPT-5 / o-series models reject anything other than the default (1).
-        if self._temperature is not None:
-            create_kwargs["temperature"] = self._temperature
-        response = await self._with_retries(
-            lambda: self._client.chat.completions.create(**create_kwargs)
-        )
+
+        with_temperature = dict(base_kwargs)
+        if self._send_temperature:
+            with_temperature["temperature"] = self._temperature
+
+        try:
+            response = await self._with_retries(
+                lambda: self._client.chat.completions.create(**with_temperature)
+            )
+        except BadRequestError as exc:
+            # Adapt once: if this model rejects a custom temperature, remember it
+            # (skip it for every later call too) and retry without it.
+            if self._send_temperature and _is_unsupported_temperature_error(exc):
+                self._send_temperature = False
+                response = await self._with_retries(
+                    lambda: self._client.chat.completions.create(**base_kwargs)
+                )
+            else:
+                raise
         text = response.choices[0].message.content or "{}"
         u = response.usage
         input_tokens = u.prompt_tokens if u else 0
