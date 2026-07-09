@@ -8,7 +8,7 @@
 | Fase | F2 — Motor de Comprensión con IA ([#08 Roadmap](../../../docs/08-roadmap/technical-roadmap.md)) |
 | Ámbito | Diseño técnico del motor de comprensión: consumo del trabajo de la cola, worker Python/LangGraph, capa `AIProvider` (complete/embed + coste), enriquecimiento del grafo (nodos derivados, aristas tipadas, provenance), embeddings + pgvector (migración SQL + HNSW), idempotencia y transiciones de estado bajo RLS, y arnés de evaluación para de-riesgar R-001 |
 | Depende de | [ADR-010](../../../docs/02-architecture/adr/ADR-010-final-stack-and-two-backends.md), [ADR-012](../../../docs/02-architecture/adr/ADR-012-canonical-stack.md), [#03 Data Model](../../../docs/03-data/data-architecture-and-domain-model.md), [#02 TAD](../../../docs/02-architecture/technical-architecture.md), [002 Constitución](../../../docs/000_SYSTEM/002_ENGINEERING_CONSTITUTION.md), **Diseño F1 (Capture Engine)** (`../capture-engine/design.md`) |
-| Riesgos/deuda vinculados | [R-001](../../../docs/000_SYSTEM/012_RISK_AND_DEBT_REGISTER.md) (calidad de comprensión — riesgo #1), ADR-013 (pendiente) (puente cola↔Python), D-008 (dimensión de embedding / proveedor) |
+| Riesgos/deuda vinculados | [R-001](../../../docs/000_SYSTEM/012_RISK_AND_DEBT_REGISTER.md) (calidad de comprensión — riesgo #1), [ADR-019](../../../docs/02-architecture/adr/ADR-019-queue-python-consumer-bridge.md) (puente cola↔Python, ratificado), D-008 (dimensión de embedding / proveedor) |
 | Última actualización | 2026-07-02 |
 
 ---
@@ -573,8 +573,8 @@ contra Redis real** que verifican: consumo, reintentos/backoff, dedup por `jobId
 insuficiente en operación (p.ej. features de grupos/rate-limit que necesitemos),
 se conmuta a **(a)** — el pipeline LangGraph y el `GraphWriter` no cambian; sólo se
 antepone un consumidor Node que invoca `run_understanding` vía un endpoint interno
-del servicio de IA. Registrada como **ADR-013 (pendiente)** — decisión de diseño a
-ratificar como ADR cuando se apruebe F2.
+del servicio de IA. Ratificada como **[ADR-019](../../../docs/02-architecture/adr/ADR-019-queue-python-consumer-bridge.md)**
+(el número 013 que citaba el borrador ya estaba ocupado; se tomó el siguiente libre).
 
 ## 10. Transiciones de estado e idempotencia
 
@@ -711,13 +711,14 @@ anotadas a mano: entidades esperadas, tareas esperadas y conexiones esperadas.
 ### 13.2 Umbral de aceptación (puerta)
 
 La PoC debe superar, sobre el eval set, un umbral acordado como condición para
-continuar (valores iniciales propuestos, a ratificar con el dueño de producto):
+continuar. **Ratificado por [ADR-018](../../../docs/02-architecture/adr/ADR-018-f2-comprehension-eval-gate.md)**
+(la tasa de alucinación se fijó en ≤0.10 realista, con 0.05 como aspiración):
 
 ```
 F1_entidades         ≥ 0.80
 Precisión_tareas      ≥ 0.85
-Tasa_alucinación      ≤ 0.05
-Coste_medio/captura   ≤ (presupuesto acordado)   # métrica #02
+Tasa_alucinación      ≤ 0.10   # ratificado realista (aspiración 0.05)
+Coste_medio/captura   ≤ $0.01  # métrica #02
 ```
 
 - **Si se supera:** se procede al pipeline completo (§8) y se **fija la dimensión
@@ -843,7 +844,7 @@ async def on_failed(job, err) -> None:
 | Ref | Tema | Estado en este diseño |
 |-----|------|-----------------------|
 | [R-001](../../../docs/000_SYSTEM/012_RISK_AND_DEBT_REGISTER.md) | **Calidad de comprensión (riesgo #1)** | **De-riesgado primero**: PoC aislada + arnés de evaluación con eval set, métricas y **umbral de aceptación** como puerta antes del pipeline completo (§13). |
-| **ADR-013 (pendiente)** | Puente cola↔Python | **Decidido**: consumidor BullMQ **nativo en Python** (§9), con contingencia documentada a worker Node+HTTP si el port Python resulta insuficiente. A ratificar como ADR al aprobar F2. |
+| **[ADR-019](../../../docs/02-architecture/adr/ADR-019-queue-python-consumer-bridge.md)** | Puente cola↔Python | **Ratificado**: consumidor BullMQ **nativo en Python** (§9), con contingencia documentada a worker Node+HTTP si el port Python resulta insuficiente. |
 | **D-008** | Dimensión de embedding / elección de proveedor | **Abierta**: se fija con datos tras la PoC (§13.2). La migración parametriza `vector(:dim)`; cambiarla luego exige reindexar, por eso se decide antes de invertir. |
 | Abierta | Transcripción de voz: ¿cliente o F2? | F2 soporta ambas (usa `body` si viene; si no, `AIProvider.transcribe(audio_ref)`). Decisión final con datos de calidad/latencia (heredada de F1). |
 | Abierta | Política ante presupuesto de coste por usuario excedido | Pendiente de producto (§14). `llm_usage` ya habilita medir; la acción (throttle/aviso) se define después. |

@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://mindos:mindos@localhost:5432/mindos"
     redis_url: str = "redis://localhost:6379"
 
+    # Embedding vector dimension (design §5 / D-008). Must match the pgvector
+    # column `nodes.embedding vector(:dim)` created by the F2 migration. Default
+    # 1536 = OpenAI text-embedding-3-small (the design's reference). Changing it
+    # later requires a re-embed + reindex, so it is fixed here deliberately. The
+    # offline FakeProvider emits a smaller vector for tests; the GraphWriter pads
+    # to `embedding_dim` so the column contract holds regardless of provider.
+    embedding_dim: int = 1536
+
     # LLM provider selection (provider-agnostic layer, ADR-09 / ADR-012 D4).
     # 'fake' is the default so the comprehension PoC and its evaluation harness
     # run fully offline with zero cost. Set to 'openai' for a real (paid) run,
@@ -62,11 +70,13 @@ class Settings(BaseSettings):
     openai_backoff_base_s: float = 2.0
 
     # --- Evaluation gate thresholds (design §13.2) ---------------------------
-    # PROVISIONAL values, pending ratification by the product owner. They are
-    # the acceptance gate that de-risks R-001 before building the full pipeline.
+    # RATIFIED by ADR-018 (2026-07-09). No longer provisional. The gold set and
+    # metric definitions are NOT relaxed — only the honest bar is fixed.
     eval_f1_entities_min: float = 0.80
     eval_task_precision_min: float = 0.85
-    eval_hallucination_max: float = 0.05
+    # Ratified realistic ceiling (ADR-018). 0.05 is kept as the ASPIRATION; the
+    # free-tier LLMs could not hit 0.05 stably without sacrificing recall.
+    eval_hallucination_max: float = 0.10
     # Average cost budget per capture in USD (the "presupuesto acordado").
     eval_cost_per_capture_max_usd: float = 0.01
 

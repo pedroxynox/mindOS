@@ -28,6 +28,8 @@
 | ADR-015 | Plataforma gestionada sobre un cloud mayor, con portabilidad | 🟠 Decisión de CTO (complementado por ADR-012) | [ADR-015-managed-cloud-platform-portability.md](./ADR-015-managed-cloud-platform-portability.md) |
 | ADR-016 | Toda la infraestructura se define como código | 🟢 Firme (ejecución diferida a pre-beta por ADR-011/012) | [ADR-016-infrastructure-as-code.md](./ADR-016-infrastructure-as-code.md) |
 | ADR-017 | Estrategia de despliegue: rolling con health checks (MVP) | 🟠 Decisión de CTO | [ADR-017-rolling-deployment-strategy.md](./ADR-017-rolling-deployment-strategy.md) |
+| ADR-018 | Umbrales realistas del gate de calidad de comprensión (F2 / R-001) | 🟢 Aceptado | [ADR-018-f2-comprehension-eval-gate.md](./ADR-018-f2-comprehension-eval-gate.md) |
+| ADR-019 | Puente cola↔Python: consumidor BullMQ nativo en Python | 🟢 Aceptado | [ADR-019-queue-python-consumer-bridge.md](./ADR-019-queue-python-consumer-bridge.md) |
 
 ## Notas
 
