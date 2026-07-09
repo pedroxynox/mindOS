@@ -5,7 +5,7 @@
 | Metadato | Valor |
 |----------|-------|
 | Última actualización | 2026-07-09 |
-| Fase actual | F1 (Capture Engine) **COMPLETA y validada** (R-006 cerrado). F2 (Comprensión): motor **construido y validado contra infra real** (R-007 cerrado), **gate de calidad SUPERADO con margen → R-001 RESUELTA** (v8: F1 0.890 / taskP 1.000 / hall 0.074 / $0.0023, OpenAI `gpt-5.4-mini`), **arranque del worker CABLEADO** (interruptor `WORKER_ENABLED`, apagado por defecto), **voz DECIDIDA** (text-first, voz diferida) y **plan de despliegue en Render PREPARADO** (`render.yaml` + guía). **Falta:** aplicar el despliegue en Render (arrancar el motor "de verdad" en la nube). |
+| Fase actual | F1 (Capture Engine) **COMPLETA y validada** (R-006 cerrado). F2 (Comprensión): motor **construido y validado contra infra real** (R-007 cerrado), **gate de calidad SUPERADO con margen → R-001 RESUELTA** (v8: F1 0.890 / taskP 1.000 / hall 0.074 / $0.0023, OpenAI `gpt-5.4-mini`), **arranque del worker CABLEADO** (interruptor `WORKER_ENABLED`, apagado por defecto), **voz DECIDIDA** (text-first, voz diferida) y **DESPLEGADO Y VALIDADO END-TO-END EN PRODUCCIÓN** (Render + Neon + OpenAI, gratis): una captura de texto pasó de `raw` a **`processed`** en la nube (API→cola→worker→`gpt-5.4-mini`→grafo Neon). **mindOS está VIVO.** Siguiente producto: transcripción de voz y, más adelante, módulo Finanzas (V4). |
 | Avance estimado del MVP (F0–F5) | ~45 % |
 
 ## 1. Resumen ejecutivo
@@ -40,20 +40,19 @@ Suite: **100 offline + 5 integración**, `ruff`/`mypy` limpios (Python 3.11).
 - **Despliegue = servicios+cola en Render, base de datos en Neon (gratis).** El cupo único de Postgres gratis de Render ya está ocupado por otro proyecto del founder, y el gratis de Render se borra a los ~30 días; Neon gratis NO se borra, tiene pgvector y es portable (Postgres estándar). Empezar **GRATIS** (Neon + Render free), luego pasar los 2 servicios a Starter (~$14/mes) para 24/7. `render.yaml` ya NO crea la base de Render (usa Neon vía `sync:false`). PRs #55/#56 + PR de Neon.
 - Vigentes: **ADR-012** (stack), **ADR-018/019** (gate + puente cola), norma "aprovisionar antes de degradar".
 
-## 5. Próxima acción inmediata (para la nueva sesión) — DESPLEGAR EN RENDER
-1. **Crear la base en Neon** (gratis, ~2 min; guía `docs/06-infrastructure/DEPLOY_RENDER.md` §1) y **aplicar el Blueprint en Render** (New → Blueprint → repo `pedroxynox/mindOS` rama `main` → Apply). Crea 3 recursos (Key Value, API, IA+worker) en **plan gratis**.
-2. **Rellenar los valores** (sync:false): `OPENAI_API_KEY`, `MIGRATION_DATABASE_URL` (cadena de Neon dueño), `DATABASE_URL` (Neon con rol `mindos_app:mindos_app@…?sslmode=require`) en ambos servicios, `REDIS_PASSWORD`.
-3. **Migraciones**: corren solas (preDeploy `prisma migrate deploy` como owner) — crean tablas, RLS, rol `mindos_app` y extensión pgvector. Si falla por permiso de CREATE ROLE/EXTENSION en la BD gestionada, ejecutarlo a mano una vez desde el shell de la BD (SQL en `infra/postgres-init/01-app-role.sql` + `CREATE EXTENSION vector;`).
-4. **Verificar end-to-end**: `/v1/health` (API) y `/health` (IA) OK; en logs de IA "understanding worker started"; crear una captura y ver que se procesa.
-5. **Cuando sea "de verdad" (24/7):** subir `mindos-api` y `mindos-ai` a plan **starter** (~$7 c/u) y la **base de datos a un plan de pago** (~$6–7, para que NO se borre a los ~30 días) — ver §6.
+## 5. Próxima acción inmediata — YA DESPLEGADO Y VIVO; sigue producto
+**HECHO (2026-07-09): mindOS desplegado y VALIDADO end-to-end en producción** (Render + Neon + OpenAI, gratis). Prueba real: captura de texto `raw`→`processed` en la nube. URLs: API `https://mindos-api.onrender.com`, IA `https://mindos-ai.onrender.com`. Cómo se hizo y cómo recuperar fallos: `docs/06-infrastructure/DEPLOY_RENDER.md`. Config del deploy: `render.yaml` + `apps/*/Dockerfile` + `apps/api/docker-entrypoint.sh`.
 
-**Después del despliegue (siguientes trabajos de producto):** transcripción de voz (decidir cliente vs F2 con datos) y, más adelante, el **módulo Finanzas (V4)**.
+**Siguientes pasos (ya no es infra, es producto / mejoras):**
+1. **Observabilidad (papercut menor):** subir el logging a INFO para VER "worker started" y el procesamiento de cada captura en los logs de `mindos-ai` (hoy solo se ven los ERROR).
+2. **Transcripción de voz:** decidir cliente vs F2 con datos e implementarla (hoy diferida; el pipeline preserva la captura de voz con un *seam* seguro).
+3. **Módulo Finanzas (V4):** ampliación sobre F2 (roadmap §3.1), cuando el bucle central esté rodado.
+4. **Cuando quieras 24/7 real:** subir `mindos-api` y `mindos-ai` a **starter** (~$7 c/u; hoy free = se duermen a los ~15 min) y considerar la BD en pago si crece (Neon free no expira).
 
 ## 6. Bloqueadores y avisos importantes
-- **El despliegue es la única parte NO verificable desde el entorno de desarrollo** (sin acceso a Render/Docker). La config (`render.yaml`, Dockerfiles) es un scaffold correcto de mejor esfuerzo; se valida y afina en el **primer deploy** (ver deuda **D-011**).
-- **Modo gratis (para probar):** los servicios se **duermen** a los ~15 min (despiertan lentos) y la **BD gratis se borra a los ~30 días**. Sirve para confirmar el circuito, NO para datos reales. El worker dormido no drena la cola 24/7 (despierta al recibir tráfico).
-- **⚠ render.yaml en main quedó con los servicios en plan `starter` (PAGO)** porque el PR #55 se mergeó ANTES del ajuste a gratis. El fix a `plan: free` va en el PR de esta sesión (§13); **mergearlo antes de aplicar el Blueprint** para no incurrir en cobros.
-- No hay bloqueadores de calidad ni de motor: R-001 resuelta, R-007 cerrado.
+- **NO hay bloqueadores.** mindOS está desplegado y validado end-to-end en producción; R-001 resuelta, R-007 cerrado, D-011 mitigado.
+- **Modo gratis (actual):** los servicios de Render se **duermen** a los ~15 min (despiertan lentos, ~30-60 s) — por eso el worker no drena la cola 24/7 hasta que algo lo despierta. La **BD de Neon gratis NO se borra** (a diferencia de la de Render). Para uso real 24/7, subir los 2 servicios a `starter` (~$7 c/u).
+- **Observabilidad:** el log "worker started" es INFO y no se ve con la config actual (solo se ven ERROR); por eso durante el deploy el éxito se confirmó por ausencia de error + estado `processed`. Mejora pendiente: subir logging a INFO.
 
 ## 7. Riesgos vivos (detalle e historia en [012](./012_RISK_AND_DEBT_REGISTER.md))
 - **R-001 (RESUELTA para el gate, 2026-07-09):** calidad de comprensión. v8: F1 0.890 / taskP 1.000 / hall 0.074 / $0.0023 = GATE PASSED con margen (OpenAI `gpt-5.4-mini`). Residual NO gated: connections F1 0.187 (graph-linking).
@@ -116,3 +115,4 @@ Alta coherencia doc→código. El motor de F2 respeta el estilo de puertos (`AIP
 | 1.12 | 2026-07-09 | Gate SUPERADO por primera vez (OpenAI `gpt-5.4-mini`, F1 0.819/1.000/0.059) → R-001 mitigado; decisión mini vs 5.5. PRs #47/#49/#50. |
 | 1.13 | 2026-07-09 | R-001 RESUELTA para el gate: prompt v6→v7→v8; v8 F1 0.890/1.000/0.074 = PASS con margen. PRs #51/#52/#53. |
 | 1.14 | 2026-07-09 | **Cierre de sesión (handoff):** arranque del worker cableado (`WORKER_ENABLED`, PR #54); voz decidida (text-first/diferida) y Finanzas anotada V4 (PR #54); despliegue en Render preparado (`render.yaml` + `DEPLOY_RENDER.md`, PR #55) con fixes de Dockerfiles; alta de deuda **D-011** (config de deploy no verificada). Documentación completa del estado y lo que falta (desplegar en Render, empezar gratis). Nota: `render.yaml` en main quedó en `starter`; este PR lo pasa a gratis. Suite 100 offline + 5 integración; ruff/mypy limpios. |
+| 1.15 | 2026-07-09 | **🟢 mindOS DESPLEGADO Y VALIDADO END-TO-END EN PRODUCCIÓN (Render + Neon + OpenAI, gratis).** Base de datos en Neon gratis (PR #57); migraciones al arranque vía `docker-entrypoint.sh` (free tier no soporta preDeploy; PRs #58/#59); rol `mindos_app` creado en la Consola de Neon (Neon rechaza contraseñas débiles vía SQL) + reset `DROP SCHEMA public` para limpiar el `P3009`; bloqueo final resuelto = faltaba `OPENAI_API_KEY` en `mindos-ai`. **Prueba real:** registrar usuario → crear captura de texto → `raw`→`processed` en ~5-10 s en la nube (API→Redis→worker→`gpt-5.4-mini`→grafo Neon). D-011 mitigado. Papercut pendiente: subir logging a INFO para ver "worker started"/procesamiento. Siguiente: voz, luego Finanzas (V4), y 24/7 (starter) cuando se quiera. |
