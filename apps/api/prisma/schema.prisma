@@ -34,6 +34,7 @@ model User {
   edges           Edge[]
   idempotencyKeys IdempotencyKey[]
   refreshTokens   RefreshToken[]
+  llmUsage        LlmUsage[]
 
   @@map("users")
 }
@@ -123,8 +124,12 @@ model Node {
   status     CaptureStatus @default(raw) // relevant for type=capture
   origin     NodeOrigin
   confidence Float? // null for captures (not AI-derived)
-  // embedding VECTOR(1536) -> added in F2 via a raw SQL migration (pgvector).
-  //   Prisma does not natively type pgvector, so it is intentionally omitted in F1.
+  // Semantic embedding (F2). Prisma cannot natively type pgvector, so the column
+  // type is declared via `Unsupported(...)` and populated with raw SQL by the
+  // Python worker; the HNSW index lives in the F2 raw-SQL migration. Kept in the
+  // schema (rather than fully omitted) so `prisma migrate diff` sees no drift.
+  embedding      Unsupported("vector(1536)")? // dimension = Settings.embedding_dim
+  embeddingModel String?                       @map("embedding_model")
   occurredAt DateTime?     @map("occurred_at") @db.Timestamptz(6)
   createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -134,6 +139,7 @@ model Node {
   outgoingEdges   Edge[]           @relation("SourceNode")
   incomingEdges   Edge[]           @relation("TargetNode")
   idempotencyKeys IdempotencyKey[]
+  llmUsage        LlmUsage[]
 
   @@index([userId, type], name: "idx_nodes_user_type")
   @@index([userId, status])
@@ -178,4 +184,27 @@ model IdempotencyKey {
 
   @@unique([userId, key], name: "uq_idempotency_user_key")
   @@map("idempotency_keys")
+}
+
+/// Per-user LLM cost ledger (F2, first-class cost metric #02). Every model call
+/// (complete / embed / transcribe) made by the understanding worker is recorded
+/// here, attributed to the job's user. RLS (fail-closed, same pattern as the
+/// graph tables) is added by the F2 raw-SQL migration, not expressible in Prisma.
+model LlmUsage {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  captureId    String?  @map("capture_id") @db.Uuid // source capture; kept if the node is deleted
+  provider     String // 'openai' | 'groq' | 'gemini' | ...
+  model        String
+  operation    String // 'complete' | 'embed' | 'transcribe'
+  inputTokens  Int      @default(0) @map("input_tokens")
+  outputTokens Int      @default(0) @map("output_tokens")
+  costUsd      Decimal  @default(0) @map("cost_usd") @db.Decimal(12, 6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  capture Node? @relation(fields: [captureId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt], name: "idx_llm_usage_user")
+  @@map("llm_usage")
 }

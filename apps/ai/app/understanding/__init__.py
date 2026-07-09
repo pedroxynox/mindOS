@@ -1,7 +1,13 @@
-"""Understanding bounded context (F2).
+"""Understanding bounded context (F2 — comprehension engine).
 
-For the isolated comprehension PoC (design §13) this package only contains the
-pure extraction core (``extract``) and shared text helpers (``text_utils``).
-The full pipeline (worker, graph writer, RLS, cost meter) is out of scope for
-the PoC and is added once the evaluation gate (R-001) is cleared.
+Contains the pure comprehension core (``extract``, ``text_utils``,
+``enrichment``) plus the write path that turns a capture into an enriched graph:
+the job ``contract`` (mirror of F1), the ``GraphStore`` port with an in-memory
+and a Postgres (``graph_writer``) adapter, the RLS transaction helper (``rls``),
+per-user ``cost_meter``, the ``pipeline`` orchestration, and the BullMQ
+``worker`` (ADR-019).
+
+The pure core + the in-memory store run with zero infrastructure; the Postgres
+and BullMQ adapters (asyncpg / bullmq) are optional deps exercised only against
+real Redis/Postgres.
 """
