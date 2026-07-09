@@ -31,6 +31,16 @@
    `postgresql://...` y termina en `?sslmode=require`). **Guárdala** (es la
    conexión del DUEÑO). No la pegues en el chat; la pondremos en Render.
    - Usa la cadena **directa** (no la "pooled") para las migraciones.
+4. **Crea el rol de aplicación `mindos_app` en la Consola de Neon** (Neon →
+   proyecto → **Roles** → **New Role** → nombre `mindos_app`). Neon genera una
+   contraseña **fuerte**; cópiala. Esto es IMPORTANTE por dos motivos:
+   - **Neon RECHAZA contraseñas débiles** al crear roles vía SQL (error
+     "insecure password"), así que dejar que la migración cree `mindos_app` con
+     su contraseña por defecto FALLA en Neon.
+   - Al existir ya el rol, la migración (que usa `CREATE ROLE ... IF NOT EXISTS`)
+     lo **detecta y se salta**, y así **ninguna contraseña queda en el código**
+     (alineado con "no commitear secretos", #02 §14).
+   - La `DATABASE_URL` de app usará `mindos_app` + esta contraseña generada.
 
 ## Paso 2 — Crear los servicios en Render desde el Blueprint
 1. En Render: **New → Blueprint**.
@@ -44,30 +54,45 @@
 - **`MIGRATION_DATABASE_URL`** (en `mindos-api`): pega la **Connection string de
   Neon** del Paso 1 (la del dueño, con `?sslmode=require`). Se usa solo para
   crear las tablas.
-- **`DATABASE_URL`** (en `mindos-api` **y** `mindos-ai`): es la misma cadena de
-  Neon pero con el **rol de aplicación** (aislamiento por usuario, RLS). Toma la
-  de Neon y cambia el `usuario:contraseña@` del inicio por
-  `mindos_app:mindos_app@`, **conservando** el `?sslmode=require` del final.
-  Pégala en **ambos** servicios.
+- **`DATABASE_URL`** (en `mindos-api` **y** `mindos-ai`): la misma cadena de Neon
+  pero con el **rol de aplicación** `mindos_app` (aislamiento por usuario, RLS).
+  Toma la de Neon y cambia el `usuario:contraseña@` del inicio por
+  `mindos_app:<CONTRASEÑA_GENERADA>@` (la contraseña que Neon te dio al crear el
+  rol en el Paso 1.4), **conservando** el host y el `?sslmode=require`. Pégala en
+  **ambos** servicios.
 - **`REDIS_PASSWORD`** (en `mindos-api`): cópiala de la info de conexión de
   `mindos-redis` (la parte de la contraseña de su "connection string"). Si la
   API se conecta bien por `REDIS_URL`, puede quedar vacía.
 
-> El rol `mindos_app` y su contraseña los CREA la migración (Paso 4); por eso la
-> `DATABASE_URL` de app funciona después de migrar.
+> El rol `mindos_app` ya existe (lo creaste en el Paso 1.4), así que la migración
+> lo detecta y NO intenta recrearlo — solo le concede permisos.
 
 ## Paso 4 — Migraciones (se ejecutan solas al arrancar)
 `mindos-api` corre `prisma migrate deploy` **al arrancar el contenedor** (el
 plan gratis de Render no permite el paso "pre-deploy", así que va en el comando
-de arranque) usando `MIGRATION_DATABASE_URL` (rol dueño de Neon). Crea: tablas,
-RLS, el rol `mindos_app` (contraseña `mindos_app`) y la extensión **pgvector**;
-luego arranca la app con su propio `DATABASE_URL` (rol `mindos_app`). Neon
-permite crear roles y extensiones con el rol por defecto, así que debería correr
-sin tocar nada a mano. Es idempotente: re-ejecutarlo en cada arranque es seguro.
+de arranque, `apps/api/docker-entrypoint.sh`) usando `MIGRATION_DATABASE_URL`
+(rol dueño de Neon). Crea: tablas, políticas RLS, la extensión **pgvector**, y
+**concede permisos** al rol `mindos_app` (que TÚ ya creaste en el Paso 1.4 — la
+migración lo detecta y NO lo recrea). Luego arranca la app con su propio
+`DATABASE_URL` (rol `mindos_app`). Es idempotente: re-ejecutarlo en cada
+arranque es seguro.
 
-- Si fallara por permisos, abre el **SQL Editor de Neon** y ejecuta el rol de app
-  (`infra/postgres-init/01-app-role.sql`) + `CREATE EXTENSION IF NOT EXISTS
-  vector;`, y reintenta el deploy.
+### Si una migración quedó FALLIDA (error `P3009` / "insecure password")
+Ocurre si se intentó migrar ANTES de crear el rol `mindos_app` en Neon: la
+migración intenta crear el rol con una contraseña débil y Neon la rechaza, y
+Prisma marca esa migración como fallida (no aplica más hasta resolverlo).
+**Arreglo (una vez), con la base aún vacía:**
+1. Crea el rol `mindos_app` en la Consola de Neon (Paso 1.4) si aún no existe.
+2. Neon → **SQL Editor** → ejecuta para limpiar el estado a medio aplicar:
+   ```sql
+   DROP SCHEMA public CASCADE;
+   CREATE SCHEMA public;
+   ```
+   (Borra las tablas a medias y el registro de migraciones; el rol `mindos_app`
+   sobrevive porque no vive dentro del esquema.)
+3. Asegúrate de que `DATABASE_URL` (en ambos servicios) use `mindos_app` + la
+   contraseña generada por Neon.
+4. Vuelve a desplegar `mindos-api` (**Manual Deploy → Deploy latest commit**).
 
 ## Paso 5 — Verificar que el motor "está vivo"
 - `mindos-api`: abre `https://<tu-api>.onrender.com/v1/health` → OK.
