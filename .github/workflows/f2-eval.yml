@@ -7,10 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       provider:
-        description: "Proveedor de IA (groq = gratis sin tarjeta; openai = calidad real de pago; fake = línea base offline sin coste)"
+        description: "Proveedor de IA (groq = gratis sin tarjeta; gemini = gratis sin tarjeta, límites más generosos; openai = calidad real de pago; fake = línea base offline sin coste)"
         type: choice
         options:
           - groq
+          - gemini
           - openai
           - fake
         default: groq
@@ -36,6 +37,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -106,6 +108,37 @@ jobs:
           fi
           echo "Clave GROQ_API_KEY detectada. Continuando."
 
+      # Friendly guard for Gemini (free, no card): if the user asked for gemini
+      # but no key is configured, explain how to get one for free and add it.
+      - name: Comprobar clave de Gemini
+        if: ${{ inputs.provider == 'gemini' }}
+        run: |
+          if [ -z "${GEMINI_API_KEY}" ]; then
+            {
+              echo "## No se pudo ejecutar el examen"
+              echo ""
+              echo "Has elegido el proveedor **gemini** (gratis, sin tarjeta, límites más generosos), pero este repositorio todavia no tiene configurada la clave \`GEMINI_API_KEY\`."
+              echo ""
+              echo "### Como conseguir la clave gratis (una sola vez)"
+              echo "1. Entra en **https://aistudio.google.com/app/apikey** e inicia sesion con tu cuenta de Google (es gratis, **no pide tarjeta**)."
+              echo "2. Pulsa **Create API key** (Crear clave de API)."
+              echo "3. Copia la clave que aparece (guardala en un lugar seguro)."
+              echo ""
+              echo "### Como guardarla en el repositorio"
+              echo "4. Ve a **Settings** (ajustes del repositorio)."
+              echo "5. En el menu de la izquierda: **Secrets and variables -> Actions**."
+              echo "6. Pulsa **New repository secret**."
+              echo "7. En **Name** escribe exactamente: \`GEMINI_API_KEY\`"
+              echo "8. En **Secret** pega la clave que copiaste de Google AI Studio."
+              echo "9. Pulsa **Add secret** y vuelve a ejecutar este workflow con **provider = gemini**."
+              echo ""
+              echo "> Consejo: si solo quieres probar el boton sin clave, ejecuta el workflow con **provider = fake** (linea base offline; no mide calidad real)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Falta el secret GEMINI_API_KEY::Consigue una clave gratis (sin tarjeta) en https://aistudio.google.com/app/apikey y anadela como secret GEMINI_API_KEY (Settings -> Secrets and variables -> Actions), o ejecuta con provider=fake. Instrucciones en el Summary del run."
+            exit 1
+          fi
+          echo "Clave GEMINI_API_KEY detectada. Continuando."
+
       # Run the exam, capture its full stdout, and render it into the run
       # Summary so the result is readable without opening the logs. The eval's
       # exit code is preserved so `--gate` failures fail the run.
@@ -123,6 +156,64 @@ jobs:
           if [ -n "${{ vars.GROQ_MODEL }}" ]; then
             export GROQ_MODEL="${{ vars.GROQ_MODEL }}"
             echo "Usando GROQ_MODEL=${GROQ_MODEL} (variable del repositorio)."
+          fi
+          # Optional: try a different Gemini model without touching code. Set a
+          # repository *Variable* (not a secret) named GEMINI_MODEL. Only
+          # exported when non-empty, so leaving it unset keeps the code default.
+          if [ -n "${{ vars.GEMINI_MODEL }}" ]; then
+            export GEMINI_MODEL="${{ vars.GEMINI_MODEL }}"
+            echo "Usando GEMINI_MODEL=${GEMINI_MODEL} (variable del repositorio)."
+          fi
+          # --- Espaciado entre llamadas (límite por minuto del plan gratuito) ---
+          # Groq gratis limita los TOKENS por minuto (TPM), no solo el número de
+          # peticiones. Antes el prompt de extracción de F2 era GRANDE (apilaba
+          # v2+v3+v4 íntegros), así que cada una de las ~45 llamadas gastaba
+          # muchos tokens y hubo que subir el espaciado a 20s para no superar el
+          # techo de TPM. Ahora el prompt se ha ADELGAZADO a una única versión
+          # consolidada (v5, ver D-010): mismas reglas, ~mitad de tokens, así que
+          # cada llamada pesa mucho menos y un espaciado de ~10s (~6 llamadas/min)
+          # basta para quedar bajo el límite de TOKENS por minuto — un examen
+          # completo tarda ahora ~8 min. 'fake' es offline (sin red), así que se
+          # queda en 0. Se puede AJUSTAR sin tocar código con una *Variable* del
+          # repositorio llamada EVAL_REQUEST_DELAY_S (mismo patrón que
+          # GROQ_MODEL); si está definida y no vacía, gana sobre el defecto.
+          # Gemini gratis está limitado por PETICIONES por minuto (RPM ~10-15),
+          # NO por tokens: su techo de TOKENS por minuto (TPM) es enorme (~1M),
+          # así que aquí solo manda el ritmo de peticiones. Con 5s (~12
+          # llamadas/min) el examen quedaba justo en el borde del RPM y una tanda
+          # sostenida agotaba los reintentos (429 "límite de peticiones
+          # alcanzado"). Subimos el espaciado a 12s (~5 llamadas/min): deja
+          # holgura cómoda bajo el techo de RPM (el TPM ni se roza) para que el
+          # examen COMPLETE; un examen completo tarda ahora ~10-11 min. Ajustable
+          # sin código con la *Variable* del repositorio EVAL_REQUEST_DELAY_S
+          # (igual que groq).
+          case "${{ inputs.provider }}" in
+            groq) EVAL_REQUEST_DELAY_S=10 ;;
+            gemini) EVAL_REQUEST_DELAY_S=12 ;;
+            openai) EVAL_REQUEST_DELAY_S=1 ;;
+            *) EVAL_REQUEST_DELAY_S=0 ;;
+          esac
+          if [ -n "${{ vars.EVAL_REQUEST_DELAY_S }}" ]; then
+            EVAL_REQUEST_DELAY_S="${{ vars.EVAL_REQUEST_DELAY_S }}"
+            echo "Usando EVAL_REQUEST_DELAY_S=${EVAL_REQUEST_DELAY_S}s (variable del repositorio)."
+          else
+            echo "Usando EVAL_REQUEST_DELAY_S=${EVAL_REQUEST_DELAY_S}s (valor por defecto para ${{ inputs.provider }})."
+          fi
+          if [ "${EVAL_REQUEST_DELAY_S}" != "0" ]; then
+            export EVAL_REQUEST_DELAY_S
+          fi
+          # Reintentos ACOTADOS (usa el setting compartido openai_max_retries).
+          # 3 reintentos absorben un 429 transitorio puntual, pero limitan el
+          # tiempo perdido por caso cuando la cuota está agotada: si TODOS los
+          # casos reciben 429, un valor alto (p. ej. 10) con backoff exponencial
+          # largo (~60s) convierte un run de 45 casos en un zombi de varias horas.
+          # Con 3 el run entero se queda en minutos aunque cada caso esté
+          # limitado; los casos saltados siguen apareciendo como "CASOS NO
+          # EVALUADOS" y el run sigue saliendo con código 2 (nunca un pase
+          # limpio). Solo para proveedores reales; 'fake' nunca toca la red.
+          if [ "${{ inputs.provider }}" != "fake" ]; then
+            export OPENAI_MAX_RETRIES=3
+            echo "Usando OPENAI_MAX_RETRIES=${OPENAI_MAX_RETRIES}."
           fi
           echo "Ejecutando: python -m app.eval.run_eval --provider ${{ inputs.provider }} ${GATE_FLAG}"
           set +e
