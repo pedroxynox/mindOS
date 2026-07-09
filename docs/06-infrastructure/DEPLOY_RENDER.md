@@ -1,81 +1,94 @@
-# Desplegar mindOS en Render ("todo en Render")
+# Desplegar mindOS — servicios y cola en Render, base de datos en Neon
 
-> Guía paso a paso para poner el backend de mindOS a funcionar 24/7 en Render:
-> la API (NestJS), el servicio de IA + worker (Python), la base de datos
-> (Postgres con pgvector) y la cola (Redis / "Key Value"). Pensada para un
-> founder no técnico: son clics en el panel de Render + rellenar unos pocos
-> valores. La receta base está en el `render.yaml` de la raíz del repo.
+> Guía paso a paso (para founder no técnico) para poner el backend de mindOS a
+> funcionar: la API (NestJS) y el servicio de IA + worker (Python) y la cola
+> (Redis) en **Render**, y la base de datos (Postgres con pgvector) **gratis en
+> Neon**. La base va en Neon porque el único cupo de Postgres gratis de Render
+> ya está ocupado por otro proyecto, y el gratis de Neon **no se borra** (el de
+> Render se borra a los ~30 días). Neon es Postgres estándar → totalmente
+> portable (se puede migrar luego). La receta está en `render.yaml` (raíz).
 
-## Qué se va a crear (4 piezas, una sola cuenta)
-1. **mindos-postgres** — base de datos con búsqueda inteligente (pgvector).
-2. **mindos-redis** — la "cola" de tareas (Key Value de Render).
-3. **mindos-api** — la API del negocio (recibe capturas, las mete en la cola).
-4. **mindos-ai** — el "cerebro": responde `/health` y **consume la cola**
-   (worker) para entender cada captura y escribirla en el grafo.
+## Qué se va a crear
+- **En Neon (gratis):** `mindos` — la base de datos con búsqueda inteligente.
+- **En Render (gratis):**
+  - `mindos-redis` — la cola de tareas (Key Value).
+  - `mindos-api` — la API (recibe capturas y las mete en la cola).
+  - `mindos-ai` — el cerebro: responde `/health` y **consume la cola** (worker),
+    entiende cada captura y la escribe en el grafo.
 
-> No toca ninguna otra app que ya tengas en Render: esto crea servicios nuevos.
+> No toca ninguna otra app ni base de datos que ya tengas: crea recursos nuevos.
 
-## Prerrequisito
-- El PR que enciende el worker (`WORKER_ENABLED`, arranque del worker) debe
-  estar **mergeado en `main`**. Sin él, `mindos-ai` no consumiría la cola.
+## Prerrequisitos
+- PRs de arranque del worker (`WORKER_ENABLED`) y de la receta Neon **mergeados
+  en `main`**.
+- Tener a mano tu **clave de OpenAI** (`sk-...`).
 
-## Paso 1 — Crear todo desde el Blueprint
+## Paso 1 — Crear la base de datos en Neon (~2 min)
+1. Entra a https://neon.tech → **Sign up** (Google/GitHub; gratis, sin tarjeta).
+2. **Create project** → nombre `mindos`, región la más cercana a ti. Postgres por
+   defecto.
+3. Al terminar, Neon muestra la **Connection string** (empieza con
+   `postgresql://...` y termina en `?sslmode=require`). **Guárdala** (es la
+   conexión del DUEÑO). No la pegues en el chat; la pondremos en Render.
+   - Usa la cadena **directa** (no la "pooled") para las migraciones.
+
+## Paso 2 — Crear los servicios en Render desde el Blueprint
 1. En Render: **New → Blueprint**.
-2. Conecta el repo `pedroxynox/mindOS` y elige la rama `main`.
-3. Render lee `render.yaml` y muestra las 4 piezas. Dale **Apply**.
-4. Render pedirá los valores marcados como "no sincronizados" (secretos). Los
-   rellenamos en el Paso 2.
+2. Conecta el repo `pedroxynox/mindOS`, rama `main`.
+3. Render lee `render.yaml` y muestra **3 recursos** (mindos-redis, mindos-api,
+   mindos-ai). **Apply**.
+4. Render pedirá los valores "no sincronizados" (secretos) → Paso 3.
 
-## Paso 2 — Rellenar los pocos valores manuales
-Render no puede adivinar estos; se ponen una sola vez:
+## Paso 3 — Rellenar los valores manuales (una sola vez)
+- **`OPENAI_API_KEY`** (en `mindos-ai`): tu clave `sk-...`.
+- **`MIGRATION_DATABASE_URL`** (en `mindos-api`): pega la **Connection string de
+  Neon** del Paso 1 (la del dueño, con `?sslmode=require`). Se usa solo para
+  crear las tablas.
+- **`DATABASE_URL`** (en `mindos-api` **y** `mindos-ai`): es la misma cadena de
+  Neon pero con el **rol de aplicación** (aislamiento por usuario, RLS). Toma la
+  de Neon y cambia el `usuario:contraseña@` del inicio por
+  `mindos_app:mindos_app@`, **conservando** el `?sslmode=require` del final.
+  Pégala en **ambos** servicios.
+- **`REDIS_PASSWORD`** (en `mindos-api`): cópiala de la info de conexión de
+  `mindos-redis` (la parte de la contraseña de su "connection string"). Si la
+  API se conecta bien por `REDIS_URL`, puede quedar vacía.
 
-- **`OPENAI_API_KEY`** (en `mindos-ai`): tu clave de OpenAI (`sk-...`).
-- **`DATABASE_URL`** (en `mindos-api` y `mindos-ai`): la conexión del rol de
-  aplicación (no-dueño), que aísla datos por usuario (RLS). Es **igual** a la
-  cadena de la base de datos `mindos-postgres`, pero cambiando el usuario y la
-  contraseña por `mindos_app` / `mindos_app`.
-  - Copia la **Internal Database URL** de `mindos-postgres` (panel de la BD).
-  - Reemplaza `usuario:contraseña@` por `mindos_app:mindos_app@`.
-  - Pega el resultado como `DATABASE_URL` en **ambos** servicios.
-- **`REDIS_PASSWORD`** (en `mindos-api`): cópialo de la info de conexión de
-  `mindos-redis` (dentro de su "connection string", la parte tras `:` y antes
-  de `@`). Si la API se conecta por `REDIS_URL`, este campo puede quedar vacío.
+> El rol `mindos_app` y su contraseña los CREA la migración (Paso 4); por eso la
+> `DATABASE_URL` de app funciona después de migrar.
 
-## Paso 3 — Migraciones (se ejecutan solas)
-El servicio `mindos-api` corre `prisma migrate deploy` **antes de cada deploy**
-(con la conexión de **dueño**, `MIGRATION_DATABASE_URL`). Esa migración crea:
-las tablas, las reglas de aislamiento (RLS), el rol `mindos_app` (con su
-contraseña `mindos_app`) y la extensión **pgvector**.
+## Paso 4 — Migraciones (se ejecutan solas)
+`mindos-api` corre `prisma migrate deploy` antes de cada deploy usando
+`MIGRATION_DATABASE_URL` (rol dueño de Neon). Crea: tablas, RLS, el rol
+`mindos_app` (contraseña `mindos_app`) y la extensión **pgvector**. Neon permite
+crear roles y extensiones con el rol por defecto, así que debería correr sin
+tocar nada a mano.
 
-- Si el primer deploy falla en la migración con un error de **permisos para
-  crear rol o extensión**, es porque el usuario dueño de la BD gestionada no
-  tiene ese permiso. Solución (una vez): abre el **PSQL / Shell** de
-  `mindos-postgres` en Render y ejecuta a mano el rol de app + `CREATE EXTENSION
-  vector;` (te paso el SQL exacto cuando lleguemos ahí), luego reintenta el
-  deploy. El SQL del rol está en `infra/postgres-init/01-app-role.sql`.
+- Si fallara por permisos, abre el **SQL Editor de Neon** y ejecuta el rol de app
+  (`infra/postgres-init/01-app-role.sql`) + `CREATE EXTENSION IF NOT EXISTS
+  vector;`, y reintenta el deploy.
 
-## Paso 4 — Verificar que el motor "está vivo"
-- `mindos-api` → abre `https://<tu-api>.onrender.com/v1/health` → debe responder
-  OK.
-- `mindos-ai` → `https://<tu-ai>.onrender.com/health` → OK, y en sus **Logs**
-  debe aparecer "understanding worker started: consuming the queue".
-- Prueba real: crea una captura vía la API (o la app). En segundos, los **Logs**
-  de `mindos-ai` deben mostrar que la procesó, y quedará escrita en el grafo.
+## Paso 5 — Verificar que el motor "está vivo"
+- `mindos-api`: abre `https://<tu-api>.onrender.com/v1/health` → OK.
+- `mindos-ai`: `https://<tu-ai>.onrender.com/health` → OK, y en sus **Logs**
+  aparece "understanding worker started: consuming the queue".
+- Prueba real: crea una captura vía la API. En segundos, los Logs de `mindos-ai`
+  muestran que la procesó y queda escrita en el grafo (Neon).
+- En modo gratis los servicios se DUERMEN a los ~15 min; el primer clic los
+  despierta (lento) y el worker despierto procesa la cola.
 
 ## Costo (honesto)
-- **Para PROBAR (gratis):** pon `mindos-postgres` y `mindos-redis` en plan
-  **free** y los servicios en free. Funciona para verlo vivo, PERO los servicios
-  free se "duermen" y la **BD free se borra a los ~30 días**. No guardes nada
-  que te importe.
-- **Para 24/7 real:** `mindos-api` y `mindos-ai` en **Starter** (siempre
-  despiertos) + Postgres/Key Value en un plan pago pequeño. Estimado
-  **~$15–25/mes** (además de lo que ya pagas por tu otra API).
+- **Ahora (probar): $0.** Neon gratis (no se borra) + Render gratis (servicios se
+  duermen). Perfecto para confirmar el circuito.
+- **24/7 real (~$14/mes):** subir `mindos-api` y `mindos-ai` a **Starter**
+  (~$7 c/u). La base puede seguir gratis en Neon un buen tiempo; si crece, Neon
+  cobra por uso. La cola gratis de Render suele bastar al principio.
 
 ## Notas
-- **Voz:** diferida, así que NO hace falta almacenamiento de audio (S3/R2)
-  todavía. Menos piezas ahora.
-- **Portabilidad:** todo está en Docker; si algún día quieres mover la base de
-  datos a Neon (gratis) o el conjunto a otro proveedor, el proyecto lo permite
-  (ADR-015).
+- **Voz:** diferida → no hace falta almacenamiento de audio (S3/R2) todavía.
+- **Portabilidad (ADR-015):** Neon es Postgres estándar; migrar a Render, AWS,
+  Supabase o un servidor propio es una exportación/importación normal (solo se
+  necesita que el destino tenga pgvector). Sin amarre.
+- **SSL:** tanto Prisma como asyncpg respetan el `?sslmode=require` de la cadena
+  de Neon — consérvalo en las tres URLs.
 - Esta guía no pudo probarse desde el entorno de desarrollo (sin acceso a
-  Render); afinaremos los detalles específicos de Render en el primer deploy.
+  Render/Neon); afinamos los detalles en el primer deploy (deuda D-011).

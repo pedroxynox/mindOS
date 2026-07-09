@@ -17,7 +17,7 @@
 3. **Motor cableado para encenderse:** `main.py` ahora arranca/cierra el worker BullMQ vía *lifespan*, con interruptor `WORKER_ENABLED` (apagado por defecto para no romper health-only ni tests). Un fallo de arranque se loguea pero no tumba `/health`.
 4. **Voz DECIDIDA:** text-first ahora; la transcripción de voz se difiere (el pipeline ya preserva la captura de voz con un *seam* seguro).
 5. **Finanzas ANOTADA** como función futura (V4) en el roadmap §3.1 — ampliación sobre F2, no ahora.
-6. **Despliegue PREPARADO:** `render.yaml` (Blueprint "todo en Render": Postgres+pgvector, Key Value/Redis, API, IA+worker) + `docs/06-infrastructure/DEPLOY_RENDER.md`. Arreglados dos huecos de imagen (worker deps `.[worker]`; Prisma CLI en la imagen de la API para migraciones).
+6. **Despliegue PREPARADO:** `render.yaml` (Key Value/Redis + API + IA+worker en Render; **base de datos en Neon gratis** vía `sync:false`) + `docs/06-infrastructure/DEPLOY_RENDER.md`. Arreglados dos huecos de imagen (worker deps `.[worker]`; Prisma CLI en la imagen de la API para migraciones).
 
 Suite: **100 offline + 5 integración**, `ruff`/`mypy` limpios (Python 3.11).
 
@@ -37,12 +37,12 @@ Suite: **100 offline + 5 integración**, `ruff`/`mypy` limpios (Python 3.11).
 - **Worker: cableado pero apagado por defecto** (`WORKER_ENABLED`); se enciende en el despliegue. PR #54.
 - **Voz: text-first, transcripción diferida** (sub-proyecto propio: `AIProvider.transcribe` + acceso al blob). PR #54 / design §19.
 - **Finanzas: función futura reservada (V4)**, ampliación sobre F2, se construye DESPUÉS de encender el bucle central. Roadmap §3.1 (PR #54).
-- **Despliegue = "todo en Render"** (el founder ya usa Render). Empezar **GRATIS para verlo vivo**, luego pasar a pago (~$15–25/mes) para 24/7. PR #55 (+ fix a plan gratis en curso).
+- **Despliegue = servicios+cola en Render, base de datos en Neon (gratis).** El cupo único de Postgres gratis de Render ya está ocupado por otro proyecto del founder, y el gratis de Render se borra a los ~30 días; Neon gratis NO se borra, tiene pgvector y es portable (Postgres estándar). Empezar **GRATIS** (Neon + Render free), luego pasar los 2 servicios a Starter (~$14/mes) para 24/7. `render.yaml` ya NO crea la base de Render (usa Neon vía `sync:false`). PRs #55/#56 + PR de Neon.
 - Vigentes: **ADR-012** (stack), **ADR-018/019** (gate + puente cola), norma "aprovisionar antes de degradar".
 
 ## 5. Próxima acción inmediata (para la nueva sesión) — DESPLEGAR EN RENDER
-1. **Aplicar el Blueprint en Render** (guía completa: `docs/06-infrastructure/DEPLOY_RENDER.md`): New → Blueprint → repo `pedroxynox/mindOS` (rama `main`) → Apply. Crea las 4 piezas (Postgres+pgvector, Key Value, API, IA+worker) en **plan gratis** (para probar).
-2. **Rellenar 3 valores** (sync:false): `OPENAI_API_KEY`, `DATABASE_URL` (rol no-owner `mindos_app:mindos_app@…`), `REDIS_PASSWORD`.
+1. **Crear la base en Neon** (gratis, ~2 min; guía `docs/06-infrastructure/DEPLOY_RENDER.md` §1) y **aplicar el Blueprint en Render** (New → Blueprint → repo `pedroxynox/mindOS` rama `main` → Apply). Crea 3 recursos (Key Value, API, IA+worker) en **plan gratis**.
+2. **Rellenar los valores** (sync:false): `OPENAI_API_KEY`, `MIGRATION_DATABASE_URL` (cadena de Neon dueño), `DATABASE_URL` (Neon con rol `mindos_app:mindos_app@…?sslmode=require`) en ambos servicios, `REDIS_PASSWORD`.
 3. **Migraciones**: corren solas (preDeploy `prisma migrate deploy` como owner) — crean tablas, RLS, rol `mindos_app` y extensión pgvector. Si falla por permiso de CREATE ROLE/EXTENSION en la BD gestionada, ejecutarlo a mano una vez desde el shell de la BD (SQL en `infra/postgres-init/01-app-role.sql` + `CREATE EXTENSION vector;`).
 4. **Verificar end-to-end**: `/v1/health` (API) y `/health` (IA) OK; en logs de IA "understanding worker started"; crear una captura y ver que se procesa.
 5. **Cuando sea "de verdad" (24/7):** subir `mindos-api` y `mindos-ai` a plan **starter** (~$7 c/u) y la **base de datos a un plan de pago** (~$6–7, para que NO se borre a los ~30 días) — ver §6.
