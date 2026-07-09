@@ -1,0 +1,100 @@
+# mindOS — Render Blueprint ("todo en Render").
+#
+# Defines the whole backend as one deploy: managed Postgres (with pgvector),
+# a Key Value store (Redis for the BullMQ queue), the NestJS business API, and
+# the Python AI service (which ALSO runs the comprehension worker).
+#
+# This is a STARTING scaffold. A few values Render cannot infer are set to
+# `sync: false` and must be filled in the dashboard once — see the step-by-step
+# guide in docs/06-infrastructure/DEPLOY_RENDER.md. Prereq: PR that wires the
+# worker startup (WORKER_ENABLED) must be merged first.
+
+databases:
+  - name: mindos-postgres
+    # ⚠ FREE Postgres is deleted ~30 days after creation (fine to TEST, not to
+    # keep data). Switch to a paid plan (e.g. basic-256mb) for anything real.
+    plan: free
+    postgresMajorVersion: "16"
+    # pgvector is created by the F2 migration (CREATE EXTENSION vector) using
+    # the owner connection; Render allows pgvector on its managed Postgres.
+
+services:
+  # --- Redis / queue (BullMQ) ------------------------------------------------
+  - type: keyvalue
+    name: mindos-redis
+    plan: free
+    ipAllowList: []          # empty = reachable only from your Render services
+    maxmemoryPolicy: noeviction  # a job queue must NOT evict keys
+
+  # --- NestJS business API ---------------------------------------------------
+  - type: web
+    name: mindos-api
+    runtime: docker
+    dockerfilePath: apps/api/Dockerfile
+    dockerContext: apps/api
+    plan: starter            # always-on (free would sleep after 15 min)
+    healthCheckPath: /v1/health
+    # Run DB migrations as the OWNER before each deploy: creates tables, RLS
+    # policies, the non-owner `mindos_app` role, and the pgvector extension.
+    preDeployCommand: "sh -c 'DATABASE_URL=\"$MIGRATION_DATABASE_URL\" npx prisma migrate deploy'"
+    envVars:
+      # Owner connection — used ONLY for migrations (preDeployCommand above).
+      - key: MIGRATION_DATABASE_URL
+        fromDatabase:
+          name: mindos-postgres
+          property: connectionString
+      # Runtime app connection = NON-OWNER role `mindos_app` (RLS fail-closed).
+      # Set manually: same host/port/db as the owner URL, user/pass mindos_app.
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: mindos-redis
+          property: connectionString
+      - key: REDIS_HOST
+        fromService:
+          type: keyvalue
+          name: mindos-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: keyvalue
+          name: mindos-redis
+          property: port
+      - key: REDIS_PASSWORD    # copy from the Key Value connection info (see guide)
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true    # Render generates a strong secret once
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: mindos-ai
+          property: hostport    # internal host:port of the AI service
+      # Voice is deferred, so S3_* (audio storage) is intentionally unset.
+
+  # --- Python AI service + comprehension worker ------------------------------
+  - type: web
+    name: mindos-ai
+    runtime: docker
+    dockerfilePath: apps/ai/Dockerfile
+    dockerContext: apps/ai
+    plan: starter            # always-on so it keeps draining the queue
+    healthCheckPath: /health
+    envVars:
+      - key: WORKER_ENABLED
+        value: "true"        # this instance consumes the 'understanding' queue
+      - key: LLM_PROVIDER
+        value: openai
+      - key: OPENAI_MODEL
+        value: gpt-5.4-mini  # the winning model (R-001 gate passed)
+      - key: OPENAI_API_KEY
+        sync: false          # paste your OpenAI key once (secret)
+      # Same non-owner app role as the API (RLS applies to the worker too).
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: mindos-redis
+          property: connectionString

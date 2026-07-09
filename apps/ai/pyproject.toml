@@ -25,6 +25,14 @@ ai = [
     "asyncpg>=0.29.0",
     "bullmq>=2.10.0",
 ]
+# Minimal deps to RUN the comprehension worker in production (the BullMQ
+# consumer + Postgres writer): just the queue client and the async PG driver,
+# WITHOUT the heavier langgraph/llama-index (not used by the current worker).
+# The Docker image installs ".[worker]" so it stays lean but can drain the queue.
+worker = [
+    "asyncpg>=0.29.0",
+    "bullmq>=2.10.0",
+]
 dev = [
     "ruff>=0.6.0",
     "mypy>=1.11.0",
