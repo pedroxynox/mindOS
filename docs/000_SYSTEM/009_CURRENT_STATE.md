@@ -35,7 +35,7 @@ Se **construyó el motor de comprensión (F2)** completo (PR #45, **mergeado**),
 - Vigentes: **ADR-012** (stack canónico), **ADR-011** (DoD de F0), norma "aprovisionar antes de degradar" ([008](./008_AI_COLLABORATION_PROTOCOL.md)).
 
 ## 5. Próxima acción inmediata (para la nueva sesión)
-1. **VALIDAR el prompt v7 (recall-oriented, PR #51) con una corrida de `gpt-5.4-mini` (~$0.09):** ver si sube el recall (0.726→objetivo) manteniendo hallucination ≤0.10 y taskP alto. Es un *fast-follow* de R-001 (YA NO bloqueante: el gate ya se supera con la mini). Si v7 no mejora o daña la precisión, revertir a v6.
+1. **VALIDAR el prompt v8 (PR #51) con una corrida de `gpt-5.4-mini` (~$0.09):** v7 ya demostró que el recall SUBE (0.726→0.857) pero cruzó la alucinación (0.118>0.10); v8 re-aprieta las tres exclusiones (objeto/dispositivo físico, lugar, grupo genérico) conservando la subida de recall. Objetivo: F1 ~0.87 / recall ~0.85 / hallucination ≤0.10. Es un *fast-follow* de R-001 (YA NO bloqueante: v6 ya supera el gate). Si v8 no baja la alucinación bajo 0.10 sin perder el recall, revertir a v6.
 2. **Cablear el arranque del worker** en el servicio de IA (hoy `main.py` solo expone `/health`) y decidir la **transcripción de voz** (hoy el pipeline deja un *seam* que exige `body`).
 3. Refrescar 009 y 012 al cierre.
 
@@ -56,7 +56,7 @@ Ninguno bloquea el motor: construido, mergeado y **validado contra infra real** 
 Alta coherencia doc→código. El motor de F2 respeta el diseño y el estilo de puertos del repo (`AIProvider`, `UnderstandingQueuePort` → nuevo `GraphStore`), lo que permite probar toda la lógica sin infraestructura. La frontera de dos backends sigue bien definida (ADR-010).
 
 ## 10. Cambios recientes
-- **(2026-07-09) Prompt v7 (recall-oriented) escrito (PR #51) — HIPÓTESIS pendiente de medir.** Ataca los dos patrones de omisión de topics de la mini (notas reflexivas → vacío; topics que son objeto de una tarea → descartados) con 3 ediciones quirúrgicas sobre v6, sin tocar las reglas anti-invención. Requiere una corrida de la mini (~$0.09) para validar el efecto sobre el recall (0.726).
+- **(2026-07-09) Prompt v7 MEDIDO + v8 corrige (PR #51).** v7 subió el recall **0.726→0.857** y F1 **0.819→0.870** (taskP 1.000), PERO la alucinación subió **0.059→0.118** (>0.10) → GATE FAILED solo por alucinación (v7 ensanchó `topic` a objetos/dispositivos físicos, lugares y grupos genéricos que el gold excluye). **v8** conserva la subida de recall y re-aprieta esas tres exclusiones; **PENDIENTE de una corrida de la mini (~$0.09)** para confirmar F1 ~0.87 / recall ~0.85 / alucinación ≤0.10.
 - **(2026-07-09) Gate SUPERADO con OpenAI `gpt-5.4-mini` → R-001 mitigado.** Cableado OpenAI GPT-5.x (PR #47), fix de `temperature` para GPT-5/o-series (PR #50) y Variable de coste (PR #49). Corridas reales: mini = GATE PASSED (0.819 / 1.000 / 0.059 / $0.0019); 5.5 = FAIL solo por coste (0.866 / 0.976 / 0.072 / $0.0236). Decisión: usar la mini.
 - **Gate de F2 ratificado** (ADR-018, camino B) con la corrida estable de Groq (0.782 / 0.930 / 0.091).
 - **Motor de comprensión F2 construido y mergeado** (PR #45): migración pgvector + `llm_usage`, ADR-018/019.

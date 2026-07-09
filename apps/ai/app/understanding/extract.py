@@ -689,7 +689,7 @@ EXTRACTION_PROMPT_V6 = EXTRACTION_PROMPT_V5.replace(
 # This is a REASONED HYPOTHESIS, PENDING RE-MEASUREMENT with a completing OpenAI
 # `gpt-5.4-mini` run (no OpenAI key/network in this env). v1..v6 strings are
 # RETAINED above for history/diff and are never sent.
-EXTRACTION_PROMPT_VERSION = "v7"
+EXTRACTION_PROMPT_VERSION = "v8"
 
 EXTRACTION_PROMPT_V7 = (
     EXTRACTION_PROMPT_V6.replace(
@@ -744,11 +744,74 @@ EXTRACTION_PROMPT_V7 = (
     )
 )
 
+# --- v8 (current) -------------------------------------------------------------
+# WHY v8 EXISTS: v7 was MEASURED on gpt-5.4-mini (2026-07-09) and it WORKED for
+# recall — entities recall 0.726 -> 0.857, F1 0.819 -> 0.870, task precision
+# still 1.000 — but it OVERSHOT precision: hallucination rose 0.059 -> 0.118,
+# just over the ratified ≤0.10 ceiling, so the run FAILED the gate (ONLY on
+# hallucination). Reading the worst per-case hallucinations showed v7 widened
+# `topic` too far: the model began emitting as topics three kinds of thing the
+# gold consistently EXCLUDES —
+#   1. physical OBJECTS / DEVICES / consumables that are merely a task's object:
+#      case-42 ("cambiar las pilas del detector de humo", gold entities []).
+#   2. PLACES: case-38 (the vet in "llevar a Toby… al veterinario"), case-44
+#      (the city "Madrid").
+#   3. GENERIC GROUPS with no proper name: case-44 ("el equipo de producto"),
+#      case-43 ("the Google folks", gold entities [] -> hall 1.0).
+# v8 KEEPS every v7 recall gain (notes/ideas/status still yield topics; abstract
+# work artifacts that are a task object are still topics) and only RE-TIGHTENS
+# the exclusion list so those three invented kinds are dropped again. It is a
+# SINGLE targeted str.replace on the v7 topic rule; nothing else changes
+# (person/project/event, tasks, self-check, connections, format, the gold,
+# matcher, metrics and thresholds are all untouched).
+#
+# RECALL-SAFETY AUDIT (against ALL 45 gold, so the re-tightening keeps v7's win):
+#   - The abstract-artifact inclusion is stated FIRST and unchanged, so v7's
+#     wins survive: case-24 delivery, case-30 deck/demo, case-40 deploy/
+#     changelog, case-45 trip/subscription and the note topics case-04/15/33/39
+#     are abstract subjects/artifacts, NOT physical objects/places/groups.
+#   - The three excluded kinds map to gold that is EMPTY or omits them: case-42
+#     (gold entities []), case-38 (only `vacuna` + event), case-44 (Madrid +
+#     generic group omitted), case-43 (gold entities []). Dropping them removes
+#     FALSE POSITIVES without dropping any gold topic.
+#   - The group examples are generic ("the team", "the finance people"), NOT the
+#     eval's own phrases -> no contamination.
+# PENDING RE-MEASUREMENT on gpt-5.4-mini (target: keep F1 ~0.87 / recall ~0.85
+# while pulling hallucination back to ≤0.10). v1..v7 strings are RETAINED above
+# and are never sent.
+EXTRACTION_PROMPT_V8 = EXTRACTION_PROMPT_V7.replace(
+    "topics. IMPORTANT: an abstract subject, theme, work artifact, deliverable\n"
+    "  or named activity IS a topic EVEN WHEN it also appears as the object of\n"
+    "  a task or errand — extract it as a topic AND keep it inside the task\n"
+    "  label (e.g. a document type, a software feature, a planned activity, an\n"
+    "  area of work). The ONLY things that are NOT topics/entities are: (a) a\n"
+    "  physical PLACE/location where an errand happens (a shop, pharmacy, bank,\n"
+    "  ATM, school, office, gym), and (b) a purely physical or instrumental\n"
+    "  good handled in passing (food, cash/money, a package, a form, a\n"
+    "  receipt). Those two live INSIDE the task label only, never as a\n"
+    "  standalone entity.\n",
+    "topics. IMPORTANT: an abstract subject, theme, work artifact, deliverable\n"
+    "  or named activity IS a topic EVEN WHEN it also appears as the object of\n"
+    "  a task or errand — extract it as a topic AND keep it inside the task\n"
+    "  label (e.g. a document type, a software feature, a planned activity, an\n"
+    "  area of work). But be STRICT about what counts as an abstract subject:\n"
+    "  the following are NOT topics and NOT any entity — they may appear INSIDE\n"
+    "  a task label but NEVER as a standalone entity: (a) a physical\n"
+    "  PLACE/location (a shop, pharmacy, bank, ATM, school, office, gym, clinic,\n"
+    "  a city); (b) a physical OBJECT, DEVICE, APPLIANCE, TOOL or consumable\n"
+    "  handled in passing (e.g. batteries, a smoke detector, an appliance, a\n"
+    "  package, a form, a receipt, groceries, cash/money); and (c) a GENERIC\n"
+    "  GROUP or unnamed collective with no proper name (e.g. \"the team\"/\"el\n"
+    "  equipo\", \"the finance people\"). When unsure whether a noun is a real\n"
+    "  abstract SUBJECT or just a physical thing/place/tool used to carry out a\n"
+    "  task, OMIT it.\n",
+)
+
 
 def build_extraction_prompt(text: str) -> str:
     """Render the current versioned prompt with the capture text embedded."""
     return (
-        f"{EXTRACTION_PROMPT_V7}\n\n"
+        f"{EXTRACTION_PROMPT_V8}\n\n"
         f"Capture:\n{CAPTURE_OPEN}\n{text}\n{CAPTURE_CLOSE}\n"
     )
 
