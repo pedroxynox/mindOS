@@ -29,14 +29,13 @@ services:
     # cold-start on the next request. Switch to `starter` (~$7/mo) for always-on.
     plan: free
     healthCheckPath: /v1/health
-    # Free tier does NOT support `preDeployCommand`, so migrations run at
-    # CONTAINER START instead: `DATABASE_URL=$MIGRATION_DATABASE_URL` is scoped
-    # to JUST the migrate command (Neon OWNER role) — it creates the tables, RLS
-    # policies, the non-owner `mindos_app` role and the pgvector extension — and
-    # then the app starts with its own env `DATABASE_URL` (the mindos_app role).
-    # `prisma migrate deploy` is idempotent, so re-running it on each start/wake
-    # is a safe no-op once migrations are applied.
-    dockerCommand: "sh -c 'DATABASE_URL=\"$MIGRATION_DATABASE_URL\" npx prisma migrate deploy && node dist/main'"
+    # Migrations run at CONTAINER START via the image entrypoint
+    # (apps/api/docker-entrypoint.sh): it runs `prisma migrate deploy` as the
+    # Neon OWNER (MIGRATION_DATABASE_URL, scoped to that command — creates
+    # tables, RLS, the `mindos_app` role and pgvector) then starts the app with
+    # its own DATABASE_URL (mindos_app). Free tier has no preDeployCommand, and a
+    # script avoids shell-quoting issues. This dockerCommand just invokes it.
+    dockerCommand: "sh ./docker-entrypoint.sh"
     envVars:
       # Neon OWNER connection (the default role) — migrations only. Paste the
       # Neon connection string (keep `?sslmode=require`). Use the DIRECT (non-

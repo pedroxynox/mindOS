@@ -30,7 +30,10 @@ COPY package.json package-lock.json* ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x docker-entrypoint.sh
 
 # main.ts reads process.env.PORT (Render sets it); defaults to 3000 locally.
+# The entrypoint runs migrations (as the owner URL) then `node dist/main`.
 EXPOSE 3000
-CMD ["node", "dist/main"]
+CMD ["sh", "./docker-entrypoint.sh"]
