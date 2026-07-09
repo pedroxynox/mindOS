@@ -32,7 +32,9 @@ services:
     runtime: docker
     dockerfilePath: apps/api/Dockerfile
     dockerContext: apps/api
-    plan: starter            # always-on (free would sleep after 15 min)
+    # FREE for now (see it working). Free web services SLEEP after ~15 min and
+    # cold-start on the next request. Switch to `starter` (~$7/mo) for always-on.
+    plan: free
     healthCheckPath: /v1/health
     # Run DB migrations as the OWNER before each deploy: creates tables, RLS
     # policies, the non-owner `mindos_app` role, and the pgvector extension.
@@ -79,7 +81,10 @@ services:
     runtime: docker
     dockerfilePath: apps/ai/Dockerfile
     dockerContext: apps/ai
-    plan: starter            # always-on so it keeps draining the queue
+    # FREE for now. NOTE: a free (sleeping) service can't drain the queue 24/7 —
+    # it wakes on an HTTP hit and then processes. Fine to TEST; switch to
+    # `starter` (~$7/mo) when you want the worker always draining the queue.
+    plan: free
     healthCheckPath: /health
     envVars:
       - key: WORKER_ENABLED

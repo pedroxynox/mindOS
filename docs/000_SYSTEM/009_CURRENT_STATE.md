@@ -5,93 +5,114 @@
 | Metadato | Valor |
 |----------|-------|
 | Última actualización | 2026-07-09 |
-| Fase actual | F1 (Capture Engine) **COMPLETA y validada** (R-006 cerrado). F2 (Comprensión): **gate de calidad RATIFICADO** ([ADR-018](../02-architecture/adr/ADR-018-f2-comprehension-eval-gate.md), camino B), **motor de comprensión CONSTRUIDO** (PR #45 **mergeado**) y **VALIDADO contra infra real** (Postgres+pgvector y Redis/BullMQ; **R-007 cerrado**). **NUEVO (2026-07-09): gate SUPERADO con OpenAI `gpt-5.4-mini` e iteración de prompt hasta v8 → R-001 RESUELTA para el gate.** Mejor resultado: **v8 = F1 0.890 / taskP 1.000 / hall 0.074 / $0.0023 = GATE PASSED con margen** (recall 0.726→0.857 conservado, alucinación bajo control). Pendiente (no bloqueante): cablear el arranque del worker y la transcripción de voz. |
-| Avance estimado del MVP (F0–F5) | ~40 % |
+| Fase actual | F1 (Capture Engine) **COMPLETA y validada** (R-006 cerrado). F2 (Comprensión): motor **construido y validado contra infra real** (R-007 cerrado), **gate de calidad SUPERADO con margen → R-001 RESUELTA** (v8: F1 0.890 / taskP 1.000 / hall 0.074 / $0.0023, OpenAI `gpt-5.4-mini`), **arranque del worker CABLEADO** (interruptor `WORKER_ENABLED`, apagado por defecto), **voz DECIDIDA** (text-first, voz diferida) y **plan de despliegue en Render PREPARADO** (`render.yaml` + guía). **Falta:** aplicar el despliegue en Render (arrancar el motor "de verdad" en la nube). |
+| Avance estimado del MVP (F0–F5) | ~45 % |
 
 ## 1. Resumen ejecutivo
-F1 (Capture Engine) está **cerrada y verificada contra infraestructura real** (R-006 cerrado): captura offline-first, grafo `nodes`/`edges` con RLS fail-closed, `POST /v1/captures` idempotente, cola BullMQ, reconciliación y janitor; auth endurecida; builds reproducibles en las 3 apps.
+**F1 (Capture Engine)** está cerrada y verificada contra infra real (R-006): captura offline-first, grafo `nodes`/`edges` con RLS fail-closed, `POST /v1/captures` idempotente, cola BullMQ, reconciliación y janitor; auth endurecida; builds reproducibles.
 
-El trabajo de HOY: llegó la **corrida estable del examen de F2** (45 casos, Groq): F1 entities **0.782**, task precision **0.930**, hallucination **0.091**, coste **$0**. El founder eligió el **camino B**: **ratificar umbrales realistas** ([ADR-018](../02-architecture/adr/ADR-018-f2-comprehension-eval-gate.md): hallucination ≤0.10 realista con 0.05 como aspiración; F1 ≥0.80 y taskP ≥0.85 sin cambio; **sin relajar el gold**) y **arrancar el motor de F2 en paralelo**, asumiendo el riesgo explícito del F1 marginal (0.782, por recall de *topics*). Fundamento: la plomería de escritura del motor es **ortogonal** a la calidad de extracción.
+**F2 (Comprensión)** — el foco de esta sesión — quedó **de-riesgada y lista para encender**:
+1. El motor ya estaba construido (PR #45) y validado contra Postgres+pgvector y Redis/BullMQ reales (R-007 cerrado).
+2. **Calidad RESUELTA (R-001):** el founder pagó OpenAI y elegimos `gpt-5.4-mini`. Iteración honesta de prompt **v6→v7→v8** (sin tocar gold/umbrales): v6 0.819/hall 0.059 (PASS) → v7 0.870/**0.118** (FAIL solo por alucinación) → **v8 F1 0.890 (P 0.926 / R 0.857) / taskP 1.000 / hall 0.074 / $0.0023 = GATE PASSED con margen**. El recall subió de 0.726 a 0.857 sin disparar la alucinación.
+3. **Motor cableado para encenderse:** `main.py` ahora arranca/cierra el worker BullMQ vía *lifespan*, con interruptor `WORKER_ENABLED` (apagado por defecto para no romper health-only ni tests). Un fallo de arranque se loguea pero no tumba `/health`.
+4. **Voz DECIDIDA:** text-first ahora; la transcripción de voz se difiere (el pipeline ya preserva la captura de voz con un *seam* seguro).
+5. **Finanzas ANOTADA** como función futura (V4) en el roadmap §3.1 — ampliación sobre F2, no ahora.
+6. **Despliegue PREPARADO:** `render.yaml` (Blueprint "todo en Render": Postgres+pgvector, Key Value/Redis, API, IA+worker) + `docs/06-infrastructure/DEPLOY_RENDER.md`. Arreglados dos huecos de imagen (worker deps `.[worker]`; Prisma CLI en la imagen de la API para migraciones).
 
-Se **construyó el motor de comprensión (F2)** completo (PR #45, **mergeado**), siguiendo el diseño (`.kiro/specs/comprehension/design.md`): worker BullMQ (ADR-019), pipeline, escritura idempotente al grafo bajo RLS con provenance obligatoria, coste por usuario y embeddings (pgvector). Luego se **VALIDÓ contra infraestructura REAL** (PostgreSQL 18 + pgvector compilado + Redis 6, aprovisionados nativamente sin Docker; migraciones F1+F2 aplicadas; **5/5 tests de integración en verde** como rol no-owner con FORCE RLS): idempotencia, provenance, aislamiento por usuario, coste y consumo end-to-end por la cola. Esa validación **halló y corrigió un bug de producto** (el SQL crudo no fijaba `nodes.updated_at`, `NOT NULL`). **R-007 cerrado.** Suite total: 97 offline + 5 integración, `ruff`/`mypy` limpios. Pendiente: **iteración de prompt** para subir el recall de *topics* por encima de 0.80 (R-001), cablear el arranque del worker y la transcripción de voz.
+Suite: **100 offline + 5 integración**, `ruff`/`mypy` limpios (Python 3.11).
 
 ## 2. Qué existe hoy (verificado, ya en main)
-- **F1 end-to-end** (captura offline-first, grafo + RLS fail-closed, `POST /v1/captures` idempotente, cola BullMQ, reconciliación, janitor), **auth endurecida**, **builds reproducibles**, validación de integración **8/8** contra infra real (R-006), **ADRs consolidados** 001..017.
-- **Arnés de evaluación de F2** (`apps/ai/app/eval/`), **extractor** (`app/understanding/extract.py`, prompt v3 en main) y capa **`AIProvider`** intercambiable (`fake`/`openai`/`groq`).
+- **F1 end-to-end** (captura offline-first, grafo + RLS fail-closed, `POST /v1/captures` idempotente, cola BullMQ, reconciliación, janitor), **auth endurecida**, **builds reproducibles**, integración **8/8** contra infra real (R-006), **ADRs** 001..019.
+- **Motor de comprensión F2** (`apps/ai/app/understanding/`): contrato, `enrichment` puro, puerto `GraphStore`+`InMemory`+`PgGraphStore`, `rls`, `cost_meter`, `pipeline`, `worker` BullMQ. Migración pgvector/`llm_usage`. Validado contra infra real (R-007).
+- **Extractor `extract.py` en prompt v8** (R-001 superado); capa **`AIProvider`** intercambiable (`fake`/`openai`/`groq`/`gemini`) con **temperatura adaptativa** (envía `temperature=0`; si el modelo lo rechaza —p.ej. gpt-5.5— lo omite en runtime).
+- **Arranque del worker cableado** (`main.py` lifespan + `WORKER_ENABLED`, apagado por defecto).
+- **Config de despliegue en Render** (`render.yaml` + `DEPLOY_RENDER.md`) — ver §5 y §6.
 
-## 3. Qué se construyó y validó (PR #45 mergeado + validación de infra real)
-- **Gate ratificado por ADR** — [ADR-018](../02-architecture/adr/ADR-018-f2-comprehension-eval-gate.md) (umbrales realistas del examen) y [ADR-019](../02-architecture/adr/ADR-019-queue-python-consumer-bridge.md) (puente cola↔Python = consumidor BullMQ nativo; el "ADR-013 pendiente" del borrador se renumeró porque 013 ya estaba ocupado).
-- **Motor de comprensión (F2)** en `apps/ai/app/understanding/`:
-  - `contract.py` (espejo del job de F1), `enrichment.py` (mapeo **puro** extracción→plan de nodos/aristas con `dedup_key` determinista y provenance), `store.py` (**puerto** `GraphStore` + `InMemoryGraphStore` para tests), `rls.py` (contexto RLS fail-closed), `cost_meter.py` (coste por usuario), `graph_writer.py` (`PgGraphStore`: SQL crudo idempotente bajo RLS), `pipeline.py` (orquestación con idempotencia y estados), `worker.py` (consumidor BullMQ + `on_failed`).
-  - **Migración F2** (`apps/api/prisma/migrations/20260709010000_f2_pgvector_enrichment`): extensión `vector`, `nodes.embedding vector(1536)` + `embedding_model`, índice HNSW parcial, índices únicos parciales de idempotencia en `nodes`/`edges`, tabla `llm_usage` con RLS fail-closed y grants a `mindos_app`. Reflejada en `schema.prisma` (`Unsupported("vector(1536)")` + modelo `LlmUsage`), `prisma validate` OK.
-  - **Pruebas nuevas**: `test_contract`, `test_enrichment` (PBT: idempotencia/provenance/no-invención), `test_pipeline` (end-to-end con `FakeProvider`+`InMemory`), `test_worker`. Total **84 tests** verdes; `ruff`/`mypy` limpios.
-- **`asyncpg` y `bullmq`** añadidos como dependencias **opcionales** (`extra [ai]`), con **import perezoso**, de modo que la suite offline y el CI no los requieren.
-- **Validación contra infra REAL (R-007 cerrado, rama `test/f2-engine-real-infra-validation`):** PostgreSQL 18 + **pgvector compilado desde fuente** + pgcrypto + Redis 6 aprovisionados nativamente; migraciones F1+F2 aplicadas con el rol OWNER; **5/5 tests de integración en verde** como rol no-owner `mindos_app` (FORCE RLS real) — `test_graph_writer_integration` (idempotencia P-COMP-1/2, provenance P-COMP-3, aislamiento P-COMP-4, coste, embedding) y `test_worker_integration` (dedup por `jobId` + consumo end-to-end contra Redis/BullMQ). Esta validación **halló y corrigió un bug de producto**: el SQL crudo del `PgGraphStore` no fijaba `nodes.updated_at` (`NOT NULL`, gestionado por Prisma `@updatedAt`) → arreglado con `updated_at = now()`.
+## 3. Cómo funciona el sistema (mapa mental para retomar)
+`Móvil (Flutter, offline-first)` → guarda la captura y la sincroniza → **API NestJS** `POST /v1/captures` (idempotente) → **encola** un job en Redis (BullMQ) → **Servicio IA (Python)**: el **worker** consume el job → **pipeline** llama al **`AIProvider` (OpenAI `gpt-5.4-mini`)** para extraer entidades/tareas/temas → **escribe en el grafo** Postgres bajo RLS (aislado por usuario) con provenance + embedding (pgvector) + coste. Todo con idempotencia (una captura se procesa una vez). La calidad de la extracción se mide con el **examen F2** (45 casos gold, `apps/ai/app/eval/`) contra un **gate ratificado** (ADR-018: F1≥0.80, taskP≥0.85, hallucination≤0.10, coste≤$0.01).
 
-## 4. Última decisión
-- **(2026-07-09) Proveedor de comprensión = OpenAI `gpt-5.4-mini`.** El founder pagó $5 en OpenAI (giro respecto a v1.21) para de-riesgar el recall. Se probaron dos modelos en corrida REAL de 45 casos: `gpt-5.4-mini` (F1 0.819 / taskP 1.000 / hall 0.059 / $0.0019 = **GATE PASSED**) y el flagship `gpt-5.5` (F1 0.866 / taskP 0.976 / hall 0.072 / $0.0236 = FAIL solo por coste). **Se elige la mini**: la 5.5 atrapa más recall pero **inventa más** (0.072 vs 0.059) y cuesta **~12x**. Cambios habilitadores: PR #47 (cableado GPT-5.x + default mini + Variable `OPENAI_MODEL`), PR #50 (fix `temperature` para GPT-5/o-series), PR #49 (Variable `EVAL_COST_PER_CAPTURE_MAX_USD`).
-- **Camino B (founder):** ratificar umbrales realistas (ADR-018) y **construir el motor de F2 ya**, asumiendo el riesgo del F1 marginal (0.782). **No** se relaja el gold ni el piso de F1 (0.80).
-- **ADR-019:** consumidor BullMQ **nativo en Python** (contingencia documentada a worker Node+HTTP).
-- Vigentes: **ADR-012** (stack canónico), **ADR-011** (DoD de F0), norma "aprovisionar antes de degradar" ([008](./008_AI_COLLABORATION_PROTOCOL.md)).
+## 4. Últimas decisiones (esta sesión)
+- **Proveedor de comprensión = OpenAI `gpt-5.4-mini`** (no la 5.5: la 5.5 atrapa más recall pero **inventa más** y cuesta ~12x; la mini supera el gate barato). PRs #47/#49/#50.
+- **Prompt v8** como versión de producción (R-001 resuelta). PRs #51 (v7) → #52 (v8) → #53 (registro).
+- **Worker: cableado pero apagado por defecto** (`WORKER_ENABLED`); se enciende en el despliegue. PR #54.
+- **Voz: text-first, transcripción diferida** (sub-proyecto propio: `AIProvider.transcribe` + acceso al blob). PR #54 / design §19.
+- **Finanzas: función futura reservada (V4)**, ampliación sobre F2, se construye DESPUÉS de encender el bucle central. Roadmap §3.1 (PR #54).
+- **Despliegue = "todo en Render"** (el founder ya usa Render). Empezar **GRATIS para verlo vivo**, luego pasar a pago (~$15–25/mes) para 24/7. PR #55 (+ fix a plan gratis en curso).
+- Vigentes: **ADR-012** (stack), **ADR-018/019** (gate + puente cola), norma "aprovisionar antes de degradar".
 
-## 5. Próxima acción inmediata (para la nueva sesión)
-1. **Cablear el arranque del worker** en el servicio de IA (hoy `main.py` solo expone `/health`) y decidir la **transcripción de voz** (el pipeline deja un *seam* que exige `body`). Con R-001 ya resuelta (v8 GATE PASSED), este es el siguiente trabajo real de F2. (Prompt v8 MEDIDO y mergeado en PR #52: F1 0.890 / recall 0.857 / hall 0.074 / $0.0023 = PASS con margen.)
-2. **Cablear el arranque del worker** en el servicio de IA (hoy `main.py` solo expone `/health`) y decidir la **transcripción de voz** (hoy el pipeline deja un *seam* que exige `body`).
-3. Refrescar 009 y 012 al cierre.
+## 5. Próxima acción inmediata (para la nueva sesión) — DESPLEGAR EN RENDER
+1. **Aplicar el Blueprint en Render** (guía completa: `docs/06-infrastructure/DEPLOY_RENDER.md`): New → Blueprint → repo `pedroxynox/mindOS` (rama `main`) → Apply. Crea las 4 piezas (Postgres+pgvector, Key Value, API, IA+worker) en **plan gratis** (para probar).
+2. **Rellenar 3 valores** (sync:false): `OPENAI_API_KEY`, `DATABASE_URL` (rol no-owner `mindos_app:mindos_app@…`), `REDIS_PASSWORD`.
+3. **Migraciones**: corren solas (preDeploy `prisma migrate deploy` como owner) — crean tablas, RLS, rol `mindos_app` y extensión pgvector. Si falla por permiso de CREATE ROLE/EXTENSION en la BD gestionada, ejecutarlo a mano una vez desde el shell de la BD (SQL en `infra/postgres-init/01-app-role.sql` + `CREATE EXTENSION vector;`).
+4. **Verificar end-to-end**: `/v1/health` (API) y `/health` (IA) OK; en logs de IA "understanding worker started"; crear una captura y ver que se procesa.
+5. **Cuando sea "de verdad" (24/7):** subir `mindos-api` y `mindos-ai` a plan **starter** (~$7 c/u) y la **base de datos a un plan de pago** (~$6–7, para que NO se borre a los ~30 días) — ver §6.
 
-## 6. Bloqueadores
-Ninguno bloquea el motor: construido, mergeado y **validado contra infra real** (R-007 cerrado). La única deuda de calidad viva es el **recall de *topics*** (R-001), que se cierra con iteración de prompt (depende de completar corridas del examen; cupos de free-tier).
+**Después del despliegue (siguientes trabajos de producto):** transcripción de voz (decidir cliente vs F2 con datos) y, más adelante, el **módulo Finanzas (V4)**.
+
+## 6. Bloqueadores y avisos importantes
+- **El despliegue es la única parte NO verificable desde el entorno de desarrollo** (sin acceso a Render/Docker). La config (`render.yaml`, Dockerfiles) es un scaffold correcto de mejor esfuerzo; se valida y afina en el **primer deploy** (ver deuda **D-011**).
+- **Modo gratis (para probar):** los servicios se **duermen** a los ~15 min (despiertan lentos) y la **BD gratis se borra a los ~30 días**. Sirve para confirmar el circuito, NO para datos reales. El worker dormido no drena la cola 24/7 (despierta al recibir tráfico).
+- **⚠ render.yaml en main quedó con los servicios en plan `starter` (PAGO)** porque el PR #55 se mergeó ANTES del ajuste a gratis. El fix a `plan: free` va en el PR de esta sesión (§13); **mergearlo antes de aplicar el Blueprint** para no incurrir en cobros.
+- No hay bloqueadores de calidad ni de motor: R-001 resuelta, R-007 cerrado.
 
 ## 7. Riesgos vivos (detalle e historia en [012](./012_RISK_AND_DEBT_REGISTER.md))
-- **R-001 (Alto, RESUELTA para el gate 2026-07-09):** calidad de comprensión. Iteración honesta de prompt con OpenAI `gpt-5.4-mini` (sin tocar gold/umbrales): v6 **0.819**/0.059 (PASS) → v7 **0.870**/0.118 (FAIL alucinación) → **v8 F1 0.890 (P 0.926 / R 0.857) / taskP 1.000 / hall 0.074 / $0.0023 = GATE PASSED con MARGEN** (PR #52). El recall subió 0.726→0.857 manteniendo la alucinación bajo el techo. (Antes con Groq/v5: F1 0.782.) Deuda residual NO gated: connections F1 0.187 (fase de graph-linking).
-- **R-007 (cerrado):** motor de F2 validado contra Postgres+pgvector y Redis/BullMQ reales (5/5 integración); bug de `updated_at` hallado y corregido.
+- **R-001 (RESUELTA para el gate, 2026-07-09):** calidad de comprensión. v8: F1 0.890 / taskP 1.000 / hall 0.074 / $0.0023 = GATE PASSED con margen (OpenAI `gpt-5.4-mini`). Residual NO gated: connections F1 0.187 (graph-linking).
+- **R-007 (cerrado):** motor F2 validado contra infra real.
 - **R-005 (validado en F1), R-002 (mitigado), R-003 (mitigado), R-006 (cerrado), R-004 (en corrección).**
 
 ## 8. Deuda técnica top (detalle en [012](./012_RISK_AND_DEBT_REGISTER.md))
-- **D-008 (en progreso):** dimensión de embedding fijada en **1536** para construir el motor; elección definitiva de proveedor de embeddings pendiente del gate.
-- **D-010 (en progreso, vive en PR #40):** prompt de extracción consolidado en v5 (~28% menos tokens), pendiente de re-medir.
-- **D-005, D-006 (abiertos).** Mitigados/cerrados: D-001..D-004, D-007, D-009.
+- **D-011 (nueva, abierta):** config de despliegue de Render (`render.yaml` + Dockerfiles) **no verificada** contra Render/Docker desde el entorno; validar en el primer deploy (permiso CREATE ROLE/EXTENSION en la BD gestionada, mapeo de Redis host/port/password).
+- **D-008 (en progreso):** dimensión de embedding fijada en 1536; proveedor de embeddings definitivo pendiente.
+- **D-010 (en progreso):** prompt consolidado (ahora en **v8**); ~28% menos tokens que el apilado v2+v3+v4; se puede cerrar tras confirmar estabilidad en producción.
+- **D-005, D-006 (abiertos).** Cerrados/mitigados: D-001..D-004, D-007, D-009.
 
 ## 9. Salud de la arquitectura
-Alta coherencia doc→código. El motor de F2 respeta el diseño y el estilo de puertos del repo (`AIProvider`, `UnderstandingQueuePort` → nuevo `GraphStore`), lo que permite probar toda la lógica sin infraestructura. La frontera de dos backends sigue bien definida (ADR-010).
+Alta coherencia doc→código. El motor de F2 respeta el estilo de puertos (`AIProvider`, `GraphStore`), probable sin infra. La temperatura adaptativa del proveedor evita casarse con un nombre de modelo. La frontera de dos backends sigue bien definida (ADR-010). El despliegue es portable (Docker, ADR-015): si se quiere abaratar, la BD puede moverse a Neon (gratis) sin rediseño.
 
-## 10. Cambios recientes
-- **(2026-07-09) Prompt v8 MEDIDO → GATE PASSED, R-001 resuelta (PR #52).** Trayectoria: v7 subió recall 0.726→0.857 pero cruzó alucinación (0.118>0.10, FAIL); **v8** conservó el recall y bajó la alucinación a **0.074** → **F1 0.890 / taskP 1.000 / hall 0.074 / $0.0023 = GATE PASSED con margen**. v8 se integró en PR #52 (la #51 se había mergeado con v7).
-- **(2026-07-09) Gate SUPERADO con OpenAI `gpt-5.4-mini` → R-001 mitigado.** Cableado OpenAI GPT-5.x (PR #47), fix de `temperature` para GPT-5/o-series (PR #50) y Variable de coste (PR #49). Corridas reales: mini = GATE PASSED (0.819 / 1.000 / 0.059 / $0.0019); 5.5 = FAIL solo por coste (0.866 / 0.976 / 0.072 / $0.0236). Decisión: usar la mini.
-- **Gate de F2 ratificado** (ADR-018, camino B) con la corrida estable de Groq (0.782 / 0.930 / 0.091).
-- **Motor de comprensión F2 construido y mergeado** (PR #45): migración pgvector + `llm_usage`, ADR-018/019.
-- **Motor VALIDADO contra infra real** (Postgres 18 + pgvector + Redis 6 nativos): 5/5 tests de integración verdes; **R-007 cerrado**; corregido un bug de producto (`nodes.updated_at`).
-- **PR #40 mergeado** (prompt v5 + proveedor Gemini): palanca para cerrar R-001 (recall de *topics*).
-- D-008 a "en progreso" (dim 1536).
+## 10. Cambios recientes (esta sesión, 2026-07-09)
+- **R-001 RESUELTA:** OpenAI `gpt-5.4-mini` + prompt v6→v7→v8 → v8 GATE PASSED con margen (PRs #47/#49/#50/#51/#52/#53).
+- **Temperatura adaptativa** en el proveedor OpenAI-compatible (desbloquea gpt-5.x/o-series sin perder determinismo en la mini).
+- **Arranque del worker cableado** (`WORKER_ENABLED`, lifespan) — PR #54.
+- **Voz decidida** (text-first/diferida) y **Finanzas anotada** (V4) — PR #54 / roadmap §3.1 / design §19.
+- **Despliegue en Render preparado** (`render.yaml` + `DEPLOY_RENDER.md`; fixes de Dockerfiles) — PR #55 (+ fix a plan gratis en el PR de handoff).
 
 ## 11. Preguntas abiertas
-- **¿La iteración de prompt (v5/PR #40) sube F1 entities por encima de 0.80** sin dañar la alucinación? → pendiente de una corrida que complete.
-- **Proveedor de embeddings definitivo** (D-008) → se fija tras cerrar el gate.
-- **Transcripción de voz**: ¿cliente o F2? El pipeline soporta el *seam*; decisión pendiente con datos.
+- **¿Cuándo pasar a 24/7 de pago?** (hoy: gratis para probar). Decisión del founder según cuándo quiera uso real.
+- **Transcripción de voz:** ¿cliente o F2? Decidido *diferir*; se elegirá con datos de calidad/latencia cuando toque.
+- **Proveedor de embeddings definitivo** (D-008) → se fija con el motor en producción.
 
 ## 12. Acciones recomendadas (priorizadas)
-1. **Validar el motor de F2 contra infra real** (cerrar R-007) con el patrón de R-006.
-2. **Iterar el prompt** para cerrar el recall de *topics* (R-001) — coordinar con PR #40.
-3. **Cablear el worker** en el arranque del servicio de IA y resolver la transcripción de voz.
-4. Refrescar 009 y 012 al cierre (ritual [008](./008_AI_COLLABORATION_PROTOCOL.md)).
+1. **Mergear el PR de handoff** (este) para dejar `render.yaml` en gratis y el estado documentado.
+2. **Aplicar el Blueprint en Render** (§5) y verificar el circuito end-to-end en gratis.
+3. **Pasar a 24/7** (servicios starter + BD de pago) cuando el founder lo decida.
+4. **Voz** y luego **Finanzas (V4)**.
+5. Refrescar 009 y 012 al cierre (ritual [008](./008_AI_COLLABORATION_PROTOCOL.md)).
 
-## 13. PRs
-- **PR #45** (`feat/f2-comprehension-engine`): gate ratificado (ADR-018/019) + **motor de comprensión F2** + migración pgvector/`llm_usage`. **MERGEADO.**
-- **PR #40** (`fix/f2-eval-prompt-v4`): prompt **v5** + proveedor **Gemini** + resiliencia del examen. **MERGEADO.**
-- **`test/f2-engine-real-infra-validation`** (esta sesión): tests de integración contra infra real + fix del bug `updated_at` (R-007). **Abierto**, listo para revisión/merge.
+## 13. PRs de esta sesión (todos MERGEADOS salvo el de handoff)
+- **#47** cableado OpenAI GPT-5.x (precios, default `gpt-5.4-mini`, Variable `OPENAI_MODEL`). **Mergeado.**
+- **#49** Variable `EVAL_COST_PER_CAPTURE_MAX_USD` en el workflow del examen. **Mergeado.**
+- **#50** fix `temperature` para GPT-5/o-series (luego reemplazado por adaptación en runtime en #51). **Mergeado.**
+- **#51** prompt **v7** (recall) + temperatura adaptativa + registro decisión mini-vs-5.5. **Mergeado.**
+- **#52** prompt **v8** (baja alucinación conservando recall). **Mergeado.**
+- **#53** registro de R-001 v8 GATE PASSED en 009/012. **Mergeado.**
+- **#54** arranque del worker (`WORKER_ENABLED`) + ficha Finanzas (V4) + decisión de voz. **Mergeado.**
+- **#55** Blueprint de Render + guía + fixes de Dockerfiles. **Mergeado** (⚠ con servicios en `starter`; ver §6).
+- **PR de handoff (este):** este 009 + 012 + **fix `render.yaml` a plan gratis**. Pendiente de merge.
 
 ## 14. Nota para la nueva sesión (importante)
 - **Hablar en español y en lenguaje no técnico** con el founder (CEO no programador); actuar como **CPTO con pensamiento crítico**.
-- **NO relajar umbrales ni gold** para "aprobar": el rigor es el producto. El gate ratificado (ADR-018) es honesto, no un maquillaje.
+- **NO relajar umbrales ni gold** para "aprobar": el rigor es el producto.
+- **Patrón observado:** el founder a veces **mergea los PRs ANTES** de que yo suba un ajuste de seguimiento a la misma rama → SIEMPRE verificar el estado REAL de `main` (`list_pull_requests` + pull) antes de asumir qué está desplegado. Ya pasó con #51 (v7 en vez de v8) y #55 (starter en vez de free).
+- **Siguiente hito:** DESPLEGAR EN RENDER siguiendo `docs/06-infrastructure/DEPLOY_RENDER.md` (empezar gratis). El motor está listo para encenderse; falta el "enchufe" del servidor.
 - **Mantener el ritual:** actualizar 009 y 012 al cierre.
-- El motor de F2 está construido, mergeado y **validado contra infra real** (R-007 cerrado). Lo que queda de F2 antes de "terminado de verdad": cerrar el recall de *topics* (R-001), cablear el arranque del worker y la transcripción de voz.
 
 ## Historial de versiones
 | Versión | Fecha | Cambios |
 |---------|-------|---------|
-| 1.0–1.8 | 2026-07-02/03 | Fundación del sistema de gobernanza → F1 completada, validada (R-006) y ADRs consolidados (ver 012 para el detalle cronológico). |
-| 1.9 | 2026-07-03 | Foco en F2/R-001: medición estable de 45 casos (Groq, prompt v3/v5), decisión de iterar hacia hallucination ≤0.10, proveedor Gemini añadido; bloqueo por cupos de free-tier; trabajo en PR #40. |
-| 1.10 | 2026-07-09 | **Gate de F2 ratificado (ADR-018, camino B) y motor de comprensión CONSTRUIDO** (rama `feat/f2-comprehension-engine`): corrida estable de Groq (0.782/0.930/0.091); ADR-018 (umbrales realistas, sin relajar gold) + ADR-019 (puente cola BullMQ nativo); motor F2 (contrato, `enrichment` puro, puerto `GraphStore`+`InMemory`+`PgGraphStore`, `rls`, `cost_meter`, `pipeline`, `worker`) + migración pgvector/`llm_usage`, verificado **offline** (84 tests, ruff/mypy limpios). Alta de **R-007** (motor no validado aún contra infra real); D-008 a "en progreso" (dim 1536). R-001 sigue abierto por recall de *topics*. |
-| 1.11 | 2026-07-09 | **PR #45 mergeado y motor de F2 VALIDADO contra infra real → R-007 cerrado.** Aprovisionado nativamente (sin Docker) PostgreSQL 18 + **pgvector compilado** + pgcrypto + Redis 6; migraciones F1+F2 aplicadas con el OWNER; **5/5 tests de integración en verde** como rol no-owner `mindos_app` (FORCE RLS real): `PgGraphStore` (idempotencia P-COMP-1/2, provenance P-COMP-3, aislamiento P-COMP-4, coste, embedding) y worker BullMQ (dedup por `jobId` + consumo end-to-end). **Bug de producto corregido** gracias a la validación: el SQL crudo no fijaba `nodes.updated_at` (`NOT NULL`) → `updated_at = now()`. Rama `test/f2-engine-real-infra-validation`. PR #40 también mergeado. Suite: 97 offline + 5 integración; ruff/mypy limpios. |
-| 1.12 | 2026-07-09 | **Gate de F2 SUPERADO por primera vez en corrida REAL COMPLETA → R-001 MITIGADO.** El founder pagó $5 en OpenAI (giro respecto a v1.21) para de-riesgar el recall. Cableada la capa `AIProvider` a OpenAI GPT-5.x (PR #47: precios + default `gpt-5.4-mini` + Variable `OPENAI_MODEL`); corregido un bug que bloqueaba la línea GPT-5/o-series (PR #50: rechazan `temperature` custom con HTTP 400; ahora se omite salvo en modelos que lo soportan); añadida la Variable `EVAL_COST_PER_CAPTURE_MAX_USD` (PR #49). Dos corridas de 45 casos sin tocar gold/umbrales: `gpt-5.4-mini` → F1 **0.819** / taskP **1.000** / hall **0.059** / **$0.0019** = **GATE PASSED**; `gpt-5.5` → F1 0.866 / taskP 0.976 / hall 0.072 / $0.0236 = FAIL solo por coste. **Decisión: usar `gpt-5.4-mini`** (la 5.5 atrapa más recall pero inventa más y cuesta ~12x). Fast-follow vivo: subir el recall (0.726) sin subir la alucinación. Detalle en 012 (R-001, v1.29). |
-| 1.13 | 2026-07-09 | **R-001 RESUELTA para el gate: iteración de prompt v6→v7→v8 con `gpt-5.4-mini`.** v6 0.819/hall 0.059 (PASS) → v7 0.870/0.118 (FAIL solo alucinación: ensanchó `topic` a objetos físicos/lugares/grupos genéricos) → **v8 F1 0.890 (P 0.926 / R 0.857) / taskP 1.000 / hall 0.074 / $0.0023 = GATE PASSED con margen** (PR #52). v8 conservó la subida de recall de v7 (0.726→0.857) y devolvió la alucinación a 0.074 (FP 20→12). Sin tocar gold/matcher/métricas/umbrales en ninguna iteración. v8 se integró en PR #52 (la #51 se mergeó con v7). Deuda residual no-gated: connections F1 0.187 (graph-linking). Próximo trabajo real de F2: cablear el arranque del worker y decidir la transcripción de voz. Detalle en 012 (R-001, v1.32). |
+| 1.0–1.8 | 2026-07-02/03 | Fundación de la gobernanza → F1 completada, validada (R-006) y ADRs consolidados (ver 012 para el detalle cronológico). |
+| 1.9 | 2026-07-03 | Foco en F2/R-001: medición estable (Groq, prompt v3/v5), decisión de iterar hacia hallucination ≤0.10, proveedor Gemini; bloqueo por cupos free-tier; PR #40. |
+| 1.10 | 2026-07-09 | Gate de F2 ratificado (ADR-018) y motor CONSTRUIDO (PR #45): Groq 0.782/0.930/0.091; motor F2 + migración pgvector/`llm_usage`, 84 tests offline. Alta de R-007; D-008 en progreso. |
+| 1.11 | 2026-07-09 | PR #45 mergeado y motor VALIDADO contra infra real → R-007 cerrado (Postgres 18 + pgvector + Redis 6; 5/5 integración; fix `nodes.updated_at`). PR #40 mergeado. 97 offline + 5 integración. |
+| 1.12 | 2026-07-09 | Gate SUPERADO por primera vez (OpenAI `gpt-5.4-mini`, F1 0.819/1.000/0.059) → R-001 mitigado; decisión mini vs 5.5. PRs #47/#49/#50. |
+| 1.13 | 2026-07-09 | R-001 RESUELTA para el gate: prompt v6→v7→v8; v8 F1 0.890/1.000/0.074 = PASS con margen. PRs #51/#52/#53. |
+| 1.14 | 2026-07-09 | **Cierre de sesión (handoff):** arranque del worker cableado (`WORKER_ENABLED`, PR #54); voz decidida (text-first/diferida) y Finanzas anotada V4 (PR #54); despliegue en Render preparado (`render.yaml` + `DEPLOY_RENDER.md`, PR #55) con fixes de Dockerfiles; alta de deuda **D-011** (config de deploy no verificada). Documentación completa del estado y lo que falta (desplegar en Render, empezar gratis). Nota: `render.yaml` en main quedó en `starter`; este PR lo pasa a gratis. Suite 100 offline + 5 integración; ruff/mypy limpios. |
