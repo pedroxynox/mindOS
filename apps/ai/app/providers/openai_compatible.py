@@ -25,6 +25,19 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 T = TypeVar("T")
 
+# Model families that reject a custom ``temperature`` and only accept the
+# default (1): the GPT-5 line and the o-series reasoning models. For those we
+# must OMIT the parameter entirely (sending temperature=0 returns HTTP 400
+# "Unsupported value: 'temperature' does not support 0 with this model").
+# Everything else (gpt-4o, Groq's llama, Gemini's OpenAI-compatible endpoint)
+# supports temperature=0, which we prefer for deterministic extraction.
+_TEMPERATURE_LOCKED_PREFIXES = ("gpt-5", "o1", "o3", "o4")
+
+
+def supports_custom_temperature(model: str) -> bool:
+    """False for models that only allow the default temperature (GPT-5 / o-series)."""
+    return not model.lower().startswith(_TEMPERATURE_LOCKED_PREFIXES)
+
 
 def is_retryable(exc: BaseException) -> bool:
     """True for transient failures worth retrying (429 / timeout / 5xx).
@@ -119,6 +132,12 @@ class OpenAICompatibleProvider(AIProvider):
         self._prices_per_mtok = prices_per_mtok
         self._max_retries = max_retries
         self._backoff_base_s = backoff_base_s
+        # Prefer deterministic output (temperature=0), but omit the parameter
+        # for models that only accept the default (GPT-5 / o-series) — sending
+        # it there is rejected with HTTP 400.
+        self._temperature: float | None = (
+            0 if supports_custom_temperature(model) else None
+        )
 
     def _with_retries(self, func: Callable[[], Awaitable[T]]) -> Awaitable[T]:
         """Wrap an API call with exponential backoff + jitter on 429/5xx/timeouts.
@@ -144,21 +163,25 @@ class OpenAICompatibleProvider(AIProvider):
     async def complete(
         self, prompt: str, *, schema: dict | None = None
     ) -> Completion:
+        create_kwargs: dict = {
+            "model": self._model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You output only valid JSON. No prose, no markdown."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "response_format": {"type": "json_object"},
+        }
+        # Only send ``temperature`` when the model supports a custom value;
+        # GPT-5 / o-series models reject anything other than the default (1).
+        if self._temperature is not None:
+            create_kwargs["temperature"] = self._temperature
         response = await self._with_retries(
-            lambda: self._client.chat.completions.create(
-                model=self._model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You output only valid JSON. No prose, no markdown."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                response_format={"type": "json_object"},
-                temperature=0,
-            )
+            lambda: self._client.chat.completions.create(**create_kwargs)
         )
         text = response.choices[0].message.content or "{}"
         u = response.usage
