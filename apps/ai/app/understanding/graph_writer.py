@@ -75,7 +75,7 @@ class PgGraphStore(GraphStore):
     async def _set_status(self, user_id: str, capture_id: str, status: str) -> None:
         async with rls_tx(self._pool, user_id) as conn:
             await conn.execute(
-                "UPDATE nodes SET status = $1::capture_status "
+                "UPDATE nodes SET status = $1::capture_status, updated_at = now() "
                 "WHERE id = $2 AND type = 'capture'",
                 status,
                 capture_id,
@@ -93,8 +93,8 @@ class PgGraphStore(GraphStore):
         async with rls_tx(self._pool, user_id) as conn:
             # 1) embedding on the capture node.
             await conn.execute(
-                "UPDATE nodes SET embedding = $1::vector, embedding_model = $2 "
-                "WHERE id = $3 AND type = 'capture'",
+                "UPDATE nodes SET embedding = $1::vector, embedding_model = $2, "
+                "updated_at = now() WHERE id = $3 AND type = 'capture'",
                 _format_vector(embedding.vector, self._embedding_dim),
                 embedding.usage.model,
                 capture_id,
@@ -106,9 +106,10 @@ class PgGraphStore(GraphStore):
                 node_id = await conn.fetchval(
                     """
                     INSERT INTO nodes
-                        (user_id, type, title, attributes, origin, status, confidence)
+                        (user_id, type, title, attributes, origin, status,
+                         confidence, updated_at)
                     VALUES ($1, $2::node_type, $3, $4::jsonb, 'ai',
-                            'processed'::capture_status, $5)
+                            'processed'::capture_status, $5, now())
                     ON CONFLICT (user_id, ((attributes->>'dedup_key')))
                         WHERE origin = 'ai'
                     DO UPDATE SET confidence = EXCLUDED.confidence
@@ -150,7 +151,7 @@ class PgGraphStore(GraphStore):
 
             # 5) mark the capture processed.
             await conn.execute(
-                "UPDATE nodes SET status = 'processed'::capture_status "
-                "WHERE id = $1 AND type = 'capture'",
+                "UPDATE nodes SET status = 'processed'::capture_status, "
+                "updated_at = now() WHERE id = $1 AND type = 'capture'",
                 capture_id,
             )
