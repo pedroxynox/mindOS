@@ -37,6 +37,15 @@ _PROVIDER_NAME = "openai"
 # attribute an estimated cost. Update as pricing changes.
 _PRICES_PER_MTOK: dict[str, tuple[float, float]] = {
     # model: (input_price, output_price)
+    # Current GPT-5.x line (public prices, USD per 1M tokens, mid-2026).
+    # gpt-5.5 is the flagship (best quality / least hallucination); gpt-5.4-mini
+    # is the cheap tier used for prompt tuning iterations. Update if OpenAI
+    # revises pricing. The model actually used is chosen via OPENAI_MODEL, so
+    # switching between these needs no code change.
+    "gpt-5.5": (5.00, 30.00),
+    "gpt-5.4": (2.50, 15.00),
+    "gpt-5.4-mini": (0.75, 4.50),
+    # Previous generation (kept for backwards compatibility / fallback).
     "gpt-4o-mini": (0.15, 0.60),
     "gpt-4o": (2.50, 10.00),
     "text-embedding-3-small": (0.02, 0.0),

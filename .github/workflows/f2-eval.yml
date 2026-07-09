@@ -164,6 +164,16 @@ jobs:
             export GEMINI_MODEL="${{ vars.GEMINI_MODEL }}"
             echo "Usando GEMINI_MODEL=${GEMINI_MODEL} (variable del repositorio)."
           fi
+          # Optional: choose the OpenAI model without touching code. Set a
+          # repository *Variable* (not a secret) named OPENAI_MODEL. Only
+          # exported when non-empty, so leaving it unset keeps the code default
+          # (gpt-5.4-mini). Use this to switch to the flagship for the FINAL run:
+          # set OPENAI_MODEL=gpt-5.5 (best quality / least hallucination). Same
+          # pattern as GROQ_MODEL / GEMINI_MODEL.
+          if [ -n "${{ vars.OPENAI_MODEL }}" ]; then
+            export OPENAI_MODEL="${{ vars.OPENAI_MODEL }}"
+            echo "Usando OPENAI_MODEL=${OPENAI_MODEL} (variable del repositorio)."
+          fi
           # --- Espaciado entre llamadas (límite por minuto del plan gratuito) ---
           # Groq gratis limita los TOKENS por minuto (TPM), no solo el número de
           # peticiones. Antes el prompt de extracción de F2 era GRANDE (apilaba

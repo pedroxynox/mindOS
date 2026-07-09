@@ -33,8 +33,13 @@ class Settings(BaseSettings):
     llm_provider: str = "fake"
 
     # OpenAI provider (only required when llm_provider = 'openai').
+    # Default is gpt-5.4-mini: the cheap tier used to iterate/tune the prompt
+    # (~$0.08 per full 45-case eval run). For the FINAL validation run switch to
+    # the flagship gpt-5.5 (best quality / least hallucination, ~$0.50 per run)
+    # by setting OPENAI_MODEL=gpt-5.5 — no code change needed. If OpenAI uses a
+    # slightly different model id on the account, just override OPENAI_MODEL.
     openai_api_key: str | None = None
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-5.4-mini"
     openai_embedding_model: str = "text-embedding-3-small"
 
     # Groq provider (only required when llm_provider = 'groq'). Groq exposes an
