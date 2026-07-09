@@ -56,12 +56,14 @@
 > El rol `mindos_app` y su contraseña los CREA la migración (Paso 4); por eso la
 > `DATABASE_URL` de app funciona después de migrar.
 
-## Paso 4 — Migraciones (se ejecutan solas)
-`mindos-api` corre `prisma migrate deploy` antes de cada deploy usando
-`MIGRATION_DATABASE_URL` (rol dueño de Neon). Crea: tablas, RLS, el rol
-`mindos_app` (contraseña `mindos_app`) y la extensión **pgvector**. Neon permite
-crear roles y extensiones con el rol por defecto, así que debería correr sin
-tocar nada a mano.
+## Paso 4 — Migraciones (se ejecutan solas al arrancar)
+`mindos-api` corre `prisma migrate deploy` **al arrancar el contenedor** (el
+plan gratis de Render no permite el paso "pre-deploy", así que va en el comando
+de arranque) usando `MIGRATION_DATABASE_URL` (rol dueño de Neon). Crea: tablas,
+RLS, el rol `mindos_app` (contraseña `mindos_app`) y la extensión **pgvector**;
+luego arranca la app con su propio `DATABASE_URL` (rol `mindos_app`). Neon
+permite crear roles y extensiones con el rol por defecto, así que debería correr
+sin tocar nada a mano. Es idempotente: re-ejecutarlo en cada arranque es seguro.
 
 - Si fallara por permisos, abre el **SQL Editor de Neon** y ejecuta el rol de app
   (`infra/postgres-init/01-app-role.sql`) + `CREATE EXTENSION IF NOT EXISTS
