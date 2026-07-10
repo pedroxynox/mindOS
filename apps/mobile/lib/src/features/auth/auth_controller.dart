@@ -51,16 +51,20 @@ class AuthController extends StateNotifier<AuthState> {
   final TokenStore _store;
 
   Future<bool> login(String email, String password) =>
-      _submit(() => _api.login(email.trim(), password));
+      _submit(email, () => _api.login(email.trim(), password));
 
   Future<bool> register(String email, String password) =>
-      _submit(() => _api.register(email.trim(), password));
+      _submit(email, () => _api.register(email.trim(), password));
 
-  Future<bool> _submit(Future<AuthTokens> Function() call) async {
+  Future<bool> _submit(
+    String email,
+    Future<AuthTokens> Function() call,
+  ) async {
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
       final tokens = await call();
       await _store.save(tokens);
+      await _store.saveEmail(email.trim());
       state = const AuthState(status: AuthStatus.authenticated);
       return true;
     } on AuthException catch (e) {

@@ -13,7 +13,6 @@ import 'features/graph/presentation/nodes_list_screen.dart';
 import 'features/growth/presentation/growth_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/memory/memory_hub_screen.dart';
-import 'features/shell/app_shell.dart';
 import 'features/tasks/presentation/tasks_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -52,59 +51,24 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
 
-      // Signed-in sections with the minimal bottom navigation
-      // (Hoy · Conversar · Memoria; Capturar is a push action).
-      StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) =>
-            AppShell(navigationShell: navigationShell),
-        branches: [
-          StatefulShellBranch(
-            routes: [GoRoute(path: '/', builder: (_, __) => const HomeScreen())],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(path: '/ask', builder: (_, __) => const AskScreen()),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/memory',
-                builder: (_, __) => const MemoryHubScreen(),
-              ),
-            ],
-          ),
-        ],
-      ),
-
-      // Focused screens pushed over the shell (root navigator).
+      // Home is the base; the other sections open over it (with a back arrow),
+      // matching the design's chat / + / search bottom bar on Hoy.
+      GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
+      GoRoute(path: '/ask', builder: (_, __) => const AskScreen()),
+      GoRoute(path: '/memory', builder: (_, __) => const MemoryHubScreen()),
+      GoRoute(path: '/capture', builder: (_, __) => const CaptureScreen()),
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
-        path: '/capture',
-        builder: (_, __) => const CaptureScreen(),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
         path: '/capture/:id/insights',
         builder: (_, state) =>
             CaptureInsightsScreen(captureId: state.pathParameters['id']!),
       ),
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
         path: '/graph/:type',
         builder: (_, state) =>
             NodesListScreen(type: state.pathParameters['type']!),
       ),
-      GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
-        path: '/tasks',
-        builder: (_, __) => const TasksScreen(),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
-        path: '/growth',
-        builder: (_, __) => const GrowthScreen(),
-      ),
+      GoRoute(path: '/tasks', builder: (_, __) => const TasksScreen()),
+      GoRoute(path: '/growth', builder: (_, __) => const GrowthScreen()),
     ],
   );
 });
