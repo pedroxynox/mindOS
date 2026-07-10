@@ -39,6 +39,18 @@ class _AskScreenState extends ConsumerState<AskScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(askControllerProvider);
+    final theme = Theme.of(context);
+    // The sphere reflects the conversation in real time.
+    final orbState = state.isLoading
+        ? OrbState.thinking
+        : state.answer != null
+            ? OrbState.speaking
+            : OrbState.listening;
+    final orbLabel = state.isLoading
+        ? 'Pensando...'
+        : state.answer != null
+            ? 'Esto encontré'
+            : 'Te escucho';
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -50,6 +62,25 @@ class _AskScreenState extends ConsumerState<AskScreen> {
         child: SafeArea(
           child: Column(
             children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 2),
+                child: Column(
+                  children: [
+                    PresenceOrb(size: 104, state: orbState),
+                    const SizedBox(height: 2),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Text(
+                        orbLabel,
+                        key: ValueKey(orbLabel),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.all(16),
@@ -95,10 +126,6 @@ class _Intro extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 8),
-        const Center(
-          child: PresenceOrb(size: 132, state: OrbState.listening),
-        ),
         const SizedBox(height: 8),
         Text(
           'Pregúntame lo que quieras',

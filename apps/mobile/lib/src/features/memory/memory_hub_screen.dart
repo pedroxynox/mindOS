@@ -6,6 +6,7 @@ import '../capture/capture_providers.dart';
 import '../graph/graph_providers.dart';
 import '../graph/presentation/node_type_style.dart';
 import '../../widgets/cosmic_background.dart';
+import '../../widgets/fade_in.dart';
 
 /// "Memoria" — the navigable universe of what mindOS knows about you: the
 /// knowledge it extracted (people, projects, topics, events), your tasks and
@@ -115,32 +116,25 @@ class MemoryHubScreen extends ConsumerWidget {
                             color: theme.colorScheme.onSurfaceVariant),
                       );
                     }
+                    final recent = items.take(10).toList();
                     return Column(
                       children: [
-                        for (final c in items.take(8))
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Card(
-                              child: ListTile(
-                                leading: Icon(Icons.bubble_chart_outlined,
-                                    color: theme.colorScheme.primary),
-                                title: Text(
-                                  (c.content?.trim().isNotEmpty ?? false)
-                                      ? c.content!.trim()
+                        for (var i = 0; i < recent.length; i++)
+                          FadeInUp(
+                            delay: Duration(milliseconds: 50 * i),
+                            child: _TimelineRow(
+                              title:
+                                  (recent[i].content?.trim().isNotEmpty ?? false)
+                                      ? recent[i].content!.trim()
                                       : '(sin contenido)',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: Text(c.serverId != null
-                                    ? 'Ver lo que entendí'
-                                    : 'Sincronizando...'),
-                                trailing: const Icon(Icons.chevron_right),
-                                enabled: c.serverId != null,
-                                onTap: c.serverId == null
-                                    ? null
-                                    : () => context
-                                        .push('/capture/${c.serverId}/insights'),
-                              ),
+                              subtitle: recent[i].serverId != null
+                                  ? 'Ver lo que entendí'
+                                  : 'Sincronizando...',
+                              isLast: i == recent.length - 1,
+                              onTap: recent[i].serverId == null
+                                  ? null
+                                  : () => context.push(
+                                      '/capture/${recent[i].serverId}/insights'),
                             ),
                           ),
                       ],
@@ -200,6 +194,89 @@ class _HubTile extends StatelessWidget {
         subtitle: Text(subtitle),
         trailing: Icon(Icons.chevron_right,
             color: theme.colorScheme.onSurfaceVariant),
+      ),
+    );
+  }
+}
+
+
+
+/// A single node on the memory timeline: a glowing dot on a vertical rail, next
+/// to a glass card. The rail connects consecutive captures into one continuous
+/// thread of memory.
+class _TimelineRow extends StatelessWidget {
+  const _TimelineRow({
+    required this.title,
+    required this.subtitle,
+    required this.isLast,
+    this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool isLast;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 26,
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.7),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: theme.colorScheme.outlineVariant
+                          .withValues(alpha: 0.6),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Card(
+                child: ListTile(
+                  title: Text(title,
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(subtitle),
+                  trailing: onTap != null
+                      ? Icon(Icons.chevron_right,
+                          color: theme.colorScheme.onSurfaceVariant)
+                      : null,
+                  enabled: onTap != null,
+                  onTap: onTap,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

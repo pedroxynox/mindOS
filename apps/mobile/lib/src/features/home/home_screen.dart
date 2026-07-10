@@ -8,6 +8,7 @@ import '../graph/graph_providers.dart';
 import '../tasks/data/task_model.dart';
 import '../tasks/tasks_providers.dart';
 import '../../widgets/cosmic_background.dart';
+import '../../widgets/fade_in.dart';
 import '../../widgets/presence_orb.dart';
 
 /// "Hoy" — the presence screen. mindOS greets contextually and surfaces only
@@ -82,7 +83,7 @@ class HomeScreen extends ConsumerWidget {
                       ?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 12),
-                _Priorities(tasks: tasks, briefing: briefing),
+                FadeInUp(child: _Priorities(tasks: tasks, briefing: briefing)),
               ],
             ),
           ),

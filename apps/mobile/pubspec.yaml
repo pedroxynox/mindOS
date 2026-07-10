@@ -40,3 +40,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    # Inter (variable font) — premium, neutral typeface for the mindOS identity.
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
