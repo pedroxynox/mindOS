@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
+import { BriefingModule } from './briefing/briefing.module';
 import { CaptureModule } from './capture/capture.module';
 import { GraphModule } from './graph/graph.module';
 import { HealthModule } from './health/health.module';
@@ -35,6 +36,7 @@ import { PrismaModule } from './prisma/prisma.module';
     AuthModule,
     CaptureModule,
     GraphModule,
+    BriefingModule,
   ],
   providers: [
     {

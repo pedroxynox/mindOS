@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'briefing_models.dart';
 import 'graph_models.dart';
 
 /// Raised when a graph read fails. [message] is user-facing (Spanish).
@@ -57,6 +58,12 @@ class GraphApiClient {
   Future<CaptureEntities> captureEntities(String captureId) async {
     final json = await _get('/graph/captures/$captureId/entities');
     return CaptureEntities.fromJson(json as Map<String, dynamic>);
+  }
+
+  /// The proactive Daily Briefing (tasks + upcoming events).
+  Future<Briefing> briefing() async {
+    final json = await _get('/briefing');
+    return Briefing.fromJson(json as Map<String, dynamic>);
   }
 
   Future<dynamic> _get(String path, [Map<String, String>? query]) async {

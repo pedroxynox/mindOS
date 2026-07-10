@@ -6,6 +6,7 @@ import '../auth/auth_providers.dart';
 import '../capture/capture_providers.dart';
 import '../graph/data/graph_models.dart';
 import '../graph/graph_providers.dart';
+import '../graph/presentation/briefing_card.dart';
 import '../graph/presentation/node_type_style.dart';
 import '../health/health_providers.dart';
 
@@ -41,28 +42,20 @@ class HomeScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
+          ref.invalidate(briefingProvider);
           ref.invalidate(graphSummaryProvider);
           try {
+            await ref.read(briefingProvider.future);
             await ref.read(graphSummaryProvider.future);
           } catch (_) {
-            // Errors are surfaced inline by the summary section; swallow here so
-            // the refresh indicator dismisses cleanly.
+            // Errors are surfaced inline by each section; swallow here so the
+            // refresh indicator dismisses cleanly.
           }
         },
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Text(
-              'Tu mente, organizada',
-              style: theme.textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Escribe lo que tengas en mente y mindOS lo entiende y ordena por ti.',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
+            const BriefingCard(),
             const SizedBox(height: 20),
             _StatusCard(
               child: health.when(

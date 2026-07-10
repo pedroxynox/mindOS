@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_providers.dart';
+import 'data/briefing_models.dart';
 import 'data/graph_api_client.dart';
 import 'data/graph_models.dart';
 
@@ -21,6 +22,11 @@ final nodesByTypeProvider =
     FutureProvider.autoDispose.family<List<GraphNode>, String>((ref, type) async {
   final page = await ref.watch(graphApiClientProvider).listNodes(type);
   return page.data;
+});
+
+/// The Daily Briefing (tasks + upcoming events). Auto-refreshes when invalidated.
+final briefingProvider = FutureProvider.autoDispose<Briefing>((ref) {
+  return ref.watch(graphApiClientProvider).briefing();
 });
 
 /// What the brain extracted from one capture. Consumed by the insights screen,
