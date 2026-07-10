@@ -118,11 +118,17 @@ services:
     name: mindos-web
     runtime: static
     # Build from repo root. Flutter isn't preinstalled on Render's static build
-    # image, so we clone the stable SDK, generate code, and build web.
+    # image, so we clone a PINNED SDK version (reproducible builds, D-001) into
+    # the project dir and build web. Hardening against past "status 128" (git):
+    #   - safe.directory '*' avoids git "dubious ownership" failures.
+    #   - rm -rf before clone makes the clone idempotent (no "already exists").
     buildCommand: >-
-      git clone --depth 1 -b stable https://github.com/flutter/flutter.git "$HOME/flutter"
-      && export PATH="$HOME/flutter/bin:$PATH"
-      && git config --global --add safe.directory "$HOME/flutter"
+      git config --global --add safe.directory '*'
+      && rm -rf flutter_sdk
+      && git clone --depth 1 -b 3.44.6 https://github.com/flutter/flutter.git flutter_sdk
+      && export PATH="$PWD/flutter_sdk/bin:$PATH"
+      && flutter config --no-analytics
+      && flutter --version
       && cd apps/mobile
       && flutter pub get
       && dart run build_runner build --delete-conflicting-outputs
