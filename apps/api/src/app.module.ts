@@ -8,6 +8,7 @@ import { CaptureModule } from './capture/capture.module';
 import { GraphModule } from './graph/graph.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { QueryModule } from './query/query.module';
 
 /**
  * Root module of the mindOS business API.
@@ -37,6 +38,7 @@ import { PrismaModule } from './prisma/prisma.module';
     CaptureModule,
     GraphModule,
     BriefingModule,
+    QueryModule,
   ],
   providers: [
     {

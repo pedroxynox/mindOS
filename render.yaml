@@ -71,11 +71,13 @@ services:
       # more (e.g. a custom domain later).
       - key: CORS_ORIGIN
         value: https://mindos-web.onrender.com
+      # Public URL of the AI service, called server-to-server for RAG queries.
       - key: AI_SERVICE_URL
-        fromService:
-          type: web
-          name: mindos-ai
-          property: hostport    # internal host:port of the AI service
+        value: https://mindos-ai.onrender.com
+      # Shared secret for the internal RAG endpoint. Generated here once and
+      # shared to mindos-ai below, so only the API can call /internal/query.
+      - key: QUERY_INTERNAL_SECRET
+        generateValue: true
       # Voice is deferred, so S3_* (audio storage) is intentionally unset.
 
   # --- Python AI service + comprehension worker ------------------------------
@@ -107,7 +109,13 @@ services:
           type: keyvalue
           name: mindos-redis
           property: connectionString
-
+      # Same shared secret as mindos-api so the AI service accepts /internal/query
+      # calls from the API only (the value is generated on mindos-api).
+      - key: QUERY_INTERNAL_SECRET
+        fromService:
+          type: web
+          name: mindos-api
+          envVarKey: QUERY_INTERNAL_SECRET
 
   # --- Flutter web app (static site) -----------------------------------------
   # The same Flutter codebase compiled for the browser. Served for FREE as a

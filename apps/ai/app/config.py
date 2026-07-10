@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://mindos:mindos@localhost:5432/mindos"
     redis_url: str = "redis://localhost:6379"
 
+    # Shared secret guarding the internal RAG endpoint (`POST /internal/query`).
+    # The API (which authenticates the end user) is the only caller; it sends
+    # this secret in the `X-Internal-Token` header. Both services get the SAME
+    # value via render.yaml (generated on the API, shared to the AI service).
+    # When unset, the query endpoint refuses all requests (fail-closed).
+    query_internal_secret: str | None = None
+
     # Comprehension worker (the BullMQ consumer of the 'understanding' queue,
     # design §8/§11). OFF by default so health-only deployments AND the offline
     # test suite never try to open Redis/Postgres. Set WORKER_ENABLED=true in

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'briefing_models.dart';
 import 'graph_models.dart';
+import 'query_models.dart';
 
 /// Raised when a graph read fails. [message] is user-facing (Spanish).
 class GraphApiException implements Exception {
@@ -64,6 +65,64 @@ class GraphApiClient {
   Future<Briefing> briefing() async {
     final json = await _get('/briefing');
     return Briefing.fromJson(json as Map<String, dynamic>);
+  }
+
+  /// Ask a natural-language question; the answer is grounded on the user's own
+  /// notes. Uses a longer timeout to absorb the AI service's cold start.
+  Future<QueryAnswer> ask(String question) async {
+    final json = await _post(
+      '/query',
+      {'question': question},
+      timeout: const Duration(seconds: 100),
+    );
+    return QueryAnswer.fromJson(json as Map<String, dynamic>);
+  }
+
+  Future<dynamic> _post(
+    String path,
+    Map<String, dynamic> body, {
+    Duration? timeout,
+  }) async {
+    final token = await tokenProvider();
+    late http.Response res;
+    try {
+      res = await _client
+          .post(
+            Uri.parse('$_baseUrl$path'),
+            headers: {
+              'accept': 'application/json',
+              'content-type': 'application/json',
+              if (token != null && token.isNotEmpty)
+                'authorization': 'Bearer $token',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(timeout ?? this.timeout);
+    } catch (_) {
+      throw const GraphApiException(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
+    }
+
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      return jsonDecode(res.body);
+    }
+    if (res.statusCode == 401) {
+      throw const GraphApiException(
+        'Tu sesión expiró. Inicia sesión de nuevo.',
+        401,
+      );
+    }
+    if (res.statusCode == 503) {
+      throw const GraphApiException(
+        'El asistente está despertando. Espera unos segundos e inténtalo de nuevo.',
+        503,
+      );
+    }
+    throw GraphApiException(
+      'No pude responder ahora mismo. Inténtalo de nuevo.',
+      res.statusCode,
+    );
   }
 
   Future<dynamic> _get(String path, [Map<String, String>? query]) async {
