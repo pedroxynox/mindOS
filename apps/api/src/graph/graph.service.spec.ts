@@ -61,10 +61,10 @@ describe('GraphService.summary', () => {
 
     expect(withUser).toHaveBeenCalledWith(USER_ID, expect.any(Function));
     expect(result).toEqual({ counts: { task: 3, person: 2 }, total: 5 });
-    // Captures must be excluded from the derived-knowledge summary.
+    // Captures and notes (incl. Growth items) are excluded from the overview.
     expect(groupBy).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ type: { not: 'capture' } }),
+        where: expect.objectContaining({ type: { notIn: ['capture', 'note'] } }),
       }),
     );
   });

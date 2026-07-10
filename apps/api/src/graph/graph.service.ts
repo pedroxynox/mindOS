@@ -34,7 +34,10 @@ export class GraphService {
     const grouped = await this.rls.withUser(userId, (tx) =>
       tx.node.groupBy({
         by: ['type'],
-        where: { userId, deletedAt: null, type: { not: 'capture' } },
+        // Exclude captures (raw input) and notes: notes include Growth items
+        // (goals/habits/reflections stored as notes) which have their own
+        // section and must not inflate the knowledge overview.
+        where: { userId, deletedAt: null, type: { notIn: ['capture', 'note'] } },
         _count: { _all: true },
       }),
     );

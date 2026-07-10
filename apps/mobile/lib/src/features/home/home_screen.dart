@@ -29,11 +29,6 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('mindOS'),
         actions: [
           IconButton(
-            tooltip: 'Preguntar a mindOS',
-            icon: const Icon(Icons.auto_awesome),
-            onPressed: () => context.push('/ask'),
-          ),
-          IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
             onPressed: () => _confirmLogout(context, ref),
