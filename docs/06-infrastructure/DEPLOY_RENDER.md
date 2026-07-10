@@ -15,6 +15,10 @@
   - `mindos-api` — la API (recibe capturas y las mete en la cola).
   - `mindos-ai` — el cerebro: responde `/health` y **consume la cola** (worker),
     entiende cada captura y la escribe en el grafo.
+  - `mindos-web` — la **app web** (la misma app, compilada para el navegador).
+    Es un "sitio estático" y **no se duerme**; queda en
+    `https://mindos-web.onrender.com`. Se compila sola instalando Flutter en el
+    build (no requiere que toques nada).
 
 > No toca ninguna otra app ni base de datos que ya tengas: crea recursos nuevos.
 
@@ -45,8 +49,8 @@
 ## Paso 2 — Crear los servicios en Render desde el Blueprint
 1. En Render: **New → Blueprint**.
 2. Conecta el repo `pedroxynox/mindOS`, rama `main`.
-3. Render lee `render.yaml` y muestra **3 recursos** (mindos-redis, mindos-api,
-   mindos-ai). **Apply**.
+3. Render lee `render.yaml` y muestra **4 recursos** (mindos-redis, mindos-api,
+   mindos-ai, mindos-web). **Apply**.
 4. Render pedirá los valores "no sincronizados" (secretos) → Paso 3.
 
 ## Paso 3 — Rellenar los valores manuales (una sola vez)
@@ -102,6 +106,15 @@ Prisma marca esa migración como fallida (no aplica más hasta resolverlo).
   muestran que la procesó y queda escrita en el grafo (Neon).
 - En modo gratis los servicios se DUERMEN a los ~15 min; el primer clic los
   despierta (lento) y el worker despierto procesa la cola.
+
+## Paso 6 — Abrir la app web
+- Abre `https://mindos-web.onrender.com` en el navegador → verás la pantalla de
+  inicio de sesión. Crea una cuenta y empieza a capturar.
+- Si más adelante usas un **dominio propio** para la web, añádelo en
+  `CORS_ORIGIN` del servicio `mindos-api` (separado por comas) para que el
+  navegador tenga permiso de hablar con la API.
+- La web es un sitio estático: **no se duerme**. (La API/IA gratis sí se
+  duermen; el primer uso del día puede tardar unos segundos en despertar.)
 
 ## Costo (honesto)
 - **Ahora (probar): $0.** Neon gratis (no se borra) + Render gratis (servicios se

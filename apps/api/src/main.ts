@@ -5,6 +5,23 @@ import { AppModule } from './app.module';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
+  // Cross-origin access for the web app (served from a different Render host).
+  // Origins are configurable via CORS_ORIGIN (comma-separated); defaults cover
+  // the Render web service and local development. Auth uses Bearer tokens.
+  const corsOrigins = (
+    process.env.CORS_ORIGIN ??
+    'https://mindos-web.onrender.com,http://localhost:8080,http://localhost:3000'
+  )
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  app.enableCors({
+    origin: corsOrigins,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
+    credentials: true,
+  });
+
   // Global input validation (Engineering Standards #05 §8). `transform` coerces
   // query/body primitives (e.g. list pagination `limit`) to their DTO types.
   app.useGlobalPipes(
