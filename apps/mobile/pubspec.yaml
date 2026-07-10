@@ -24,6 +24,9 @@ dependencies:
   uuid: ^4.4.0
   # Connectivity signal that triggers the outbox drain (SyncService).
   connectivity_plus: ^6.0.0
+  # Persists the auth session (tokens) across app restarts. Works on web
+  # (localStorage) and mobile (native prefs) with one API.
+  shared_preferences: ^2.3.0
 
 dev_dependencies:
   flutter_test:

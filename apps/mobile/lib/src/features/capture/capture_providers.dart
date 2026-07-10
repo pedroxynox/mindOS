@@ -1,12 +1,13 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../auth/auth_providers.dart';
 import 'data/capture_api_client.dart';
 import 'data/capture_repository.dart';
 import 'data/local/app_database.dart';
+import 'data/platform/file_reader.dart';
 import 'data/sync_service.dart';
 
 /// Singleton local database. Disposed with the provider container.
@@ -26,16 +27,12 @@ final capturesStreamProvider = StreamProvider<List<LocalCapture>>((ref) {
   return ref.watch(captureRepositoryProvider).watchCaptures();
 });
 
-/// Access-token source for the API client.
-///
-/// Placeholder until the mobile auth feature lands (F4): reads a build-time
-/// token so the wiring compiles and can be integration-tested. Replace with the
-/// real auth store when available.
+/// Access-token source for the API client. Reads the current access token from
+/// the auth token store, so every capture request is authenticated as the
+/// signed-in user.
 final accessTokenProvider = Provider<Future<String?> Function()>((ref) {
-  return () async {
-    const token = String.fromEnvironment('API_ACCESS_TOKEN', defaultValue: '');
-    return token.isEmpty ? null : token;
-  };
+  final store = ref.watch(tokenStoreProvider);
+  return () async => store.accessToken;
 });
 
 /// HTTP client for the Capture API.
@@ -45,7 +42,7 @@ final captureApiClientProvider = Provider<CaptureApiClient>((ref) {
 
 /// Reads recorded audio bytes from disk (injected into [SyncService]).
 final audioBytesReaderProvider = Provider<AudioBytesReader>((ref) {
-  return (String localPath) => File(localPath).readAsBytes();
+  return (String localPath) => readLocalFileBytes(localPath);
 });
 
 /// The outbox drain service.
