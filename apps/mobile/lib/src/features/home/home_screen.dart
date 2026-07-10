@@ -3,132 +3,99 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../auth/auth_providers.dart';
-import '../capture/capture_providers.dart';
-import '../graph/data/graph_models.dart';
+import '../graph/data/briefing_models.dart';
 import '../graph/graph_providers.dart';
-import '../graph/presentation/briefing_card.dart';
-import '../graph/presentation/node_type_style.dart';
-import '../health/health_providers.dart';
+import '../tasks/data/task_model.dart';
+import '../tasks/tasks_providers.dart';
+import '../../widgets/cosmic_background.dart';
+import '../../widgets/presence_orb.dart';
 
-/// Authenticated landing screen: a welcome, the live connection status, an
-/// overview of the knowledge the brain has extracted (tappable per type), the
-/// primary "capture" action and recent captures (tap to see what was
-/// understood).
+/// "Hoy" — the presence screen. mindOS greets contextually and surfaces only
+/// what matters now (never more than three priorities), around the living
+/// sphere. Tapping the sphere opens the conversation.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final health = ref.watch(apiHealthProvider);
-    final captures = ref.watch(capturesStreamProvider);
-    final summary = ref.watch(graphSummaryProvider);
+    final briefing = ref.watch(briefingProvider);
+    final tasks = ref.watch(tasksListProvider);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
         title: const Text('mindOS'),
         actions: [
           IconButton(
             tooltip: 'Cerrar sesión',
-            icon: const Icon(Icons.logout),
+            icon: Icon(Icons.logout,
+                color: theme.colorScheme.onSurfaceVariant, size: 20),
             onPressed: () => _confirmLogout(context, ref),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/capture'),
-        icon: const Icon(Icons.edit_note),
-        label: const Text('Capturar'),
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(briefingProvider);
-          ref.invalidate(graphSummaryProvider);
-          try {
-            await ref.read(briefingProvider.future);
-            await ref.read(graphSummaryProvider.future);
-          } catch (_) {
-            // Errors are surfaced inline by each section; swallow here so the
-            // refresh indicator dismisses cleanly.
-          }
-        },
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            const BriefingCard(),
-            const SizedBox(height: 20),
-            _StatusCard(
-              child: health.when(
-                loading: () => const _StatusRow(
-                  icon: Icons.sync,
-                  text: 'Conectando con mindOS...',
+      body: CosmicBackground(
+        child: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(briefingProvider);
+              ref.invalidate(tasksListProvider);
+              try {
+                await ref.read(briefingProvider.future);
+              } catch (_) {}
+            },
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+              children: [
+                const SizedBox(height: 8),
+                Text(
+                  _greeting(),
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-                error: (_, __) => _StatusRow(
-                  icon: Icons.cloud_off,
-                  text: 'Sin conexión con el servidor',
-                  color: theme.colorScheme.error,
+                const SizedBox(height: 6),
+                _ContextLine(briefing: briefing),
+                const SizedBox(height: 12),
+                // The living presence — tap to converse.
+                Center(
+                  child: GestureDetector(
+                    onTap: () => context.go('/ask'),
+                    child: const PresenceOrb(size: 172),
+                  ),
                 ),
-                data: (_) => _StatusRow(
-                  icon: Icons.check_circle,
-                  text: 'mindOS está en línea',
-                  color: theme.colorScheme.primary,
+                const SizedBox(height: 4),
+                Center(
+                  child: Text(
+                    'Toca para conversar',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 28),
+                Text(
+                  'Ahora',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                _Priorities(tasks: tasks, briefing: briefing),
+              ],
             ),
-            const SizedBox(height: 24),
-            Text('Tu conocimiento', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            _SummarySection(summary: summary),
-            const SizedBox(height: 24),
-            Text('Capturas recientes', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            captures.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (_, __) =>
-                  const Text('No se pudieron cargar las capturas.'),
-              data: (items) {
-                if (items.isEmpty) {
-                  return _EmptyState(theme: theme);
-                }
-                return Column(
-                  children: [
-                    for (final c in items.take(6))
-                      Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: const Icon(Icons.notes),
-                          title: Text(
-                            (c.content?.trim().isNotEmpty ?? false)
-                                ? c.content!.trim()
-                                : '(sin contenido)',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            c.serverId != null
-                                ? 'Ver lo que entendí'
-                                : 'Sincronizando...',
-                          ),
-                          trailing: const Icon(Icons.chevron_right),
-                          // Only synced captures have a server id to inspect.
-                          enabled: c.serverId != null,
-                          onTap: c.serverId == null
-                              ? null
-                              : () =>
-                                  context.push('/capture/${c.serverId}/insights'),
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  static String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Buenos días';
+    if (h < 19) return 'Buenas tardes';
+    return 'Buenas noches';
   }
 
   Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
@@ -139,13 +106,11 @@ class HomeScreen extends ConsumerWidget {
         content: const Text('¿Seguro que quieres cerrar sesión?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Cerrar sesión'),
-          ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Cerrar sesión')),
         ],
       ),
     );
@@ -155,136 +120,152 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-/// Chips with per-type counts of extracted knowledge; tap to see the full list.
-class _SummarySection extends StatelessWidget {
-  const _SummarySection({required this.summary});
-  final AsyncValue<GraphSummary> summary;
+/// The one-line contextual message under the greeting (from the briefing).
+class _ContextLine extends StatelessWidget {
+  const _ContextLine({required this.briefing});
+  final AsyncValue<Briefing> briefing;
 
   @override
   Widget build(BuildContext context) {
-    return summary.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.all(16),
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (_, __) => const Text('No se pudo cargar tu conocimiento.'),
-      data: (data) {
-        final counts = data.counts;
-        if (counts.isEmpty) {
-          return Text(
-            'Aún no hay conocimiento extraído. Crea una captura y mindOS empezará a conectar personas, tareas y proyectos.',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-          );
+    final theme = Theme.of(context);
+    final style = theme.textTheme.titleMedium
+        ?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.35);
+    return briefing.when(
+      loading: () => Text('Poniéndome al día...', style: style),
+      error: (_, __) =>
+          Text('Estoy aquí cuando me necesites.', style: style),
+      data: (b) {
+        final parts = <String>[];
+        if (b.taskTotal > 0) {
+          parts.add(b.taskTotal == 1 ? '1 tarea' : '${b.taskTotal} tareas');
         }
-        const order = [
-          'task',
-          'person',
-          'project',
-          'event',
-          'topic',
-          'decision',
-          'note'
-        ];
-        final types = counts.keys.toList()
-          ..sort((a, b) {
-            final ia = order.indexOf(a), ib = order.indexOf(b);
-            return (ia == -1 ? 99 : ia).compareTo(ib == -1 ? 99 : ib);
-          });
-        return Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (final type in types)
-              _CountChip(type: type, count: counts[type] ?? 0),
-          ],
-        );
+        if (b.upcomingEvents.isNotEmpty) {
+          parts.add(b.upcomingEvents.length == 1
+              ? '1 evento próximo'
+              : '${b.upcomingEvents.length} eventos próximos');
+        }
+        final msg = parts.isEmpty
+            ? 'Todo despejado. Estoy aquí cuando me necesites.'
+            : 'Tienes ${parts.join(' y ')}.';
+        return Text(msg, style: style);
       },
     );
   }
 }
 
-class _CountChip extends StatelessWidget {
-  const _CountChip({required this.type, required this.count});
-  final String type;
-  final int count;
+/// Up to three priorities: pending tasks first, then upcoming events.
+class _Priorities extends ConsumerWidget {
+  const _Priorities({required this.tasks, required this.briefing});
+  final AsyncValue<List<Task>> tasks;
+  final AsyncValue<Briefing> briefing;
+
+  Color _dot(TaskPriority p) => switch (p) {
+        TaskPriority.high => const Color(0xFFFF6B6B),
+        TaskPriority.medium => const Color(0xFFF7C948),
+        TaskPriority.low => const Color(0xFF57D9A3),
+      };
 
   @override
-  Widget build(BuildContext context) {
-    final style = NodeTypeStyle.of(type);
-    final label = count == 1 ? style.singular : style.plural;
-    return ActionChip(
-      avatar: Icon(style.icon, size: 18, color: style.color),
-      label: Text('$count $label'),
-      backgroundColor: style.color.withValues(alpha: 0.10),
-      side: BorderSide(color: style.color.withValues(alpha: 0.30)),
-      onPressed: () => context.push('/graph/$type'),
-    );
-  }
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
 
-class _StatusCard extends StatelessWidget {
-  const _StatusCard({required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
-    );
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.icon, required this.text, this.color});
-  final IconData icon;
-  final String text;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color),
-        const SizedBox(width: 12),
-        Expanded(child: Text(text)),
-      ],
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.theme});
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
+    return tasks.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(20),
+        child: Center(child: CircularProgressIndicator()),
       ),
-      child: Column(
-        children: [
-          Icon(Icons.lightbulb_outline,
-              size: 40, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(height: 12),
-          Text('Aún no hay capturas', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 4),
-          Text(
-            'Toca "Capturar" para escribir tu primera idea.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      error: (_, __) => _hint(theme, 'No pude cargar tus prioridades.'),
+      data: (all) {
+        final pending = all.where((t) => !t.done).take(3).toList();
+        if (pending.isNotEmpty) {
+          return Column(
+            children: [
+              for (final t in pending)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Card(
+                    child: ListTile(
+                      onTap: () => context.go('/tasks'),
+                      leading: Container(
+                        width: 10,
+                        height: 10,
+                        margin: const EdgeInsets.only(top: 6),
+                        decoration: BoxDecoration(
+                          color: _dot(t.priority),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: _dot(t.priority).withValues(alpha: 0.6),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                      ),
+                      title: Text(
+                        (t.title ?? '').trim().isEmpty
+                            ? '(sin título)'
+                            : t.title!.trim(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text('Prioridad ${t.priority.label.toLowerCase()}'),
+                      trailing: Icon(Icons.chevron_right,
+                          color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        }
+
+        // Fallback: upcoming events, else a calm prompt.
+        final events = briefing.valueOrNull?.upcomingEvents ?? const [];
+        if (events.isNotEmpty) {
+          return Column(
+            children: [
+              for (final e in events.take(3))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Card(
+                    child: ListTile(
+                      leading: Icon(Icons.event_outlined,
+                          color: theme.colorScheme.primary),
+                      title: Text(
+                        (e.title ?? '').trim().isEmpty
+                            ? 'Evento'
+                            : e.title!.trim(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        }
+        return _hint(
+          theme,
+          'Nada urgente por ahora. Captura una idea y yo me encargo del resto.',
+        );
+      },
+    );
+  }
+
+  Widget _hint(ThemeData theme, String text) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Icon(Icons.auto_awesome,
+                  size: 20, color: theme.colorScheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(text,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant)),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      );
 }

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ask_controller.dart';
 import '../data/query_models.dart';
+import '../../../widgets/cosmic_background.dart';
+import '../../../widgets/presence_orb.dart';
 
 /// "Ask mindOS": type a question and get an answer grounded on your own notes,
 /// with the cited captures shown below.
@@ -39,30 +41,39 @@ class _AskScreenState extends ConsumerState<AskScreen> {
     final state = ref.watch(askControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Preguntar a mindOS')),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (!state.hasResult && !state.isLoading)
-                  _Intro(onPick: _useSuggestion),
-                if (state.question != null)
-                  _QuestionBubble(text: state.question!),
-                if (state.isLoading) const _Thinking(),
-                if (state.answer != null) _AnswerView(answer: state.answer!),
-                if (state.errorMessage != null)
-                  _ErrorView(message: state.errorMessage!),
-              ],
-            ),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('Conversar'),
+      ),
+      body: CosmicBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    if (!state.hasResult && !state.isLoading)
+                      _Intro(onPick: _useSuggestion),
+                    if (state.question != null)
+                      _QuestionBubble(text: state.question!),
+                    if (state.isLoading) const _Thinking(),
+                    if (state.answer != null)
+                      _AnswerView(answer: state.answer!),
+                    if (state.errorMessage != null)
+                      _ErrorView(message: state.errorMessage!),
+                  ],
+                ),
+              ),
+              _InputBar(
+                controller: _controller,
+                enabled: !state.isLoading,
+                onSubmit: _submit,
+              ),
+            ],
           ),
-          _InputBar(
-            controller: _controller,
-            enabled: !state.isLoading,
-            onSubmit: _submit,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -85,8 +96,10 @@ class _Intro extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 8),
-        Icon(Icons.auto_awesome, size: 40, color: theme.colorScheme.primary),
-        const SizedBox(height: 12),
+        const Center(
+          child: PresenceOrb(size: 132, state: OrbState.listening),
+        ),
+        const SizedBox(height: 8),
         Text(
           'Pregúntame lo que quieras',
           style:

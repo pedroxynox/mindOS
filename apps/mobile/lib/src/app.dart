@@ -17,9 +17,10 @@ class MindOsApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'mindOS',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
+      theme: AppTheme.dark(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      // Modo oscuro obligatorio: mindOS es una presencia iluminada desde dentro.
+      themeMode: ThemeMode.dark,
       routerConfig: router,
     );
   }

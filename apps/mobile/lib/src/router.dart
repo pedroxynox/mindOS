@@ -12,6 +12,7 @@ import 'features/graph/presentation/capture_insights_screen.dart';
 import 'features/graph/presentation/nodes_list_screen.dart';
 import 'features/growth/presentation/growth_screen.dart';
 import 'features/home/home_screen.dart';
+import 'features/memory/memory_hub_screen.dart';
 import 'features/shell/app_shell.dart';
 import 'features/tasks/presentation/tasks_screen.dart';
 
@@ -51,7 +52,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
 
-      // Signed-in sections with a bottom navigation bar.
+      // Signed-in sections with the minimal bottom navigation
+      // (Hoy · Conversar · Memoria; Capturar is a push action).
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),
@@ -61,17 +63,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: '/tasks', builder: (_, __) => const TasksScreen()),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(path: '/growth', builder: (_, __) => const GrowthScreen()),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
               GoRoute(path: '/ask', builder: (_, __) => const AskScreen()),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/memory',
+                builder: (_, __) => const MemoryHubScreen(),
+              ),
             ],
           ),
         ],
@@ -94,6 +94,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/graph/:type',
         builder: (_, state) =>
             NodesListScreen(type: state.pathParameters['type']!),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/tasks',
+        builder: (_, __) => const TasksScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/growth',
+        builder: (_, __) => const GrowthScreen(),
       ),
     ],
   );
