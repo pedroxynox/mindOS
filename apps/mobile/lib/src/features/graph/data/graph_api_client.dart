@@ -1,0 +1,93 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import 'graph_models.dart';
+
+/// Raised when a graph read fails. [message] is user-facing (Spanish).
+class GraphApiException implements Exception {
+  const GraphApiException(this.message, [this.statusCode]);
+  final String message;
+  final int? statusCode;
+
+  @override
+  String toString() => 'GraphApiException($statusCode): $message';
+}
+
+/// Read-only client for the knowledge-graph endpoints (`/v1/graph/*`).
+///
+/// Every request is authenticated with the signed-in user's access token,
+/// obtained lazily via [tokenProvider] so the client always uses the current
+/// session. Base URL comes from --dart-define=API_BASE_URL (defaults to local).
+class GraphApiClient {
+  GraphApiClient({
+    required this.tokenProvider,
+    http.Client? client,
+    this.timeout = const Duration(seconds: 20),
+  }) : _client = client ?? http.Client();
+
+  final Future<String?> Function() tokenProvider;
+  final http.Client _client;
+  final Duration timeout;
+
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:3000/v1',
+  );
+
+  Future<GraphSummary> summary() async {
+    final json = await _get('/graph/summary');
+    return GraphSummary.fromJson(json as Map<String, dynamic>);
+  }
+
+  Future<GraphNodePage> listNodes(
+    String type, {
+    String? cursor,
+    int limit = 50,
+  }) async {
+    final params = <String, String>{'type': type, 'limit': '$limit'};
+    if (cursor != null) params['cursor'] = cursor;
+    final json = await _get('/graph/nodes', params) as Map<String, dynamic>;
+    final data = (json['data'] as List<dynamic>? ?? [])
+        .map((e) => GraphNode.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return GraphNodePage(data: data, nextCursor: json['next_cursor'] as String?);
+  }
+
+  Future<CaptureEntities> captureEntities(String captureId) async {
+    final json = await _get('/graph/captures/$captureId/entities');
+    return CaptureEntities.fromJson(json as Map<String, dynamic>);
+  }
+
+  Future<dynamic> _get(String path, [Map<String, String>? query]) async {
+    final token = await tokenProvider();
+    final uri = Uri.parse('$_baseUrl$path').replace(
+      queryParameters: query,
+    );
+    late http.Response res;
+    try {
+      res = await _client.get(
+        uri,
+        headers: {
+          'accept': 'application/json',
+          if (token != null && token.isNotEmpty) 'authorization': 'Bearer $token',
+        },
+      ).timeout(timeout);
+    } catch (_) {
+      throw const GraphApiException(
+        'No se pudo conectar con el servidor. Revisa tu conexión.',
+      );
+    }
+
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    }
+    if (res.statusCode == 401) {
+      throw const GraphApiException('Tu sesión expiró. Inicia sesión de nuevo.', 401);
+    }
+    throw GraphApiException(
+      'No se pudo cargar la información. Inténtalo de nuevo.',
+      res.statusCode,
+    );
+  }
+}

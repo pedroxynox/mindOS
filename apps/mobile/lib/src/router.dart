@@ -7,6 +7,8 @@ import 'features/auth/auth_providers.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/auth/presentation/register_screen.dart';
 import 'features/capture/presentation/capture_screen.dart';
+import 'features/graph/presentation/capture_insights_screen.dart';
+import 'features/graph/presentation/nodes_list_screen.dart';
 import 'features/home/home_screen.dart';
 
 /// Application router (GoRouter) with an authentication guard.
@@ -43,6 +45,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
       GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
       GoRoute(path: '/capture', builder: (_, __) => const CaptureScreen()),
+      GoRoute(
+        path: '/capture/:id/insights',
+        builder: (_, state) =>
+            CaptureInsightsScreen(captureId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/graph/:type',
+        builder: (_, state) =>
+            NodesListScreen(type: state.pathParameters['type']!),
+      ),
     ],
   );
 });
