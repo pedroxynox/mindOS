@@ -66,6 +66,11 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true    # Render generates a strong secret once
+      # Which web origin(s) may call the API from a browser (CORS). This is the
+      # public URL of the mindos-web static site below. Comma-separate to allow
+      # more (e.g. a custom domain later).
+      - key: CORS_ORIGIN
+        value: https://mindos-web.onrender.com
       - key: AI_SERVICE_URL
         fromService:
           type: web
@@ -102,3 +107,35 @@ services:
           type: keyvalue
           name: mindos-redis
           property: connectionString
+
+
+  # --- Flutter web app (static site) -----------------------------------------
+  # The same Flutter codebase compiled for the browser. Served for FREE as a
+  # static site (static sites do NOT sleep, unlike free web services). The build
+  # installs Flutter, generates Drift code, then `flutter build web`, baking in
+  # the public API URL via --dart-define.
+  - type: web
+    name: mindos-web
+    runtime: static
+    # Build from repo root. Flutter isn't preinstalled on Render's static build
+    # image, so we clone the stable SDK, generate code, and build web.
+    buildCommand: >-
+      git clone --depth 1 -b stable https://github.com/flutter/flutter.git "$HOME/flutter"
+      && export PATH="$HOME/flutter/bin:$PATH"
+      && git config --global --add safe.directory "$HOME/flutter"
+      && cd apps/mobile
+      && flutter pub get
+      && dart run build_runner build --delete-conflicting-outputs
+      && flutter build web --release --dart-define=API_BASE_URL="$API_BASE_URL"
+    staticPublishPath: apps/mobile/build/web
+    pullRequestPreviewsEnabled: false
+    envVars:
+      # Public URL of the API the browser will call. Update if the API service
+      # is renamed or a custom domain is used.
+      - key: API_BASE_URL
+        value: https://mindos-api.onrender.com/v1
+    # SPA fallback so deep links resolve to the app entry point.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
