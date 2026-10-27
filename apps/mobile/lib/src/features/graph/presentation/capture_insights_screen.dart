@@ -2,15 +2,24 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../account/locale_defaults.dart';
+import '../../feedback/feedback_api.dart';
+import '../../feedback/feedback_thumbs.dart';
+import '../../finance/expense_categories.dart';
 import '../data/graph_models.dart';
 import '../graph_providers.dart';
+import 'graph_corrections.dart';
 import 'node_type_style.dart';
 
 /// Shows what the brain understood from a single capture: the extracted
 /// entities grouped by type and the connections between them. While the
 /// pipeline is still working, it shows a "thinking" state and polls until the
 /// capture is processed.
+///
+/// The user can rate it (👍/👎) and fix it (FR-2.4): tap an item to open its
+/// card, correct its name or remove it; confirm or reject each connection.
 class CaptureInsightsScreen extends ConsumerStatefulWidget {
   const CaptureInsightsScreen({super.key, required this.captureId});
 
@@ -83,6 +92,7 @@ class _InsightsBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
 
     if (entities.isPending) {
       return const _CenteredList(
@@ -117,9 +127,10 @@ class _InsightsBody extends StatelessWidget {
       );
     }
 
-    // Group nodes by type for a tidy, sectioned view.
+    // Group nodes by type for a tidy, sectioned view; expenses apart.
+    final expenses = entities.nodes.where((n) => n.expense != null).toList();
     final byType = <String, List<GraphNode>>{};
-    for (final n in entities.nodes) {
+    for (final n in entities.nodes.where((n) => n.expense == null)) {
       byType.putIfAbsent(n.type, () => []).add(n);
     }
     final titleById = {
@@ -140,9 +151,26 @@ class _InsightsBody extends StatelessWidget {
           'Esto entendí de tu captura',
           style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
+        Text(
+          'Toca un elemento para corregirlo o quitarlo.',
+          style: theme.textTheme.bodySmall?.copyWith(color: muted),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FeedbackThumbs(
+            target: FeedbackTarget.capture(entities.captureId),
+            prompt: '¿Lo entendí bien?',
+            thanks: 'Gracias. Si algo falló, corrígelo abajo.',
+          ),
+        ),
+        const SizedBox(height: 4),
         for (final type in types) ...[
           _TypeSection(type: type, nodes: byType[type]!),
+          const SizedBox(height: 8),
+        ],
+        if (expenses.isNotEmpty) ...[
+          _ExpenseSection(expenses: expenses),
           const SizedBox(height: 8),
         ],
         if (entities.edges.isNotEmpty) ...[
@@ -157,13 +185,13 @@ class _InsightsBody extends StatelessWidget {
   }
 }
 
-class _TypeSection extends StatelessWidget {
+class _TypeSection extends ConsumerWidget {
   const _TypeSection({required this.type, required this.nodes});
   final String type;
   final List<GraphNode> nodes;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final style = NodeTypeStyle.of(type);
     final theme = Theme.of(context);
     return Card(
@@ -191,13 +219,13 @@ class _TypeSection extends StatelessWidget {
               runSpacing: 8,
               children: [
                 for (final n in nodes)
-                  Chip(
+                  ActionChip(
+                    tooltip: 'Ver o corregir',
                     avatar: Icon(style.icon, size: 16, color: style.color),
-                    label: Text((n.title ?? '').trim().isEmpty
-                        ? '(sin título)'
-                        : n.title!.trim()),
+                    label: Text(n.label),
                     backgroundColor: style.color.withValues(alpha: 0.10),
                     side: BorderSide(color: style.color.withValues(alpha: 0.30)),
+                    onPressed: () => _openNodeActions(context, ref, n),
                   ),
               ],
             ),
@@ -208,20 +236,245 @@ class _TypeSection extends StatelessWidget {
   }
 }
 
-class _ConnectionTile extends StatelessWidget {
+/// Expenses mindOS found in the capture, with their amount.
+class _ExpenseSection extends ConsumerWidget {
+  const _ExpenseSection({required this.expenses});
+  final List<GraphNode> expenses;
+
+  Future<void> _actions(
+    BuildContext context,
+    WidgetRef ref,
+    GraphNode node,
+  ) async {
+    final e = node.expense!;
+    final style = ExpenseCategoryStyle.of(e.category);
+    final money = formatMoney(e.amount, e.currency);
+    final action = await showModalBottomSheet<_NodeAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(style.icon, color: style.color),
+              title: Text(money),
+              subtitle: Text('${style.label} · ${node.label}'),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: const Text('Ver en Finanzas'),
+              onTap: () => Navigator.of(ctx).pop(_NodeAction.open),
+            ),
+            ListTile(
+              leading: Icon(Icons.remove_circle_outline,
+                  color: Theme.of(ctx).colorScheme.error),
+              title: Text('No fue un gasto',
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+              onTap: () => Navigator.of(ctx).pop(_NodeAction.remove),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+    if (action == _NodeAction.open) {
+      context.push('/finance');
+      return;
+    }
+    await runCorrection(
+      context,
+      ref,
+      () => ref.read(graphApiClientProvider).removeNode(node.id),
+      done: 'Quitado de tus gastos.',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.account_balance_wallet_outlined,
+                    color: theme.colorScheme.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  expenses.length == 1 ? 'Gasto' : 'Gastos',
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final n in expenses)
+                  ActionChip(
+                    tooltip: 'Ver o corregir',
+                    avatar: Icon(ExpenseCategoryStyle.of(n.expense!.category).icon,
+                        size: 16,
+                        color: ExpenseCategoryStyle.of(n.expense!.category).color),
+                    label: Text(
+                      '${formatMoney(n.expense!.amount, n.expense!.currency)} · ${n.label}',
+                    ),
+                    onPressed: () => _actions(context, ref, n),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _NodeAction { open, rename, remove }
+
+/// The card of one extracted item: open its entity, fix its name (this capture
+/// only) or remove it ("no era eso").
+Future<void> _openNodeActions(
+  BuildContext context,
+  WidgetRef ref,
+  GraphNode node,
+) async {
+  final style = NodeTypeStyle.of(node.type);
+  final theme = Theme.of(context);
+  final action = await showModalBottomSheet<_NodeAction>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: Icon(style.icon, color: style.color),
+            title: Text(node.label, maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: Text(style.singular),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.open_in_new),
+            title: const Text('Ver ficha'),
+            subtitle: const Text('Todo lo que sé sobre esto'),
+            onTap: () => Navigator.of(ctx).pop(_NodeAction.open),
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('Corregir nombre'),
+            onTap: () => Navigator.of(ctx).pop(_NodeAction.rename),
+          ),
+          ListTile(
+            leading: Icon(Icons.remove_circle_outline,
+                color: theme.colorScheme.error),
+            title: Text('Quitar',
+                style: TextStyle(color: theme.colorScheme.error)),
+            subtitle: const Text('No era eso: dejaré de usarlo'),
+            onTap: () => Navigator.of(ctx).pop(_NodeAction.remove),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (action == null || !context.mounted) return;
+
+  final client = ref.read(graphApiClientProvider);
+  switch (action) {
+    case _NodeAction.open:
+      context.push('/node/${node.id}');
+    case _NodeAction.rename:
+      final title = await showRenameDialog(
+        context,
+        initial: node.title ?? '',
+        helper: 'Solo cambia en esta captura. Si ya existe con ese nombre, '
+            'se unen.',
+      );
+      if (title == null || !context.mounted) return;
+      await runCorrection(
+        context,
+        ref,
+        () => client.renameNode(node.id, title),
+        done: 'Corregido.',
+      );
+    case _NodeAction.remove:
+      final ok = await confirmForget(
+        context,
+        title: '¿Quitar «${node.label}»?',
+        message: 'Lo quito de esta captura y de sus conexiones. '
+            'Tu captura no se borra.',
+      );
+      if (!ok || !context.mounted) return;
+      await runCorrection(
+        context,
+        ref,
+        () => client.removeNode(node.id),
+        done: 'Quitado.',
+      );
+  }
+}
+
+class _ConnectionTile extends ConsumerWidget {
   const _ConnectionTile({required this.edge, required this.titleById});
   final GraphEdge edge;
   final Map<String, String> titleById;
 
+  Future<void> _review(BuildContext context, WidgetRef ref, bool ok) {
+    return runCorrection(
+      context,
+      ref,
+      () => ref
+          .read(graphApiClientProvider)
+          .reviewEdge(edge.id!, confirmed: ok),
+      done: ok ? 'Conexión confirmada.' : 'Conexión quitada.',
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     final source = titleById[edge.source] ?? '—';
     final target = titleById[edge.target] ?? '—';
+    Widget? trailing;
+    if (edge.userConfirmed) {
+      trailing = Tooltip(
+        message: 'Confirmada por ti',
+        child: Icon(Icons.verified, color: theme.colorScheme.primary),
+      );
+    } else if (edge.id != null) {
+      trailing = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Es correcto',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.check),
+            onPressed: () => _review(context, ref, true),
+          ),
+          IconButton(
+            tooltip: 'No es correcto',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.close),
+            onPressed: () => _review(context, ref, false),
+          ),
+        ],
+      );
+    }
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
         dense: true,
         leading: const Icon(Icons.link),
+        trailing: trailing,
         title: Text.rich(
           TextSpan(children: [
             TextSpan(

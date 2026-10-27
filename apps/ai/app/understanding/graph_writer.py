@@ -49,9 +49,13 @@ class PgGraphStore(GraphStore):
 
     async def load_capture(self, user_id: str, capture_id: str) -> CaptureRow | None:
         async with rls_tx(self._pool, user_id) as conn:
+            # users has no RLS (identity frontier); the capture row itself is
+            # RLS-scoped, so the join only ever reaches the caller's own user.
             row = await conn.fetchrow(
-                "SELECT id, status, body, attributes FROM nodes "
-                "WHERE id = $1 AND type = 'capture'",
+                "SELECT n.id, n.status, n.body, n.attributes, n.occurred_at, "
+                "n.created_at, u.currency FROM nodes n "
+                "LEFT JOIN users u ON u.id = n.user_id "
+                "WHERE n.id = $1 AND n.type = 'capture'",
                 capture_id,
             )
         if row is None:
@@ -64,6 +68,9 @@ class PgGraphStore(GraphStore):
             status=str(row["status"]),
             body=row["body"],
             attributes=attributes or {},
+            occurred_at=row["occurred_at"],
+            created_at=row["created_at"],
+            user_currency=row["currency"],
         )
 
     async def mark_processing(self, user_id: str, capture_id: str) -> None:

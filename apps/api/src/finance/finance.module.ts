@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { UsersModule } from '../users/users.module';
 import { FinanceController } from './finance.controller';
 import { FinanceService } from './finance.service';
 
@@ -8,7 +9,7 @@ import { FinanceService } from './finance.service';
  * the JWT guard and the global `PrismaModule` for RLS-scoped access.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, UsersModule],
   controllers: [FinanceController],
   providers: [FinanceService],
 })

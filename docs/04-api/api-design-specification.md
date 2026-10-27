@@ -14,11 +14,11 @@
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 0.1 (borrador para revisión) |
+| Versión | 0.5 |
 | Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00, #01, #02, #03 |
-| Última actualización | 2026-07-01 |
+| Última actualización | 2026-10-27 |
 
 ---
 
@@ -118,6 +118,28 @@ Códigos HTTP: `200/201` éxito, `202` aceptado (async), `400` validación,
 ---
 
 ## 5. Endpoints del MVP
+
+### 5.0 Estado de implementación (verificado en código, 2026-10-27)
+
+> El contrato de §5.1–§5.6 es la **referencia de diseño**. Lo que hay
+> **implementado hoy** en `apps/api` (NestJS) es lo de esta tabla. Ante una
+> discrepancia, para integrar manda la columna "Implementado".
+
+| Contrato de diseño | Estado | Implementado (`/v1`, JWT salvo auth y health) |
+|--------------------|--------|-----------------------------------------------|
+| `POST /auth/register`, `/auth/login`, `/auth/refresh` | ✅ | Igual, más `POST /auth/logout` (204). Límite de 5 peticiones por minuto |
+| `GET /account/export`, `DELETE /account` | ❌ | Pendiente (F4) |
+| `POST /captures` | ✅ | 202 + `Idempotency-Key`. Además: `POST /captures/audio-upload` (presign), `GET /captures`, `GET /captures/:id` |
+| `GET /nodes`, `GET /nodes/{id}`, `GET /nodes/{id}/connections`, `PATCH /nodes/{id}`, `PATCH /edges/{id}` | 🟡 | Bajo `/graph/*` (§5.7): listas agrupadas por nombre, ficha de entidad, renombrar, quitar y confirmar o rechazar conexiones (FR-2.4, mejoras-v2 PR D). Sin `connections` paginadas aparte: la ficha trae lo relacionado |
+| `POST /query` (SSE, fuentes = nodos) | 🟡 | **JSON síncrono, sin streaming.** Las fuentes son **capturas**, no nodos (§5.7) |
+| `GET /briefing` (secciones) | 🟡 | Forma simplificada: tareas + próximos eventos (§5.7). **Ninguna pantalla de la app lo usa** |
+| `POST /feedback` | ✅ | Un voto por objetivo (votar otra vez lo reemplaza), más `GET /feedback` para leer el voto actual (mejoras-v2 PR D) |
+| Tiempo real (WebSocket/SSE, ADR-013) | ❌ | No implementado. La app consulta cada 3 s mientras una captura se procesa |
+| — (fuera del contrato original) | ✅ | `/tasks`, `/growth/*` y `/finance/*`, adelantados por [ADR-020](../02-architecture/adr/ADR-020-life-modules-as-note-nodes.md) (§5.7) |
+
+⚠ **Convención:** las respuestas usan `snake_case`, pero las **entradas** de
+tasks y growth usan `camelCase` (`dueAt`, `targetDate`), a diferencia de
+captures (`occurred_at`). Está registrado como deuda (D-015).
 
 ### 5.1 Identity & Account
 
@@ -301,6 +323,145 @@ Devuelve el Daily Briefing priorizado por contexto temporal.
 
 ---
 
+### 5.7 Endpoints implementados (contrato real, 2026-10-27)
+
+Todos requieren JWT. Los datos se aíslan por usuario con RLS
+(`PrismaRlsService.withUser`).
+
+**Grafo y correcciones** (FR-2.4)
+
+La IA crea un nodo por captura y nombre: "Marcos" en cinco capturas son cinco
+filas. Personas, proyectos, eventos, temas y decisiones se **agrupan por nombre
+normalizado** (minúsculas, sin tildes ni puntuación en los bordes, mismas reglas
+que `normalize_label` en la IA). Tareas y notas van una a una.
+
+```json
+// GET /v1/graph/summary → 200: entidades distintas por tipo; tareas una a una; excluye capture y note
+{ "counts": { "task": 12, "person": 5, "topic": 9 }, "total": 26 }
+
+// GET /v1/graph/nodes?type=person&limit=20&cursor=… → 200 (type=capture → 400; limit 1..100)
+//   Agrupados: cursor = desplazamiento ("20"); orden = mención más reciente primero.
+//   task/note: cursor = id. `id` = la mención más reciente; `mentions` = cuántas.
+{ "data": [ { "id": "…", "type": "person", "title": "Marcos", "confidence": 0.9,
+              "occurred_at": null, "created_at": "…", "mentions": 3 } ], "next_cursor": null }
+
+// GET /v1/graph/nodes/:id → 200 (cualquier id de la entidad; 404 ajeno o borrado; 400 si es una captura)
+{ "id": "…", "type": "person", "title": "Marcos", "mentions": 3, "node_ids": ["…"],
+  "confidence": 0.9, "user_edited": false, "first_seen_at": "…", "last_seen_at": "…",
+  "captures": [ { "id": "…", "snippet": "Llamar a Marcos…", "modality": "voice", "occurred_at": null, "created_at": "…" } ],
+  "related":  [ { "id": "…", "type": "project", "title": "Aurora", "mentions": 2 } ],   // misma captura o arista directa
+  "tasks":    [ { "id": "…", "title": "Llamar a Marcos", "done": false, "priority": "high", "due_at": null } ] }
+
+// PATCH /v1/graph/nodes/:id { "title": "Marcos Pérez", "scope"?: "node" | "entity" } → 200
+//   node (por defecto): solo esa mención; si el nombre nuevo ya existe, se une a esa entidad.
+//   entity: todas las menciones. Marca attributes.user_edited.
+{ "id": "…", "type": "person", "title": "Marcos Pérez", "confidence": 0.9, "occurred_at": null, "created_at": "…", "updated": 3 }
+
+// DELETE /v1/graph/nodes/:id?scope=node|entity → 204
+//   Soft delete del nodo (o de todas las menciones) y de todas sus aristas. La captura no se toca.
+
+// PATCH /v1/graph/edges/:id { "confirmed": true | false } → 200
+//   true → user_confirmed; false → soft delete. derived_from (procedencia) → 400.
+{ "id": "…", "source": "…", "target": "…", "type": "assigned_to", "confidence": 0.8, "user_confirmed": true, "deleted": false }
+
+// GET /v1/graph/captures/:id/entities → 200 (404 si no es del usuario)
+{ "capture_id": "…", "status": "processed",
+  "nodes": [ /* GraphNode */ ],
+  "edges": [ { "id": "…", "source": "…", "target": "…", "type": "mentions", "confidence": 0.8, "user_confirmed": false } ] }
+```
+
+Reprocesar una captura no deshace las correcciones: el worker hace upsert por
+`dedup_key` y en conflicto solo actualiza `confidence`, así que un nodo borrado
+sigue borrado y un nombre corregido se mantiene (test de integración en
+`modules.integration.spec.ts`).
+
+**Feedback** (FR-3.5, North Star)
+```json
+// POST /v1/feedback → 201. Un voto por (usuario, target_type, target_id); votar otra vez lo reemplaza.
+//   target_type: capture | query | briefing | node
+//   target_id:   id de captura o nodo, la pregunta (≤ 1000) o el día local "YYYY-MM-DD" (briefing)
+{ "target_type": "capture", "target_id": "…", "useful": false, "reason"?: "faltó Ana" }
+→ { "id": "…", "target_type": "capture", "target_id": "…", "useful": false, "reason": "faltó Ana", "updated_at": "…" }
+
+// GET /v1/feedback?target_type=capture&target_id=… → 200
+{ "target_type": "capture", "target_id": "…", "useful": false }   // null si no votó
+```
+
+**Consulta (RAG)**
+```json
+// POST /v1/query  { "question": "¿Qué tengo con Marcos?" }   (1..1000 caracteres)
+// → 200 (la API reenvía a la IA: POST /internal/query, x-internal-token)
+{ "answer": "Tienes que llamar a Marcos mañana [1].",
+  "sources": [ { "capture_id": "…", "snippet": "Llamar a Marcos mañana…" } ] }
+// Si la IA no responde o está dormida (timeout 90 s) → 503 query_unavailable
+```
+
+**Briefing**
+```json
+// GET /v1/briefing → 200 ("hoy" en UTC, D-013)
+{ "generated_at": "…", "task_total": 7,
+  "tasks": [ { "id": "…", "title": "…" } ],                              // las 5 más recientes
+  "upcoming_events": [ { "id": "…", "title": "…", "occurred_at": "…" } ] } // desde hoy, máx. 5
+```
+
+**Tareas** (nodos `task`; las de la IA y las manuales comparten contrato)
+```json
+// GET /v1/tasks?filter=pending|all → 200 Task[]
+//   Orden: abiertas primero → prioridad high>medium>low → due_at asc (sin fecha al final) → created_at desc
+// POST /v1/tasks   { "title": "…", "priority": "high|medium|low"?, "dueAt": "ISO"?, "area": "…"? }
+// PATCH /v1/tasks/:id { "title"?, "done"?, "priority"?, "dueAt"?: "ISO"|null, "area"?: "…"|null }
+// Task:
+{ "id": "…", "title": "…", "done": false, "done_at": null, "priority": "medium",
+  "due_at": null, "area": null, "origin": "ai|manual_text", "created_at": "…" }
+```
+
+**Crecimiento** (nodos `note` con `attributes.kind` = `goal`, `habit` o `reflection`)
+```json
+// GET|POST /v1/growth/goals          POST { "title": "…", "targetDate"?: "ISO", "area"?: "…" }
+// PATCH    /v1/growth/goals/:id      { "title"?, "progress"?: 0..100, "targetDate"?: "ISO"|null }
+{ "id": "…", "title": "…", "progress": 40, "done": false, "target_date": null, "area": null, "created_at": "…" }
+
+// GET|POST /v1/growth/habits         POST { "title": "…", "cadence"?: "daily|weekly", "area"?: "…" }
+// POST     /v1/growth/habits/:id/check  → marca o desmarca hoy (UTC)
+{ "id": "…", "title": "…", "cadence": "daily", "streak": 3, "done_today": true, "area": null, "created_at": "…" }
+
+// GET|POST /v1/growth/reflections    POST { "body": "…", "mood"?: "…" }
+{ "id": "…", "body": "…", "mood": null, "created_at": "…" }
+```
+
+**Finanzas** (nodos `note` con `attributes.kind = expense`; los escribe el
+usuario o los detecta la IA en una captura, mejoras-v2 PR E)
+
+Categorías canónicas: `food`, `transport`, `home`, `health`, `leisure`,
+`shopping`, `bills`, `education`, `other`. Un texto libre antiguo ("comida",
+"Uber") se traduce a su clave; lo desconocido queda en `other`.
+
+```json
+// POST /v1/finance/expenses { "amount": 12.5, "category"?: "transport", "currency"?: "BRL",
+//                             "note"?: "Uber", "spent_at"?: "ISO (no futuro)" } → 201
+// GET  /v1/finance/expenses?limit=50&cursor=<id> → 200, lo último registrado primero
+{ "data": [ { "id": "…", "amount": 30, "category": "food", "currency": "BRL", "note": "almuerzo",
+              "spent_at": "…", "origin": "ai", "capture_id": "…", "created_at": "…" } ],
+  "next_cursor": null }
+// DELETE /v1/finance/expenses/:id → 204 (soft delete del gasto y de su arista de procedencia)
+
+// GET /v1/finance/summary → últimos 7 días locales frente a los 7 anteriores (zona y moneda del usuario)
+{ "currency": "BRL", "week_total": 120.4, "prev_week_total": 98.0, "change_pct": 23,
+  "daily": [0, 12.5, 0, 40, 0, 67.9, 0],
+  "by_category": [ { "category": "food", "total": 52.9 } ],
+  "other_currencies": [ { "currency": "USD", "week_total": 10 } ] }
+```
+
+Los gastos de la IA salen de una **segunda llamada pequeña** (`expenses-v1`)
+que solo se hace si la captura tiene pistas de dinero ($, R$, €, "gasté",
+"paguei", "spent"…). El prompt v8 y su gate no cambian. Solo cuentan los
+gastos ya hechos: un pago futuro es una tarea. La moneda sale del símbolo o
+código; si es ambigua ("$", "pesos"), se usa la del usuario. Se fecha con
+`occurred_at` de la captura (o su `created_at`). En "Lo que entendí", el nodo
+trae `expense: { amount, currency, category }`.
+
+---
+
 ## 6. Contrato de procesamiento asíncrono
 
 Cómo el cliente descubre que una captura ya fue comprendida (ADR-02):
@@ -368,3 +529,6 @@ Cómo el cliente descubre que una captura ya fue comprendida (ADR-02):
 |---------|-------|-------|---------|
 | 0.1 | 2026-07-01 | CTO | Borrador inicial. Estilo REST/JSON + SSE (ADR-013, antes "ADR-A1"), convenciones globales, mapa de recursos por contexto, endpoints del MVP (auth, captura, grafo, query streaming, briefing, feedback), contrato async, seguridad a nivel de API y non-goals. |
 | 0.2 | 2026-07-03 | CPTO | Consolidación de ADRs (D-004): la decisión de estilo de API embebida ("ADR-A1") se extrajo a un archivo individual [ADR-013](../02-architecture/adr/ADR-013-rest-json-sse-api-style.md) en `../02-architecture/adr/`; §2 deja solo un índice con enlace. Referencia cruzada normalizada a 3 dígitos. |
+| 0.5 | 2026-10-27 | CPTO | mejoras-v2 PR E: Finanzas con categorías canónicas, `GET`/`DELETE /v1/finance/expenses` y gastos detectados por la IA (segunda llamada `expenses-v1`, fuera del gate). |
+| 0.4 | 2026-10-27 | CPTO | mejoras-v2 PR D: §5.7 documenta las correcciones del grafo (listas agrupadas por nombre, ficha de entidad, renombrar, quitar, confirmar o rechazar conexiones) y `/v1/feedback` (votar y leer el voto). §5.0 actualizado. |
+| 0.3 | 2026-10-27 | CPTO | Añadidos **§5.0 Estado de implementación** (contrato de diseño frente a lo implementado) y **§5.7 Endpoints implementados**: graph, query JSON sin SSE, briefing simplificado, tasks, growth y finance (ADR-020). Se anotan la falta de feedback, edición del grafo, export y borrado, y tiempo real, además de la inconsistencia camelCase/snake_case en las entradas (D-015). Corrige la deriva D-017. |

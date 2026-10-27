@@ -6,8 +6,8 @@ import 'local/capture_tables.dart';
 /// touch the real filesystem.
 typedef AudioBytesReader = Future<List<int>> Function(String localPath);
 
-/// Content-type used when presigning voice uploads. The device records m4a.
-const String _voiceContentType = 'audio/m4a';
+/// Fallback content-type for legacy voice rows without a stored MIME type.
+const String _voiceContentType = 'audio/mp4';
 
 /// Summary of a single drain pass, useful for logging/telemetry and tests.
 class SyncReport {
@@ -104,51 +104,57 @@ class SyncService {
   /// Sync a single capture through the state machine.
   Future<_Outcome> _syncOne(LocalCapture capture, DateTime now) async {
     try {
-      var audioRef = capture.audioRef;
-
-      // Voice captures without an audio_ref: presign + upload first.
-      if (capture.type == CaptureKind.voice && audioRef == null) {
-        final localPath = capture.audioLocalPath;
-        if (localPath == null) {
-          // A voice capture with neither audio_ref nor a local file cannot be
-          // completed — terminal validation error.
-          await _db.markFailed(capture.clientId);
-          return _Outcome.failed;
-        }
-        await _db.setSyncState(capture.clientId, SyncState.uploadingAudio);
-        final bytes = await _audioReader(localPath);
-        final presign = await _api.presignAudio(
-          contentType: _voiceContentType,
-          sizeBytes: bytes.length,
-        );
-        await _api.uploadAudio(
-          uploadUrl: presign.uploadUrl,
-          bytes: bytes,
-          contentType: _voiceContentType,
-        );
-        audioRef = presign.audioRef;
-        await _db.setAudioRef(capture.clientId, audioRef);
+      if (capture.type == CaptureKind.voice) {
+        return await _syncVoice(capture);
       }
 
       await _db.setSyncState(capture.clientId, SyncState.syncing);
-
       final result = await _api.createCapture(
         idempotencyKey: capture.clientId,
-        body: _buildBody(capture, audioRef),
+        body: _buildBody(capture, capture.audioRef),
       );
 
       // 202 created / 200 already existed -> synced (R6.3).
       await _db.markSynced(capture.clientId, result.captureId);
       return _Outcome.synced;
-    } on CaptureValidationException {
+    } on CaptureValidationException catch (e) {
       // 4xx -> terminal, no automatic retry (R6.6).
-      await _db.markFailed(capture.clientId);
+      await _db.markFailed(capture.clientId, reason: e.userMessage);
       return _Outcome.failed;
     } on CaptureTransientException {
       // 5xx / timeout / no network -> backoff + retry (R6.5).
       await _scheduleBackoff(capture, now);
       return _Outcome.retry;
     }
+  }
+
+  /// Voice notes (ADR-021): send the recorded bytes to `/captures/voice`; the
+  /// server transcribes and discards them. On success the transcript becomes
+  /// the local content and the bytes are freed. Legacy rows that only have a
+  /// file path are read from disk once.
+  Future<_Outcome> _syncVoice(LocalCapture capture) async {
+    List<int>? audio = capture.audioData;
+    if (audio == null && capture.audioLocalPath != null) {
+      audio = await _audioReader(capture.audioLocalPath!);
+    }
+    if (audio == null || audio.isEmpty) {
+      // Nothing to send — terminal (cannot be completed).
+      await _db.markFailed(capture.clientId,
+          reason: 'La grabación se perdió. Graba de nuevo.');
+      return _Outcome.failed;
+    }
+
+    await _db.setSyncState(capture.clientId, SyncState.uploadingAudio);
+    final result = await _api.createVoiceCapture(
+      idempotencyKey: capture.clientId,
+      audio: audio,
+      contentType: capture.audioMime ?? _voiceContentType,
+      clientId: capture.clientId,
+      occurredAt: capture.occurredAt,
+      durationMs: capture.audioDurationMs,
+    );
+    await _db.markVoiceSynced(capture.clientId, result.captureId, result.content);
+    return _Outcome.synced;
   }
 
   /// Build the `POST /v1/captures` body from the local row.

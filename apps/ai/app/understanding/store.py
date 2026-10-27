@@ -14,7 +14,8 @@ the isolation contract (P-COMP-4) at the logic level.
 
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import datetime
 
 from app.providers.base import Embedding, Usage
 from app.understanding.enrichment import CAPTURE_REF, EnrichmentPlan
@@ -28,6 +29,12 @@ class CaptureRow:
     status: str  # raw | processing | processed | failed
     body: str | None
     attributes: dict = field(default_factory=dict)
+    # When the user says it happened (offline captures) and when it was stored;
+    # an expense detected in the capture is dated with the first available.
+    occurred_at: datetime | None = None
+    created_at: datetime | None = None
+    # The owner's ISO-4217 currency (users.currency); null = not chosen yet.
+    user_currency: str | None = None
 
 
 class GraphStore(ABC):
@@ -87,9 +94,18 @@ class InMemoryGraphStore(GraphStore):
         body: str | None,
         status: str = "raw",
         attributes: dict | None = None,
+        occurred_at: datetime | None = None,
+        created_at: datetime | None = None,
+        user_currency: str | None = None,
     ) -> None:
         self._captures[(user_id, capture_id)] = CaptureRow(
-            id=capture_id, status=status, body=body, attributes=attributes or {}
+            id=capture_id,
+            status=status,
+            body=body,
+            attributes=attributes or {},
+            occurred_at=occurred_at,
+            created_at=created_at,
+            user_currency=user_currency,
         )
 
     def nodes_for(self, user_id: str) -> list[dict]:
@@ -106,12 +122,7 @@ class InMemoryGraphStore(GraphStore):
         current = self._captures.get((user_id, capture_id))
         if current is None:
             return  # RLS: not this user's row — silent no-op
-        self._captures[(user_id, capture_id)] = CaptureRow(
-            id=current.id,
-            status=status,
-            body=current.body,
-            attributes=current.attributes,
-        )
+        self._captures[(user_id, capture_id)] = replace(current, status=status)
 
     async def mark_processing(self, user_id: str, capture_id: str) -> None:
         await self._set_status(user_id, capture_id, "processing")

@@ -88,6 +88,17 @@ class AuthController extends StateNotifier<AuthState> {
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 
+  /// The server rejected the session (refresh token expired or revoked): clear
+  /// it locally and send the user to the login screen with a friendly message.
+  Future<void> expireSession() async {
+    if (state.status == AuthStatus.unauthenticated) return;
+    await _store.clear();
+    state = const AuthState(
+      status: AuthStatus.unauthenticated,
+      errorMessage: 'Tu sesión expiró. Inicia sesión de nuevo.',
+    );
+  }
+
   /// Clear any surfaced error (e.g. when the user edits the form again).
   void clearError() {
     if (state.errorMessage != null) {

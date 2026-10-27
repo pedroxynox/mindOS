@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaRlsService } from '../prisma/prisma-rls.service';
 import { CreateTaskDto } from './dto/create-task.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
+import { resolveDueAt, UpdateTaskDto } from './dto/update-task.dto';
 import { compareTasks, TaskResponse, toTaskResponse } from './tasks.mapper';
 
 /**
@@ -48,7 +48,7 @@ export class TasksService {
       done: false,
       done_at: null,
       priority: dto.priority ?? 'medium',
-      due_at: dto.dueAt ?? null,
+      due_at: resolveDueAt(dto) ?? null,
       ...(dto.area ? { area: dto.area } : {}),
     };
     const node = await this.rls.withUser(userId, (tx) =>
@@ -99,7 +99,8 @@ export class TasksService {
         next.done_at = dto.done ? new Date().toISOString() : null;
       }
       if (dto.priority !== undefined) next.priority = dto.priority;
-      if (dto.dueAt !== undefined) next.due_at = dto.dueAt; // null clears it
+      const dueAt = resolveDueAt(dto);
+      if (dueAt !== undefined) next.due_at = dueAt; // null clears it
       if (dto.area !== undefined) {
         if (dto.area === null) delete next.area;
         else next.area = dto.area;
@@ -122,6 +123,30 @@ export class TasksService {
         },
       });
       return toTaskResponse(updated);
+    });
+  }
+
+  /**
+   * Soft-delete a task (sets `deleted_at`). AI-extracted tasks keep their
+   * provenance row, so reprocessing the capture never resurrects them: the
+   * GraphWriter upserts by dedup key and only refreshes `confidence`.
+   */
+  async remove(userId: string, id: string): Promise<void> {
+    await this.rls.withUser(userId, async (tx) => {
+      const existing = await tx.node.findFirst({
+        where: { id, userId, type: 'task', deletedAt: null },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new NotFoundException({
+          code: 'not_found',
+          message: 'Task not found.',
+        });
+      }
+      await tx.node.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
     });
   }
 }

@@ -21,7 +21,10 @@ export class ListNodesQueryDto {
   @Max(100)
   limit: number = 20;
 
-  /** Opaque cursor (a node id) for the next page. */
+  /**
+   * Opaque cursor for the next page: a node id for tasks/notes, an offset for
+   * the grouped types (people, projects, ...). Clients just echo `next_cursor`.
+   */
   @IsOptional()
   @IsString()
   cursor?: string;

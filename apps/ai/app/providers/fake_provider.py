@@ -13,6 +13,7 @@ It implements the same ``AIProvider`` contract as the real vendors. For
 import hashlib
 import json
 import re
+import unicodedata
 
 from app.providers.base import AIProvider, Completion, Embedding, Usage
 from app.understanding.text_utils import normalize_label
@@ -251,6 +252,116 @@ def _heuristic_extraction(text: str) -> dict:
     return {"entities": entities, "tasks": tasks, "connections": connections}
 
 
+# --- Expense heuristic (second call, mejoras-v2 §E) ----------------------------
+# An amount with an explicit currency marker, before or after the number.
+_AMOUNT = r"(\d+(?:[.,]\d{3})*(?:[.,]\d{1,2})?)"
+_MONEY_BEFORE = re.compile(
+    r"(r\$|us\$|€|£|s/|\$|usd|eur|brl|mxn|cop|ars|clp|pen)\s?" + _AMOUNT,
+    re.IGNORECASE,
+)
+_MONEY_AFTER = re.compile(
+    _AMOUNT
+    + r"\s?(€|(?:reais|euros?|dolares|dollars?|pesos?|soles|bucks|usd|eur|brl"
+    r"|mxn|cop|ars|clp|pen)\b)",
+    re.IGNORECASE,
+)
+_CURRENCY_OF = {
+    "r$": "BRL", "reais": "BRL", "brl": "BRL",
+    "€": "EUR", "euro": "EUR", "euros": "EUR", "eur": "EUR",
+    "us$": "USD", "usd": "USD", "dolares": "USD", "dollar": "USD",
+    "dollars": "USD", "bucks": "USD",
+    "£": "GBP", "s/": "PEN", "soles": "PEN", "pen": "PEN",
+    "mxn": "MXN", "cop": "COP", "ars": "ARS", "clp": "CLP",
+}
+# A sentence about a FUTURE or pending payment is a task, not an expense.
+_FUTURE_MARKERS = (
+    "tengo que", "hay que", "tenemos que", "debo", "vou ", "preciso",
+    "need to", "have to", "will ", "going to", "manana", "tomorrow", "amanha",
+    "pagar ", "pay ",
+)
+_EXPENSE_CATEGORY_LEXICON = (
+    ("food", ("almuerzo", "almoco", "comida", "cena", "jantar", "cafe", "coffee",
+              "lunch", "dinner", "super", "mercado", "groceries", "restaurante",
+              "pizza", "pan")),
+    ("transport", ("uber", "taxi", "bus", "onibus", "gasolina", "nafta", "fuel",
+                   "metro", "parking", "estacionamiento", "pasaje")),
+    ("health", ("farmacia", "pharmacy", "medico", "doctor", "dentista",
+                "remedio", "medicina")),
+    ("bills", ("luz", "agua", "internet", "telefono", "celular", "electricity",
+               "water bill", "phone bill", "seguro", "impuesto")),
+    ("home", ("alquiler", "aluguel", "rent", "arriendo", "renta", "mueble")),
+    ("leisure", ("cine", "cinema", "movie", "bar", "netflix", "spotify",
+                 "concierto", "show", "viaje")),
+    ("shopping", ("ropa", "roupa", "zapatos", "clothes", "shoes", "regalo",
+                  "gift", "celular nuevo")),
+    ("education", ("curso", "course", "libro", "book", "escuela", "school",
+                   "universidad", "matricula")),
+)
+
+
+_SENTENCE_SPLIT = re.compile(r"[.!?;]+(?=\s|$)|\n+")
+# Clause joins inside a sentence — never the separators inside "1.200,50".
+_CLAUSE_SPLIT = re.compile(r",(?=\s)|\s(?:y|e|and)\s", re.IGNORECASE)
+_PAST_SPEND = re.compile(
+    r"\b(?:gaste|gastei|gasto|gastamos|pague|paguei|pago|pagamos|compre|"
+    r"comprei|compro|compramos|spent|paid|bought|costo|custou|me salio)\b"
+)
+
+
+def _fold(text: str) -> str:
+    """Drop diacritics only (keeps case, symbols and digits)."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def _clause_expenses(clause: str, folded: str) -> list[dict]:
+    raw = _fold(clause)
+    found: list[tuple[int, str, str]] = []
+    for m in _MONEY_BEFORE.finditer(raw):
+        found.append((m.start(), m.group(2), m.group(1)))
+    for m in _MONEY_AFTER.finditer(raw):
+        if not any(abs(m.start() - start) < 3 for start, _, _ in found):
+            found.append((m.start(), m.group(1), m.group(2)))
+    category = next(
+        (
+            c
+            for c, words in _EXPENSE_CATEGORY_LEXICON
+            if any(w in folded for w in words)
+        ),
+        "other",
+    )
+    return [
+        {
+            "amount": amount,
+            "currency": _CURRENCY_OF.get(marker.lower()),
+            "category": category,
+            "description": clause.strip()[:60],
+        }
+        for _, amount, marker in sorted(found)
+    ]
+
+
+def _heuristic_expenses(text: str) -> dict:
+    """Deterministic stand-in for the expense call: explicit amounts in
+    clauses that are not about a future payment. Future intent carries over
+    to the next clauses of the sentence until a past spending verb appears
+    ("tengo que pagar la luz, son 300 pesos" is one pending payment)."""
+    expenses: list[dict] = []
+    for sentence in _SENTENCE_SPLIT.split(text):
+        future = False
+        for clause in _CLAUSE_SPLIT.split(sentence):
+            folded = normalize_label(clause)
+            if not folded:
+                continue
+            if _PAST_SPEND.search(folded):
+                future = False
+            if any(m in f"{folded} " for m in _FUTURE_MARKERS):
+                future = True
+            if not future:
+                expenses.extend(_clause_expenses(clause, folded))
+    return {"expenses": expenses}
+
+
 def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
@@ -262,8 +373,10 @@ class FakeProvider(AIProvider):
         self, prompt: str, *, schema: dict | None = None
     ) -> Completion:
         text = _extract_capture_text(prompt)
-        extraction = _heuristic_extraction(text)
-        payload = json.dumps(extraction, ensure_ascii=False)
+        if schema is not None and "expenses" in schema.get("properties", {}):
+            payload = json.dumps(_heuristic_expenses(text), ensure_ascii=False)
+        else:
+            payload = json.dumps(_heuristic_extraction(text), ensure_ascii=False)
         usage = Usage(
             provider=_PROVIDER_NAME,
             model=_COMPLETE_MODEL,
@@ -273,6 +386,25 @@ class FakeProvider(AIProvider):
             cost_usd=0.0,
         )
         return Completion(text=payload, usage=usage)
+
+    async def complete_text(self, prompt: str) -> Completion:
+        # Deterministic "grounded" answer: echo the first numbered note of a RAG
+        # prompt with its citation, so offline/dev runs look sensible.
+        notes = re.findall(r"^\[(\d+)\]\s*(.+)$", prompt, flags=re.MULTILINE)
+        if notes:
+            number, note = notes[0]
+            text = f"Según tus notas: {note.strip()} [{number}]."
+        else:
+            text = "No tengo esa información registrada en tus notas."
+        usage = Usage(
+            provider=_PROVIDER_NAME,
+            model=_COMPLETE_MODEL,
+            operation="complete",
+            input_tokens=_estimate_tokens(prompt),
+            output_tokens=_estimate_tokens(text),
+            cost_usd=0.0,
+        )
+        return Completion(text=text, usage=usage)
 
     async def embed(self, text: str) -> Embedding:
         # Deterministic pseudo-embedding derived from a stable hash of the text.
@@ -291,9 +423,20 @@ class FakeProvider(AIProvider):
         )
         return Embedding(vector=vector, dim=_EMBED_DIM, usage=usage)
 
-    async def transcribe(self, audio_bytes: bytes, content_type: str) -> Completion:
-        # Not exercised by the PoC; kept deterministic for contract completeness.
-        text = f"[fake transcription of {len(audio_bytes)} bytes]"
+    async def transcribe(
+        self,
+        audio_bytes: bytes,
+        content_type: str,
+        *,
+        duration_s: float | None = None,
+    ) -> Completion:
+        # Deterministic offline stand-in: empty audio -> empty transcript (lets
+        # the API's "nothing was heard" path be exercised end to end).
+        text = (
+            f"Nota de voz de prueba ({len(audio_bytes)} bytes)"
+            if audio_bytes
+            else ""
+        )
         usage = Usage(
             provider=_PROVIDER_NAME,
             model="fake-stt-1",

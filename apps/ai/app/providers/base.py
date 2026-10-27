@@ -51,14 +51,33 @@ class AIProvider(ABC):
     async def complete(self, prompt: str, *, schema: dict | None = None) -> Completion:
         """Complete/structure text. ``schema`` requests typed JSON output."""
 
+    async def complete_text(self, prompt: str) -> Completion:
+        """Free-form (plain text) completion, e.g. a grounded RAG answer.
+
+        ``complete`` is JSON-mode by contract (structured extraction); answers
+        meant for a human must NOT go through it, or the user sees raw JSON.
+        Providers override this; the default refuses loudly rather than
+        silently returning JSON.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement complete_text"
+        )
+
     @abstractmethod
     async def embed(self, text: str) -> Embedding:
         """Return an embedding for the text. ``dim`` is provider-specific (D-008)."""
 
     @abstractmethod
-    async def transcribe(self, audio_bytes: bytes, content_type: str) -> Completion:
-        """Transcribe speech to text.
+    async def transcribe(
+        self,
+        audio_bytes: bytes,
+        content_type: str,
+        *,
+        duration_s: float | None = None,
+    ) -> Completion:
+        """Transcribe speech to text (voice notes, ADR-021).
 
-        Declared for contract completeness (used when a voice capture has no
-        ``body``). The comprehension PoC does not exercise this path.
+        ``duration_s`` (when the client knows it) lets per-minute-billed models
+        attribute an accurate cost. The returned ``Completion.text`` is the
+        transcript (may be empty when nothing intelligible was said).
         """

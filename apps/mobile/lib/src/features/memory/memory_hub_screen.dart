@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../capture/capture_providers.dart';
+import '../capture/data/capture_history_api.dart';
+import '../capture/data/local/app_database.dart';
 import '../graph/graph_providers.dart';
 import '../graph/presentation/node_type_style.dart';
 import '../../widgets/cosmic_background.dart';
@@ -32,6 +34,7 @@ class MemoryHubScreen extends ConsumerWidget {
           child: RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(graphSummaryProvider);
+              ref.invalidate(serverCapturesProvider);
               try {
                 await ref.read(graphSummaryProvider.future);
               } catch (_) {}
@@ -101,45 +104,9 @@ class MemoryHubScreen extends ConsumerWidget {
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 12),
-                captures.when(
-                  loading: () => const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                  error: (_, __) =>
-                      const Text('No se pudieron cargar las capturas.'),
-                  data: (items) {
-                    if (items.isEmpty) {
-                      return Text(
-                        'Tus capturas aparecerán aquí como una línea de tiempo.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant),
-                      );
-                    }
-                    final recent = items.take(10).toList();
-                    return Column(
-                      children: [
-                        for (var i = 0; i < recent.length; i++)
-                          FadeInUp(
-                            delay: Duration(milliseconds: 50 * i),
-                            child: _TimelineRow(
-                              title:
-                                  (recent[i].content?.trim().isNotEmpty ?? false)
-                                      ? recent[i].content!.trim()
-                                      : '(sin contenido)',
-                              subtitle: recent[i].serverId != null
-                                  ? 'Ver lo que entendí'
-                                  : 'Sincronizando...',
-                              isLast: i == recent.length - 1,
-                              onTap: recent[i].serverId == null
-                                  ? null
-                                  : () => context.push(
-                                      '/capture/${recent[i].serverId}/insights'),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
+                _Timeline(
+                  local: captures.valueOrNull ?? const [],
+                  server: ref.watch(serverCapturesProvider),
                 ),
               ],
             ),
@@ -148,6 +115,90 @@ class MemoryHubScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Timeline of recent captures: the SERVER history (any device), with this
+/// device's not-yet-synced captures on top so nothing just written is missing.
+class _Timeline extends StatelessWidget {
+  const _Timeline({required this.local, required this.server});
+
+  final List<LocalCapture> local;
+  final AsyncValue<List<ServerCapture>> server;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final unsynced = local.where((c) => c.serverId == null).toList();
+    final remote = server.valueOrNull ?? const <ServerCapture>[];
+
+    final rows = <_TimelineItem>[
+      for (final c in unsynced)
+        _TimelineItem(
+          title: c.content,
+          isVoice: c.type == 'voice',
+          subtitle: 'Sin sincronizar todavía',
+        ),
+      for (final c in remote)
+        _TimelineItem(
+          title: c.content,
+          isVoice: c.isVoice,
+          subtitle: c.isPending
+              ? 'mindOS lo está entendiendo…'
+              : c.status == 'failed'
+                  ? 'No pude procesarla'
+                  : 'Ver lo que entendí',
+          captureId: c.id,
+        ),
+    ].take(20).toList();
+
+    if (rows.isEmpty) {
+      if (server.isLoading) {
+        return const Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+      return Text(
+        server.hasError
+            ? 'No se pudieron cargar tus capturas.'
+            : 'Tus capturas aparecerán aquí como una línea de tiempo.',
+        style: theme.textTheme.bodyMedium
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      );
+    }
+
+    return Column(
+      children: [
+        for (var i = 0; i < rows.length; i++)
+          FadeInUp(
+            delay: Duration(milliseconds: 40 * i.clamp(0, 8)),
+            child: _TimelineRow(
+              title: (rows[i].title?.trim().isNotEmpty ?? false)
+                  ? rows[i].title!.trim()
+                  : (rows[i].isVoice ? 'Nota de voz' : '(sin contenido)'),
+              subtitle: rows[i].subtitle,
+              isLast: i == rows.length - 1,
+              onTap: rows[i].captureId == null
+                  ? null
+                  : () => context.push('/capture/${rows[i].captureId}/insights'),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _TimelineItem {
+  const _TimelineItem({
+    required this.title,
+    required this.isVoice,
+    required this.subtitle,
+    this.captureId,
+  });
+  final String? title;
+  final bool isVoice;
+  final String subtitle;
+  final String? captureId;
 }
 
 class _CountChip extends StatelessWidget {

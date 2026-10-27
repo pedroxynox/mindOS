@@ -1,16 +1,20 @@
 import { Node } from '@prisma/client';
+import { TaskPriority } from '../tasks/dto/create-task.dto';
 
 /**
  * Wire shapes for the Daily Briefing (`GET /v1/briefing`). The briefing is a
- * proactive glance at what matters now: how many tasks the user has (with a few
- * recent ones) and the events coming up. Snake_case per API conventions (#04).
+ * proactive glance at what matters now: the PENDING tasks that matter most,
+ * what is overdue or due today, who is waiting on the user, and the events
+ * coming up. Snake_case per API conventions (#04).
  *
  * The natural-language greeting/headline is composed on the CLIENT so it can use
- * the device's local time and locale; the server only returns structured data.
+ * the device's locale; the server only returns structured data.
  */
-export interface BriefingItem {
+export interface BriefingTask {
   id: string;
   title: string | null;
+  priority: TaskPriority;
+  due_at: string | null;
 }
 
 export interface BriefingEvent {
@@ -19,20 +23,26 @@ export interface BriefingEvent {
   occurred_at: string;
 }
 
-export interface BriefingResponse {
-  generated_at: string;
-  /** Total number of task nodes the user has. */
-  task_total: number;
-  /** A few most-recent tasks (title preview). */
-  tasks: BriefingItem[];
-  /** Upcoming events (occurring today or later), soonest first. */
-  upcoming_events: BriefingEvent[];
+/** A person the user has pending tasks with (via `assigned_to` edges). */
+export interface BriefingPerson {
+  name: string;
+  pending_count: number;
 }
 
-export function toBriefingItem(
-  node: Pick<Node, 'id' | 'title'>,
-): BriefingItem {
-  return { id: node.id, title: node.title };
+export interface BriefingResponse {
+  generated_at: string;
+  /** Number of PENDING (not done) tasks. */
+  task_total: number;
+  /** Pending tasks whose due date has already passed. */
+  overdue_count: number;
+  /** Pending tasks due later today (not yet overdue). */
+  due_today_count: number;
+  /** The most important pending tasks, in the same order as `/v1/tasks`. */
+  tasks: BriefingTask[];
+  /** Upcoming events (occurring today or later), soonest first. */
+  upcoming_events: BriefingEvent[];
+  /** People with pending tasks, most pending first. */
+  people: BriefingPerson[];
 }
 
 export function toBriefingEvent(

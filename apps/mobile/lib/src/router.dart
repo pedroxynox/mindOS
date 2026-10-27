@@ -2,13 +2,16 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'features/account/presentation/account_screen.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/auth_providers.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/auth/presentation/register_screen.dart';
 import 'features/capture/presentation/capture_screen.dart';
+import 'features/finance/presentation/finance_screen.dart';
 import 'features/graph/presentation/ask_screen.dart';
 import 'features/graph/presentation/capture_insights_screen.dart';
+import 'features/graph/presentation/entity_screen.dart';
 import 'features/graph/presentation/nodes_list_screen.dart';
 import 'features/growth/presentation/growth_screen.dart';
 import 'features/home/home_screen.dart';
@@ -17,13 +20,12 @@ import 'features/tasks/presentation/tasks_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
-/// Application router (GoRouter) with an authentication guard and a bottom-nav
-/// shell for the signed-in sections.
+/// Application router (GoRouter) with an authentication guard.
 ///
 /// - `/login` and `/register` are the only routes reachable while signed out.
-/// - The signed-in area is a [StatefulShellRoute] with four branches (Hoy,
-///   Tareas, Crecimiento, Preguntar); focused screens (capture, insights, node
-///   lists) push over the shell on the root navigator.
+/// - Signed in, Hoy (`/`) is the base; every other section (Conversar,
+///   Memoria, Capturar, Tareas, Crecimiento, …) is pushed over it with a back
+///   arrow, matching the chat / + / search bottom bar of the design.
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
   ref.listen(authControllerProvider, (_, __) => refresh.value++);
@@ -63,12 +65,19 @@ final routerProvider = Provider<GoRouter>((ref) {
             CaptureInsightsScreen(captureId: state.pathParameters['id']!),
       ),
       GoRoute(
+        path: '/node/:id',
+        builder: (_, state) =>
+            EntityScreen(nodeId: state.pathParameters['id']!),
+      ),
+      GoRoute(
         path: '/graph/:type',
         builder: (_, state) =>
             NodesListScreen(type: state.pathParameters['type']!),
       ),
       GoRoute(path: '/tasks', builder: (_, __) => const TasksScreen()),
       GoRoute(path: '/growth', builder: (_, __) => const GrowthScreen()),
+      GoRoute(path: '/finance', builder: (_, __) => const FinanceScreen()),
+      GoRoute(path: '/account', builder: (_, __) => const AccountScreen()),
     ],
   );
 });

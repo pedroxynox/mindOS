@@ -12,6 +12,8 @@ import { QueryModule } from './query/query.module';
 import { TasksModule } from './tasks/tasks.module';
 import { GrowthModule } from './growth/growth.module';
 import { FinanceModule } from './finance/finance.module';
+import { FeedbackModule } from './feedback/feedback.module';
+import { UsersModule } from './users/users.module';
 
 /**
  * Root module of the mindOS business API.
@@ -38,6 +40,7 @@ import { FinanceModule } from './finance/finance.module';
     PrismaModule,
     HealthModule,
     AuthModule,
+    UsersModule,
     CaptureModule,
     GraphModule,
     BriefingModule,
@@ -45,6 +48,7 @@ import { FinanceModule } from './finance/finance.module';
     TasksModule,
     GrowthModule,
     FinanceModule,
+    FeedbackModule,
   ],
   providers: [
     {

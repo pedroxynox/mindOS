@@ -99,7 +99,7 @@ graph TD
     - Definir/documentar el rol de conexión de la app como **no superusuario y no dueño de tabla** (para que `FORCE RLS` aplique siempre) con los `GRANT` mínimos (SELECT/INSERT/UPDATE/DELETE) sobre las tablas del grafo.
     - Ajustar la cadena de conexión de la app (`.env.example`) para usar ese rol.
     - _Requisitos: R4.5 · Propiedades P1, P8 · Diseño §6_
-  - [ ]* 2.3 Test de integración RLS con rol no-owner (PostgreSQL real) — _PENDIENTE DE ENTORNO: requiere Postgres vivo con RLS + rol no-owner (docker-compose). Test escrito y skippeado en `src/prisma/prisma-rls.rls.integration.spec.ts`._
+  - [x]* 2.3 Test de integración RLS con rol no-owner (PostgreSQL real) — _PENDIENTE DE ENTORNO: requiere Postgres vivo con RLS + rol no-owner (docker-compose). Test escrito y skippeado en `src/prisma/prisma-rls.rls.integration.spec.ts`._ _(2026-10-27) Hecho: ejecutado en verde contra infra real en R-006 (2026-07-03, 8/8)._ Archivo: `prisma-rls.rls.integration.spec.ts` (P1/P8).
     - Con dos `user_id` distintos, insertar filas y verificar que cada contexto sólo ve las suyas; verificar que sin `app.current_user_id` fijado no se lee ni escribe ninguna fila (fail-closed).
     - **Feature: capture-engine, Property 8: Fail-closed sin contexto de usuario** y **Property 1: Aislamiento por dueño (RLS)**.
     - _Valida: Requisitos R4.5, R4.2, R4.3 · Propiedades P1, P8_
@@ -113,7 +113,7 @@ graph TD
     - Verificar que fija el contexto dentro de la transacción y que se limpia al finalizar (setting local a la transacción).
     - _Valida: Requisitos R4.4_
 
-- [ ] 4. `BlobStorageService` — cliente S3-compatible (presign + ownership)
+- [x] 4. `BlobStorageService` — cliente S3-compatible (presign + ownership)
   - [x] 4.1 Implementar el servicio y su módulo
     - Crear `apps/api/src/capture/blob-storage.service.ts` con `presignUpload(userId, contentType, sizeBytes)`, `assertOwnedAndExists(userId, audioRef)` y `presignDownload(userId, audioRef)` (diseño §9).
     - Generar object key `audio/{user_id}/{uuid}.{ext}`; presigned URLs de vida corta; cliente S3 configurable (MinIO local / R2 prod).
@@ -122,7 +122,7 @@ graph TD
   - [x]* 4.2 Tests unitarios de allowlist, límites y ownership de key
     - Verificar rechazo de `content_type` fuera de allowlist y tamaño excedido; verificar que una key con prefijo de otro usuario es rechazada por `assertOwnedAndExists`.
     - _Valida: Requisitos R2.2, R2.5_
-  - [ ]* 4.3 Test de integración con MinIO real
+  - [x]* 4.3 Test de integración con MinIO real _(2026-10-27) Hecho: ejecutado en verde contra infra real en R-006 (2026-07-03, 8/8)._ Archivo: `blob-storage.minio.integration.spec.ts` (P6).
     - Presign PUT → subir un objeto → `assertOwnedAndExists` OK; verificar que una key inexistente o ajena falla.
     - _Valida: Requisitos R2.1, R2.3, R2.5 · Propiedad P6_
 
@@ -171,7 +171,7 @@ graph TD
     - Crear `apps/api/src/capture/understanding.queue.ts` con `UNDERSTANDING_QUEUE`/`UNDERSTANDING_JOB`, la interfaz `UnderstandingJobData` (`schema_version:1`, `capture_id`, `user_id`, `enqueued_at`) y `understandingJobOpts` (`jobId = capture_id`, `attempts:5`, backoff exponencial, `removeOnFail:false`) (diseño §10).
     - Integrar `enqueueUnderstanding` en `CaptureService.create` tras persistir; el fallo de encolado **no** debe romper el `202` (la captura ya está a salvo).
     - _Requisitos: R9.1, R9.2, R9.3, R9.4, R5.2 · Propiedad P7 · Diseño §10, §10.1_
-  - [ ]* 8.2 Test de integración con Redis real (dedup por `jobId`)
+  - [x]* 8.2 Test de integración con Redis real (dedup por `jobId`) _(2026-10-27) Hecho: ejecutado en verde contra infra real en R-006 (2026-07-03, 8/8)._ Archivo: `understanding.queue.redis.integration.spec.ts` (P7).
     - **Property 7: Idempotencia del handoff** — *para todo* `capture_id`, encolar/entregar más de una vez resulta en un único trabajo efectivo (dedup por `jobId`).
     - Verificar que un enqueue duplicado no crea un segundo job y que el fallo simulado del worker retiene el job (`removeOnFail:false`).
     - **Feature: capture-engine, Property 7** (fast-check + Redis real, ≥100 iteraciones donde aplique).
@@ -182,7 +182,7 @@ graph TD
     - **(Refinamiento c)** Crear un cron que se ejecute **periódicamente (~cada 1 min)** y reencole las capturas con `status=raw` **cuya antigüedad supere 5 min** y sin job activo asociado, con **límite de lote** por ejecución para acotar carga. Idempotente por `jobId = capture_id` (diseño §10.2).
     - Ejecutar bajo contexto RLS/servicio apropiado para poder leer capturas huérfanas de forma segura.
     - _Requisitos: R5.3, R5.4, R5.5 · Propiedad P2 · Diseño §10.2_
-  - [ ]* 9.2 Test de integración del barrido (PostgreSQL + Redis reales)
+  - [x]* 9.2 Test de integración del barrido (PostgreSQL + Redis reales) _(2026-10-27) Hecho: ejecutado en verde contra infra real en R-006 (2026-07-03, 8/8)._ Archivo: `reconciliation.service.integration.spec.ts` (P2).
     - **Property 2: La captura nunca se pierde** — *para toda* captura `raw` sin job cuya antigüedad > umbral, tras el barrido queda reencolada exactamente una vez; una captura aceptada es recuperable pese a fallo de encolado.
     - Simular "persistida pero nunca encolada" y verificar reencolado; verificar respeto del límite de lote y del umbral de 5 min.
     - **Feature: capture-engine, Property 2**.
@@ -193,14 +193,14 @@ graph TD
     - **(Refinamiento a)** Crear un job periódico que **purgue objetos S3 subidos vía presign que nunca quedaron referenciados** por ninguna Captura, **tras un TTL** (p.ej. antigüedad del objeto > umbral y sin `attributes.audio_ref` que lo apunte).
     - Recorrer el prefijo `audio/{user_id}/`, cruzar con las `audio_ref` referenciadas y eliminar sólo los huérfanos vencidos; con límite de lote y logging de lo purgado.
     - _Requisitos: R2 (higiene de blobs; complementa R2.1, R2.4) · Diseño §9_
-  - [ ]* 10.2 Test de integración del janitor con MinIO real
+  - [x]* 10.2 Test de integración del janitor con MinIO real _(2026-10-27) Hecho: ejecutado en verde contra infra real en R-006 (2026-07-03, 8/8)._ Archivo: `blob-janitor.minio.integration.spec.ts`.
     - Subir un objeto vía presign sin crear captura; avanzar el reloj/superar TTL; verificar que el janitor lo purga y que un objeto **referenciado** por una captura **no** se elimina.
     - _Valida: Requisitos R2.1, R2.4_
 
 - [x] 11. Checkpoint — backend completo (API + cola + reconciliación + janitor)
   - Asegurar que todos los tests pasan; consultar al usuario si surgen dudas.
 
-- [ ] 12. Flutter: captura offline-first (Drift + Repository + SyncService)
+- [x] 12. Flutter: captura offline-first (Drift + Repository + SyncService)
   - [x] 12.1 Definir el esquema Drift del outbox
     - Crear `apps/mobile/lib/src/features/capture/data/local/capture_tables.dart` con `LocalCaptures` (PK `clientId`, `type`, `content`, `audioLocalPath`, `audioRef`, `occurredAt`, `createdAtLocal`, `syncState` default `pending`, `serverId`, `retryCount`, `nextAttemptAt`) según diseño §11.1.
     - _Requisitos: R6.1 · Diseño §11.1_
@@ -211,7 +211,7 @@ graph TD
     - Al recuperar conectividad / periódicamente: leer lote `pending|failed` con `next_attempt_at <= now` en orden FIFO; para voz sin `audio_ref`, presign + subir a S3 y guardar `audio_ref`; `POST /v1/captures` con `Idempotency-Key = client_id`.
     - Manejo de resultados: `202/200` → `synced` + `server_id`; `4xx` de validación → `failed` sin reintento; `5xx`/timeout/sin red → `retry_count++` y backoff exponencial en `next_attempt_at` (diseño §11.2).
     - _Requisitos: R6.2, R6.3, R6.4, R6.5, R6.6 · Propiedades P9, P3 · Diseño §11.2_
-  - [ ]* 12.4 Tests de `CaptureRepository`/`SyncService` (Drift en memoria) — _ESCRITA, NO EJECUTADA: el sandbox no tiene SDK de Flutter/Dart. Tests en `apps/mobile/test/capture/` (`capture_repository_test.dart`, `sync_service_test.dart`, `fake_capture_api.dart`). Requiere `flutter pub get` + `dart run build_runner build` + `flutter test`._
+  - [x]* 12.4 Tests de `CaptureRepository`/`SyncService` (Drift en memoria) — _ESCRITA, NO EJECUTADA: el sandbox no tiene SDK de Flutter/Dart. Tests en `apps/mobile/test/capture/` (`capture_repository_test.dart`, `sync_service_test.dart`, `fake_capture_api.dart`). Requiere `flutter pub get` + `dart run build_runner build` + `flutter test`._ _(2026-10-27) Hecho: los tests se ejecutan y pasan en CI (`flutter test`): `capture_repository_test` (5) y `sync_service_test` (8, incluye P9). D-007 y D-009 cerrados._
     - **Property 9: Sync offline idempotente** — *para toda* captura del outbox reenviada N veces con el mismo `client_id`, se crea exactamente una Captura en el servidor (API mockeada que respeta idempotencia por `(user_id, key)`).
     - Verificar persistencia offline (no se pierde al cerrar la app), máquina de estados de sync y backoff.
     - **Feature: capture-engine, Property 9** (≥100 iteraciones).
@@ -230,7 +230,7 @@ graph TD
     - Medir p95 del camino síncrono (transacción de INSERT + encolado no bloqueante) contra dependencias reales locales; confirmar que se mantiene por debajo de 300 ms y que el audio (presigned directo a S3) queda fuera del camino de la API.
     - _Valida: Requisitos R1.6 · Diseño §15_
 
-- [~] 15. Checkpoint final — toda la suite verde
+- [~] 15. Checkpoint final — toda la suite verde _(2026-10-27) Sigue abierto: faltan 13 (suite PBT P1–P9 consolidada + e2e) y 14 (SLO p95 < 300 ms). Las propiedades P1–P9 existen repartidas entre la suite unitaria y la de integración. Las de captura (P1, P3, P4, P5) son PBT con fast-check, pero no están consolidadas._
   - Asegurar que todos los tests pasan; consultar al usuario si surgen dudas.
 
 ---
@@ -264,3 +264,4 @@ graph TD
 | Versión | Fecha | Autor | Cambios |
 |---------|-------|-------|---------|
 | 0.1 | 2026-07-02 | Ingeniería | Plan de tareas inicial de F1 derivado del diseño y requisitos aprobados (design-first): 15 tareas ordenadas por dependencias (migración Prisma → RLS fail-closed + rol no-owner → PrismaRlsService → BlobStorage → IdempotencyService → CaptureService/Controller/DTOs → UnderstandingQueue → barrido de reconciliación → janitor de blobs huérfanos → Flutter Drift/Repo/Sync → suite PBT P1–P9 e integración e2e → verificación SLO), con testing PBT (fast-check) e integración real (PostgreSQL+RLS, MinIO, Redis), grafo de dependencias, matriz de cobertura R1–R9/P1–P9 y los tres refinamientos del CPTO (janitor de blobs, límites de paginación, barrido concreto de reconciliación). |
+| 0.2 | 2026-10-27 | CPTO | Puesta al día del estado: 2.3, 4, 4.3, 8.2, 9.2, 10.2, 12 y 12.4 marcadas como hechas, con su evidencia (R-006 integración 8/8 y tests de Flutter en CI). Siguen abiertas 13, 14 y 15. Corrige la deriva D-017. |

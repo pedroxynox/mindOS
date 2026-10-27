@@ -19,6 +19,17 @@ class FakeCaptureApi implements CaptureApiClient {
   int presignCalls = 0;
   int uploadCalls = 0;
 
+  /// Voice notes received (bytes per idempotency key) and how many were
+  /// actually transcribed (a replay must not transcribe again).
+  final Map<String, List<int>> voiceAudio = {};
+  int transcriptions = 0;
+
+  /// If set, the next voice note is "silent": a 422 empty_transcript.
+  bool nextVoiceIsSilent = false;
+
+  /// If > 0, the next N voice notes fail with 503 (AI waking up).
+  int voiceTransient = 0;
+
   int _seq = 0;
 
   /// If > 0, the next N create requests DROP their response after persisting
@@ -89,5 +100,47 @@ class FakeCaptureApi implements CaptureApiClient {
     }
 
     return CreateCaptureResult(captureId: id, status: 'raw');
+  }
+
+  @override
+  Future<CreateCaptureResult> createVoiceCapture({
+    required String idempotencyKey,
+    required List<int> audio,
+    required String contentType,
+    String? clientId,
+    DateTime? occurredAt,
+    int? durationMs,
+  }) async {
+    createRequests++;
+    if (voiceTransient > 0 || transientBeforeCreate > 0) {
+      if (voiceTransient > 0) {
+        voiceTransient--;
+      } else {
+        transientBeforeCreate--;
+      }
+      throw const CaptureTransientException('transcription unavailable', 503);
+    }
+    if (nextVoiceIsSilent) {
+      nextVoiceIsSilent = false;
+      throw const CaptureValidationException(422,
+          '{"code":"empty_transcript","message":"No se escuchó nada en la nota de voz."}');
+    }
+    final existing = _byKey[idempotencyKey];
+    final id = existing ?? 'srv-${_seq++}';
+    if (existing == null) {
+      _byKey[idempotencyKey] = id;
+      createCount++;
+      transcriptions++;
+      voiceAudio[idempotencyKey] = audio;
+    }
+    if (dropResponses > 0) {
+      dropResponses--;
+      throw const CaptureTransientException('response lost', null);
+    }
+    return CreateCaptureResult(
+      captureId: id,
+      status: 'raw',
+      content: 'Transcripción de ${audio.length} bytes',
+    );
   }
 }

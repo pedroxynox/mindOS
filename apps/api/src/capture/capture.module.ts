@@ -15,6 +15,7 @@ import {
   UNDERSTANDING_QUEUE,
 } from './understanding.queue';
 import { UNDERSTANDING_QUEUE_PORT } from './understanding.queue.port';
+import { HttpVoiceTranscriber, VOICE_TRANSCRIBER } from './voice-transcriber';
 
 /**
  * Builds the S3-compatible client from environment configuration. `endpoint`
@@ -86,6 +87,11 @@ function createS3Client(config: ConfigService): S3Client {
       // jobId = capture_id live in the adapter (design.md §10, P7).
       provide: UNDERSTANDING_QUEUE_PORT,
       useClass: BullUnderstandingQueue,
+    },
+    {
+      // Speech-to-text via the AI service (ADR-021): transcribe and discard.
+      provide: VOICE_TRANSCRIBER,
+      useClass: HttpVoiceTranscriber,
     },
   ],
 })

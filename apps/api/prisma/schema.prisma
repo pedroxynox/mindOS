@@ -26,6 +26,10 @@ model User {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email        String   @unique
   passwordHash String   @map("password_hash")
+  /// IANA timezone used for every "today" the API computes (D-013).
+  timezone     String   @default("UTC")
+  /// ISO-4217 currency; null = not chosen yet (effective USD) (D-014).
+  currency     String?
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -35,6 +39,7 @@ model User {
   idempotencyKeys IdempotencyKey[]
   refreshTokens   RefreshToken[]
   llmUsage        LlmUsage[]
+  feedback        Feedback[]
 
   @@map("users")
 }
@@ -115,25 +120,25 @@ enum NodeOrigin {
 /// Property-graph node. All node types share this table, discriminated by
 /// `type`. Type-specific fields live in `attributes` (JSONB).
 model Node {
-  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String        @map("user_id") @db.Uuid
-  type       NodeType
-  title      String?
-  body       String? // raw text / transcription content
-  attributes Json          @default("{}") // e.g. { "audio_ref": "...", "modality": "voice" }
-  status     CaptureStatus @default(raw) // relevant for type=capture
-  origin     NodeOrigin
-  confidence Float? // null for captures (not AI-derived)
+  id             String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String                       @map("user_id") @db.Uuid
+  type           NodeType
+  title          String?
+  body           String? // raw text / transcription content
+  attributes     Json                         @default("{}") // e.g. { "audio_ref": "...", "modality": "voice" }
+  status         CaptureStatus                @default(raw) // relevant for type=capture
+  origin         NodeOrigin
+  confidence     Float? // null for captures (not AI-derived)
   // Semantic embedding (F2). Prisma cannot natively type pgvector, so the column
   // type is declared via `Unsupported(...)` and populated with raw SQL by the
   // Python worker; the HNSW index lives in the F2 raw-SQL migration. Kept in the
   // schema (rather than fully omitted) so `prisma migrate diff` sees no drift.
   embedding      Unsupported("vector(1536)")? // dimension = Settings.embedding_dim
-  embeddingModel String?                       @map("embedding_model")
-  occurredAt DateTime?     @map("occurred_at") @db.Timestamptz(6)
-  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt  DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  embeddingModel String?                      @map("embedding_model")
+  occurredAt     DateTime?                    @map("occurred_at") @db.Timestamptz(6)
+  createdAt      DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?                    @map("deleted_at") @db.Timestamptz(6)
 
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   outgoingEdges   Edge[]           @relation("SourceNode")
@@ -207,4 +212,23 @@ model LlmUsage {
 
   @@index([userId, createdAt], name: "idx_llm_usage_user")
   @@map("llm_usage")
+}
+
+/// User feedback on what mindOS produced (FR-3.5, North Star): one vote per
+/// (user, target). RLS (fail-closed) is added by the raw-SQL migration.
+model Feedback {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  targetType String   @map("target_type") // capture | query | briefing | node
+  targetId   String   @map("target_id")
+  useful     Boolean
+  reason     String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId], name: "uq_feedback_user_target")
+  @@index([userId, createdAt], name: "idx_feedback_user_created")
+  @@map("feedback")
 }

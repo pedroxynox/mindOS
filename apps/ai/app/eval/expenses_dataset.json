@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "description": "Expense detection eval (mejoras-v2 §E). Outside the ADR-018 gate. gold = expenses ALREADY made; currency null = ambiguous in the note, so the case's user_currency applies (same rule as the pipeline).",
+  "cases": [
+    {"id": "exp-01", "language": "es", "user_currency": "BRL", "text": "Hoy gasté R$ 45,90 en el almuerzo con Ana.", "gold": [{"amount": 45.9, "currency": "BRL", "category": "food"}]},
+    {"id": "exp-02", "language": "es", "user_currency": "EUR", "text": "Uber al aeropuerto 18 euros, y un café de 3,50 € antes de embarcar.", "gold": [{"amount": 18, "currency": "EUR", "category": "transport"}, {"amount": 3.5, "currency": "EUR", "category": "food"}]},
+    {"id": "exp-03", "language": "es", "user_currency": "MXN", "text": "Tengo que pagar la luz mañana, son 300 pesos.", "gold": []},
+    {"id": "exp-04", "language": "en", "user_currency": "USD", "text": "Paid $12 for lunch and $30 for the Uber home.", "gold": [{"amount": 12, "currency": null, "category": "food"}, {"amount": 30, "currency": null, "category": "transport"}]},
+    {"id": "exp-05", "language": "en", "user_currency": "USD", "text": "Need to pay rent on Friday, 1200 USD.", "gold": []},
+    {"id": "exp-06", "language": "mixed", "user_currency": "BRL", "text": "Comprei roupa por 150 reais e paguei o aluguel de R$ 1.200,00.", "gold": [{"amount": 150, "currency": "BRL", "category": "shopping"}, {"amount": 1200, "currency": "BRL", "category": "home"}]},
+    {"id": "exp-07", "language": "es", "user_currency": "CLP", "text": "Farmacia: 23.400 pesos en remedios para mamá.", "gold": [{"amount": 23400, "currency": null, "category": "health"}]},
+    {"id": "exp-08", "language": "es", "user_currency": "MXN", "text": "Llamar a Lucas a las 5 para lo del presupuesto.", "gold": []},
+    {"id": "exp-09", "language": "en", "user_currency": "USD", "text": "Spent 45 bucks on the electricity bill today.", "gold": [{"amount": 45, "currency": "USD", "category": "bills"}]},
+    {"id": "exp-10", "language": "es", "user_currency": "MXN", "text": "El curso de inglés cuesta 80 dólares al mes, lo voy a pagar la semana que viene.", "gold": []},
+    {"id": "exp-11", "language": "es", "user_currency": "ARS", "text": "Cine con Sofi anoche: las entradas salieron 13.000 ARS.", "gold": [{"amount": 13000, "currency": "ARS", "category": "leisure"}]},
+    {"id": "exp-12", "language": "mixed", "user_currency": "BRL", "text": "Gastei 60 reais no mercado e 25 no Uber.", "gold": [{"amount": 60, "currency": "BRL", "category": "food"}, {"amount": 25, "currency": "BRL", "category": "transport"}]},
+    {"id": "exp-13", "language": "es", "user_currency": "MXN", "text": "Me pagaron 500 dólares por el proyecto, por fin.", "gold": []},
+    {"id": "exp-14", "language": "en", "user_currency": "USD", "text": "Bought the textbook for my course, 39.99 USD.", "gold": [{"amount": 39.99, "currency": "USD", "category": "education"}]},
+    {"id": "exp-15", "language": "es", "user_currency": "MXN", "text": "Le presté 200 pesos a Marcos.", "gold": []},
+    {"id": "exp-16", "language": "es", "user_currency": "PEN", "text": "Arreglé la cañería del baño, el plomero cobró S/ 150.", "gold": [{"amount": 150, "currency": "PEN", "category": "home"}]},
+    {"id": "exp-17", "language": "en", "user_currency": "GBP", "text": "Groceries were £54.20 this week, a bit more than usual.", "gold": [{"amount": 54.2, "currency": "GBP", "category": "food"}]},
+    {"id": "exp-18", "language": "es", "user_currency": "USD", "text": "Reunión con el equipo sobre el presupuesto del Q3: 20 mil dólares para marketing.", "gold": []},
+    {"id": "exp-19", "language": "es", "user_currency": "COP", "text": "Pagué el internet y el celular: 35.000 y 28.000 COP.", "gold": [{"amount": 35000, "currency": "COP", "category": "bills"}, {"amount": 28000, "currency": "COP", "category": "bills"}]},
+    {"id": "exp-20", "language": "mixed", "user_currency": "BRL", "text": "Almoço 32 reais. Amanhã preciso pagar a academia, 120 reais.", "gold": [{"amount": 32, "currency": "BRL", "category": "food"}]}
+  ]
+}

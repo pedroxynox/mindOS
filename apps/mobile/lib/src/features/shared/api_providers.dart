@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../auth/auth_providers.dart';
 import 'mindos_api.dart';
 
-/// Shared authenticated API client, wired to the current session token.
+/// The single authenticated API client, wired to the session token source
+/// (transparent refresh on 401).
 final mindosApiProvider = Provider<MindosApi>((ref) {
-  final store = ref.watch(tokenStoreProvider);
-  return MindosApi(tokenProvider: () async => store.accessToken);
+  return MindosApi(tokens: ref.watch(tokenSourceProvider));
 });

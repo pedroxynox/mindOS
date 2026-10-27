@@ -2,14 +2,19 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../capture_providers.dart';
 import '../data/local/app_database.dart';
 import '../data/local/capture_tables.dart';
+import '../voice/voice_record_sheet.dart';
+import '../voice/voice_recorder.dart';
 import 'capture_form_controller.dart';
 
-/// F1 capture screen: write a thought, save it optimistically (offline-first),
-/// and watch the local outbox with each capture's sync status.
+/// Capture screen: write a thought or record a voice note, save it
+/// optimistically (offline-first) and watch the local outbox with each
+/// capture's sync status. Voice notes are transcribed by the server and the
+/// audio is discarded (ADR-021).
 ///
 /// The UI only ever talks to the repository / providers — it never performs
 /// network I/O itself (#07 §4). Saving triggers a best-effort background drain
@@ -49,6 +54,31 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
           const SnackBar(content: Text('Captura guardada')),
         );
     }
+  }
+
+  Future<void> _recordVoice() async {
+    final audio = await showModalBottomSheet<RecordedAudio>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (_) => const VoiceRecordSheet(),
+    );
+    if (audio == null || !mounted) return;
+    await ref.read(captureRepositoryProvider).saveVoiceNote(
+          audio: audio.bytes,
+          mimeType: audio.mimeType,
+          durationMs: audio.durationMs,
+        );
+    unawaited(ref.read(syncServiceProvider).drainOnce());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Nota de voz guardada. mindOS la está transcribiendo…'),
+        ),
+      );
   }
 
   Future<void> _syncNow() async {
@@ -124,12 +154,10 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Voice capture is out of scope for this screen: it needs
-                    // device recording APIs. Left as a visible, disabled TODO.
-                    const IconButton.outlined(
-                      onPressed: null,
-                      icon: Icon(Icons.mic_off),
-                      tooltip: 'Captura de voz (próximamente)',
+                    IconButton.filledTonal(
+                      onPressed: formState.isSaving ? null : _recordVoice,
+                      icon: const Icon(Icons.mic),
+                      tooltip: 'Grabar nota de voz',
                     ),
                   ],
                 ),
@@ -188,9 +216,15 @@ class _CaptureTile extends StatelessWidget {
     final isVoice = capture.type == CaptureKind.voice;
     final title = capture.content?.trim().isNotEmpty ?? false
         ? capture.content!.trim()
-        : (isVoice ? 'Captura de voz' : '(sin contenido)');
+        : (isVoice ? _voiceLabel(capture) : '(sin contenido)');
+    final error = capture.syncState == SyncState.failed ? capture.lastError : null;
+    final serverId = capture.serverId;
 
     return ListTile(
+      onTap: serverId == null
+          ? null
+          : () => context.push('/capture/$serverId/insights'),
+      trailing: serverId == null ? null : const Icon(Icons.chevron_right),
       leading: Icon(isVoice ? Icons.mic : Icons.notes),
       title: Text(
         title,
@@ -201,14 +235,24 @@ class _CaptureTile extends StatelessWidget {
         children: [
           Icon(status.icon, size: 16, color: status.color(theme)),
           const SizedBox(width: 4),
-          Text(
-            status.label,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: status.color(theme)),
+          Flexible(
+            child: Text(
+              error ?? (isVoice ? status.voiceLabel : status.label),
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: status.color(theme)),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  static String _voiceLabel(LocalCapture c) {
+    final ms = c.audioDurationMs;
+    if (ms == null || ms <= 0) return 'Nota de voz';
+    final s = (ms / 1000).round();
+    return 'Nota de voz · ${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
   }
 }
 
@@ -225,6 +269,13 @@ class _SyncStatusView {
   final IconData icon;
   final bool isError;
   final bool isDone;
+
+  /// Wording for voice notes (they are transcribed while "uploading").
+  String get voiceLabel => switch (label) {
+        'Subiendo audio' => 'Transcribiendo…',
+        'Sincronizado' => 'Transcrita · ver lo que entendí',
+        _ => label,
+      };
 
   Color color(ThemeData theme) {
     if (isError) {
