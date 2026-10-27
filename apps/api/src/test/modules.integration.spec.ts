@@ -12,6 +12,7 @@ import { UserSettingsService } from '../users/user-settings.service';
 import { FeedbackService } from '../feedback/feedback.service';
 import { GraphService } from '../graph/graph.service';
 import { ListNodesQueryDto } from '../graph/dto/list-nodes-query.dto';
+import { ListExpensesQueryDto } from '../finance/dto/list-expenses-query.dto';
 
 /**
  * Integration test of the post-F2 modules against REAL PostgreSQL (D-012):
@@ -24,7 +25,9 @@ import { ListNodesQueryDto } from '../graph/dto/list-nodes-query.dto';
  *  - the user's timezone/currency (users table, PR B migration) drive the
  *    finance totals and the habit "today";
  *  - feedback votes and graph corrections (PR D) stay per user, and a removed
- *    or renamed node survives the worker reprocessing its capture.
+ *    or renamed node survives the worker reprocessing its capture;
+ *  - expenses the AI found in a capture (PR E) are listed and summed with the
+ *    manual ones, per user, and can be removed.
  *
  * Skipped unless RUN_INTEGRATION=1 (see apps/api/TESTING.md).
  */
@@ -330,5 +333,102 @@ describeIntegration('post-F2 modules (PostgreSQL + RLS)', () => {
     );
     const summary = await graph.summary(userA);
     expect(summary.counts.person ?? 0).toBe(0);
+  });
+
+  it('lists, sums and removes AI-detected expenses under RLS (PR E)', async () => {
+    const userC = (
+      await prisma.user.create({
+        data: {
+          email: `mods-c-${Date.now()}@test.local`,
+          passwordHash: 'x',
+          currency: 'BRL',
+          timezone: 'UTC',
+        },
+      })
+    ).id;
+    const spentAt = new Date(Date.now() - 60_000).toISOString();
+    // What the worker writes for "Almuerzo R$ 30" (mejoras-v2 §E).
+    const { capture, aiExpense } = await rls.withUser(userC, async (tx) => {
+      const capture = await tx.node.create({
+        data: {
+          userId: userC,
+          type: 'capture',
+          body: 'Almuerzo R$ 30 con Ana',
+          origin: 'manual_text',
+          status: 'processed',
+        },
+      });
+      const aiExpense = await tx.node.create({
+        data: {
+          userId: userC,
+          type: 'note',
+          title: 'almuerzo',
+          origin: 'ai',
+          status: 'processed',
+          confidence: 0.8,
+          attributes: {
+            dedup_key: `exp-${randomUUID()}`,
+            kind: 'expense',
+            amount: 30,
+            currency: 'BRL',
+            category: 'food',
+            spent_at: spentAt,
+            capture_id: capture.id,
+          },
+        },
+      });
+      await tx.edge.create({
+        data: {
+          userId: userC,
+          type: 'derived_from',
+          sourceNodeId: aiExpense.id,
+          targetNodeId: capture.id,
+          origin: 'ai',
+        },
+      });
+      return { capture, aiExpense };
+    });
+    await finance.addExpense(userC, { amount: 12, category: 'Uber' });
+
+    const page = await finance.listExpenses(
+      userC,
+      Object.assign(new ListExpensesQueryDto(), { limit: 10 }),
+    );
+    expect(
+      page.data.map((e) => [e.origin, e.amount, e.category]).sort(),
+    ).toEqual([
+      ['ai', 30, 'food'],
+      ['manual_text', 12, 'transport'],
+    ]);
+    const ai = page.data.find((e) => e.origin === 'ai');
+    expect(ai?.capture_id).toBe(capture.id);
+    expect(ai?.note).toBe('almuerzo');
+
+    const summary = await finance.summary(userC);
+    expect(summary.week_total).toBe(42);
+    expect(summary.by_category).toEqual([
+      { category: 'food', total: 30 },
+      { category: 'transport', total: 12 },
+    ]);
+
+    const insights = await graph.captureEntities(userC, capture.id);
+    expect(insights.nodes[0].expense).toEqual({
+      amount: 30,
+      currency: 'BRL',
+      category: 'food',
+    });
+
+    // Nobody else can list or remove it.
+    const others = await finance.listExpenses(
+      userA,
+      Object.assign(new ListExpensesQueryDto(), { limit: 100 }),
+    );
+    expect(others.data.map((e) => e.id)).not.toContain(aiExpense.id);
+    await expect(finance.removeExpense(userA, aiExpense.id)).rejects.toThrow();
+
+    await finance.removeExpense(userC, aiExpense.id);
+    const after = await finance.summary(userC);
+    expect(after.week_total).toBe(12);
+    expect((await graph.captureEntities(userC, capture.id)).nodes).toEqual([]);
   });
 });

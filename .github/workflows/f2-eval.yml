@@ -19,6 +19,13 @@ on:
         description: "Modo puerta: si es true, el run FALLA cuando no se supera el umbral de aceptacion"
         type: boolean
         default: false
+      suite:
+        description: "Que examen: comprension (gate ADR-018) o gastos (detector de gastos, mejoras-v2 E; fuera del gate)"
+        type: choice
+        options:
+          - comprension
+          - gastos
+        default: comprension
 
 # Least privilege: this workflow only needs to read the repository.
 permissions:
@@ -236,13 +243,17 @@ jobs:
             export OPENAI_MAX_RETRIES=3
             echo "Usando OPENAI_MAX_RETRIES=${OPENAI_MAX_RETRIES}."
           fi
-          echo "Ejecutando: python -m app.eval.run_eval --provider ${{ inputs.provider }} ${GATE_FLAG}"
+          SUITE_FLAG="--suite comprehension"
+          if [ "${{ inputs.suite }}" = "gastos" ]; then
+            SUITE_FLAG="--suite expenses"
+          fi
+          echo "Ejecutando: python -m app.eval.run_eval --provider ${{ inputs.provider }} ${SUITE_FLAG} ${GATE_FLAG}"
           set +e
-          python -m app.eval.run_eval --provider "${{ inputs.provider }}" ${GATE_FLAG} > eval_report.txt 2>&1
+          python -m app.eval.run_eval --provider "${{ inputs.provider }}" ${SUITE_FLAG} ${GATE_FLAG} > eval_report.txt 2>&1
           EVAL_EXIT=$?
           set -e
           {
-            echo "## Resultado del examen de comprension (F2 / R-001)"
+            echo "## Resultado del examen (${{ inputs.suite }})"
             echo ""
             echo "- **Proveedor:** \`${{ inputs.provider }}\`"
             echo "- **Modo puerta (gate):** \`${{ inputs.gate }}\`"

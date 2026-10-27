@@ -14,7 +14,7 @@
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 0.4 |
+| Versión | 0.5 |
 | Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00, #01, #02, #03 |
@@ -429,14 +429,36 @@ sigue borrado y un nombre corregido se mantiene (test de integración en
 { "id": "…", "body": "…", "mood": null, "created_at": "…" }
 ```
 
-**Finanzas** (nodos `note` con `attributes.kind = expense`)
-```json
-// POST /v1/finance/expenses { "amount": 12.5, "category"?: "comida", "currency"?: "USD", "note"?: "…" }
-{ "id": "…", "amount": 12.5, "category": "comida", "currency": "USD", "created_at": "…" }
+**Finanzas** (nodos `note` con `attributes.kind = expense`; los escribe el
+usuario o los detecta la IA en una captura, mejoras-v2 PR E)
 
-// GET /v1/finance/summary → semana actual frente a la anterior (UTC; moneda: ver D-014)
-{ "currency": "USD", "week_total": 120.4, "prev_week_total": 98.0, "change_pct": 23, "daily": [0, 12.5, 0, 40, 0, 67.9, 0] }
+Categorías canónicas: `food`, `transport`, `home`, `health`, `leisure`,
+`shopping`, `bills`, `education`, `other`. Un texto libre antiguo ("comida",
+"Uber") se traduce a su clave; lo desconocido queda en `other`.
+
+```json
+// POST /v1/finance/expenses { "amount": 12.5, "category"?: "transport", "currency"?: "BRL",
+//                             "note"?: "Uber", "spent_at"?: "ISO (no futuro)" } → 201
+// GET  /v1/finance/expenses?limit=50&cursor=<id> → 200, lo último registrado primero
+{ "data": [ { "id": "…", "amount": 30, "category": "food", "currency": "BRL", "note": "almuerzo",
+              "spent_at": "…", "origin": "ai", "capture_id": "…", "created_at": "…" } ],
+  "next_cursor": null }
+// DELETE /v1/finance/expenses/:id → 204 (soft delete del gasto y de su arista de procedencia)
+
+// GET /v1/finance/summary → últimos 7 días locales frente a los 7 anteriores (zona y moneda del usuario)
+{ "currency": "BRL", "week_total": 120.4, "prev_week_total": 98.0, "change_pct": 23,
+  "daily": [0, 12.5, 0, 40, 0, 67.9, 0],
+  "by_category": [ { "category": "food", "total": 52.9 } ],
+  "other_currencies": [ { "currency": "USD", "week_total": 10 } ] }
 ```
+
+Los gastos de la IA salen de una **segunda llamada pequeña** (`expenses-v1`)
+que solo se hace si la captura tiene pistas de dinero ($, R$, €, "gasté",
+"paguei", "spent"…). El prompt v8 y su gate no cambian. Solo cuentan los
+gastos ya hechos: un pago futuro es una tarea. La moneda sale del símbolo o
+código; si es ambigua ("$", "pesos"), se usa la del usuario. Se fecha con
+`occurred_at` de la captura (o su `created_at`). En "Lo que entendí", el nodo
+trae `expense: { amount, currency, category }`.
 
 ---
 
@@ -507,5 +529,6 @@ Cómo el cliente descubre que una captura ya fue comprendida (ADR-02):
 |---------|-------|-------|---------|
 | 0.1 | 2026-07-01 | CTO | Borrador inicial. Estilo REST/JSON + SSE (ADR-013, antes "ADR-A1"), convenciones globales, mapa de recursos por contexto, endpoints del MVP (auth, captura, grafo, query streaming, briefing, feedback), contrato async, seguridad a nivel de API y non-goals. |
 | 0.2 | 2026-07-03 | CPTO | Consolidación de ADRs (D-004): la decisión de estilo de API embebida ("ADR-A1") se extrajo a un archivo individual [ADR-013](../02-architecture/adr/ADR-013-rest-json-sse-api-style.md) en `../02-architecture/adr/`; §2 deja solo un índice con enlace. Referencia cruzada normalizada a 3 dígitos. |
+| 0.5 | 2026-10-27 | CPTO | mejoras-v2 PR E: Finanzas con categorías canónicas, `GET`/`DELETE /v1/finance/expenses` y gastos detectados por la IA (segunda llamada `expenses-v1`, fuera del gate). |
 | 0.4 | 2026-10-27 | CPTO | mejoras-v2 PR D: §5.7 documenta las correcciones del grafo (listas agrupadas por nombre, ficha de entidad, renombrar, quitar, confirmar o rechazar conexiones) y `/v1/feedback` (votar y leer el voto). §5.0 actualizado. |
 | 0.3 | 2026-10-27 | CPTO | Añadidos **§5.0 Estado de implementación** (contrato de diseño frente a lo implementado) y **§5.7 Endpoints implementados**: graph, query JSON sin SSE, briefing simplificado, tasks, growth y finance (ADR-020). Se anotan la falta de feedback, edición del grafo, export y borrado, y tiempo real, además de la inconsistencia camelCase/snake_case en las entradas (D-015). Corrige la deriva D-017. |

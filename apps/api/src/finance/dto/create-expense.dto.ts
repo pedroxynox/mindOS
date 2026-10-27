@@ -18,6 +18,11 @@ export class CreateExpenseDto {
   @Max(100000000)
   amount!: number;
 
+  /**
+   * Canonical key (food, transport, home, health, leisure, shopping, bills,
+   * education, other). Legacy free text ("comida") is mapped to its key;
+   * anything unknown is stored as `other`.
+   */
   @IsOptional()
   @IsString()
   @MaxLength(40)

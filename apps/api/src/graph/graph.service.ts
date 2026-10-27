@@ -22,6 +22,7 @@ import {
   GraphEntityResponse,
   GraphRenameResponse,
   GraphSummaryResponse,
+  toCaptureNode,
   toGraphEdge,
   toGraphEntity,
   toGraphNode,
@@ -464,7 +465,7 @@ export class GraphService {
       return {
         capture_id: capture.id,
         status: capture.status,
-        nodes: nodes.map(toGraphNode),
+        nodes: nodes.map(toCaptureNode),
         edges: semanticEdges.map(toGraphEdge),
       };
     });

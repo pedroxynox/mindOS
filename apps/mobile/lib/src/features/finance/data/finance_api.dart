@@ -11,7 +11,8 @@ class FinanceApi {
     return FinanceSummary.fromJson(json as Map<String, dynamic>);
   }
 
-  /// Log an expense. The currency defaults (server-side) to the user's own.
+  /// Log an expense. The currency defaults (server-side) to the user's own;
+  /// [category] is a canonical key (food, transport, ...).
   Future<void> addExpense(
     double amount, {
     String? category,
@@ -24,5 +25,23 @@ class FinanceApi {
       if (category != null && category.isNotEmpty) 'category': category,
       if (note != null && note.isNotEmpty) 'note': note,
     });
+  }
+
+  /// Every expense (manual and AI-detected), most recently logged first.
+  Future<ExpensePage> listExpenses({String? cursor, int limit = 50}) async {
+    final json = await _api.get('/finance/expenses', query: {
+      'limit': '$limit',
+      if (cursor != null) 'cursor': cursor,
+    }) as Map<String, dynamic>;
+    return ExpensePage(
+      data: (json['data'] as List<dynamic>? ?? [])
+          .map((e) => Expense.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      nextCursor: json['next_cursor'] as String?,
+    );
+  }
+
+  Future<void> removeExpense(String id) async {
+    await _api.delete('/finance/expenses/$id');
   }
 }

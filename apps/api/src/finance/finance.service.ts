@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { addDaysToKey } from '../common/time';
 import { localDateKey, startOfLocalDayKey } from '../common/tz';
@@ -7,8 +11,11 @@ import {
   DEFAULT_CURRENCY,
   UserSettingsService,
 } from '../users/user-settings.service';
+import { canonicalCategory } from './categories';
 import { CreateExpenseDto } from './dto/create-expense.dto';
+import { ListExpensesQueryDto } from './dto/list-expenses-query.dto';
 import {
+  ExpenseListPage,
   ExpenseResponse,
   FinanceSummaryResponse,
   readAmount,
@@ -20,7 +27,22 @@ import {
 
 type ExpenseRow = { attributes: Prisma.JsonValue; createdAt: Date };
 
-const UNCATEGORIZED = 'otros';
+/** Expense rows (manual or AI): `note` nodes with `attributes.kind=expense`. */
+const EXPENSE_WHERE = {
+  type: 'note',
+  deletedAt: null,
+  attributes: { path: ['kind'], equals: 'expense' },
+} satisfies Prisma.NodeWhereInput;
+
+const EXPENSE_FIELDS = {
+  id: true,
+  attributes: true,
+  createdAt: true,
+  body: true,
+  title: true,
+  origin: true,
+} as const;
+
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
@@ -65,7 +87,7 @@ export function computeSummary(
     if (idx !== undefined) {
       daily[idx] += amount;
       weekTotal += amount;
-      const cat = readCategory(row)?.toLowerCase() ?? UNCATEGORIZED;
+      const cat = readCategory(row);
       byCategory.set(cat, (byCategory.get(cat) ?? 0) + amount);
     } else if (prevKeys.has(key)) {
       prevTotal += amount;
@@ -126,7 +148,7 @@ export class FinanceService {
       amount: dto.amount,
       currency: dto.currency ?? currency ?? DEFAULT_CURRENCY,
       spent_at: spentAt.toISOString(),
-      ...(dto.category?.trim() ? { category: dto.category.trim() } : {}),
+      category: canonicalCategory(dto.category),
     };
     const node = await this.rls.withUser(userId, (tx) =>
       tx.node.create({
@@ -138,16 +160,58 @@ export class FinanceService {
           status: 'processed',
           attributes,
         },
-        select: {
-          id: true,
-          attributes: true,
-          createdAt: true,
-          body: true,
-          origin: true,
-        },
+        select: EXPENSE_FIELDS,
       }),
     );
     return toExpenseResponse(node);
+  }
+
+  /** Every expense, manual and AI-detected, most recently logged first. */
+  async listExpenses(
+    userId: string,
+    query: ListExpensesQueryDto,
+  ): Promise<ExpenseListPage> {
+    const take = query.limit;
+    const rows = await this.rls.withUser(userId, (tx) =>
+      tx.node.findMany({
+        where: { userId, ...EXPENSE_WHERE },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: take + 1,
+        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+        select: EXPENSE_FIELDS,
+      }),
+    );
+    const next = rows.length > take ? rows[take].id : null;
+    return {
+      data: rows.slice(0, take).map(toExpenseResponse),
+      next_cursor: next,
+    };
+  }
+
+  /** Soft-delete an expense (and its provenance edge, for AI ones). */
+  async removeExpense(userId: string, id: string): Promise<void> {
+    await this.rls.withUser(userId, async (tx) => {
+      const existing = await tx.node.findFirst({
+        where: { id, userId, ...EXPENSE_WHERE },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new NotFoundException({
+          code: 'not_found',
+          message: 'Expense not found.',
+        });
+      }
+      const now = new Date();
+      await tx.node.update({ where: { id }, data: { deletedAt: now } });
+      await tx.edge.updateMany({
+        where: {
+          userId,
+          deletedAt: null,
+          OR: [{ sourceNodeId: id }, { targetNodeId: id }],
+        },
+        data: { deletedAt: now },
+      });
+    });
   }
 
   async summary(
@@ -161,13 +225,7 @@ export class FinanceService {
 
     const rows = await this.rls.withUser(userId, (tx) =>
       tx.node.findMany({
-        where: {
-          userId,
-          type: 'note',
-          deletedAt: null,
-          attributes: { path: ['kind'], equals: 'expense' },
-          createdAt: { gte: since },
-        },
+        where: { userId, ...EXPENSE_WHERE, createdAt: { gte: since } },
         orderBy: [{ createdAt: 'asc' }],
         select: { attributes: true, createdAt: true },
       }),

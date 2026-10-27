@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../account/account_providers.dart';
 import '../account/locale_defaults.dart';
 import '../auth/auth_providers.dart';
 import '../finance/finance_providers.dart';
@@ -425,7 +424,7 @@ class _FinanceCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final async = ref.watch(financeSummaryProvider);
     return _DashCard(
-      onTap: () => _addExpense(context, ref),
+      onTap: () => context.push('/finance'),
       child: async.when(
         loading: () => const _CardLabel('Finanzas'),
         error: (_, __) => const _CardLabel('Finanzas'),
@@ -484,53 +483,6 @@ class _FinanceCard extends ConsumerWidget {
         },
       ),
     );
-  }
-
-  Future<void> _addExpense(BuildContext context, WidgetRef ref) async {
-    final currency = ref.read(displayCurrencyProvider);
-    final controller = TextEditingController();
-    final catController = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Registrar gasto'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                  prefixText: '${currencySymbol(currency)} ', hintText: 'Monto'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: catController,
-              decoration:
-                  const InputDecoration(hintText: 'Categoría (opcional)'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Guardar')),
-        ],
-      ),
-    );
-    final amount = double.tryParse(controller.text.trim().replaceAll(',', '.'));
-    if (ok == true && amount != null && amount > 0) {
-      await ref.read(financeApiProvider).addExpense(
-            amount,
-            category: catController.text.trim(),
-          );
-      ref.invalidate(financeSummaryProvider);
-    }
   }
 }
 

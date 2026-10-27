@@ -14,7 +14,9 @@ yields no duplicates.
 """
 
 import hashlib
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from app.understanding.extract import Extraction
 from app.understanding.text_utils import normalize_label
@@ -164,3 +166,83 @@ def _resolve_endpoint(
             if node_type == prefer:
                 return key
     return candidates[0][1]
+
+
+# --- expenses (mejoras-v2 §E) -------------------------------------------------
+_EXPENSE_TYPE = "note"
+_EXPENSE_CONFIDENCE = 0.8
+
+
+class ExpenseLike(Protocol):
+    """What :func:`with_expenses` needs from a detected expense."""
+
+    amount: float
+    currency: str | None
+    category: str
+    description: str
+
+
+def expense_dedup_key(
+    user_id: str, capture_id: str, index: int, amount: float, description: str
+) -> str:
+    """Natural key of the ``index``-th expense of a capture (two identical
+    coffees in one note are still two expenses)."""
+    material = "\x1f".join(
+        [
+            user_id,
+            capture_id,
+            "expense",
+            str(index),
+            f"{amount:.2f}",
+            normalize_label(description),
+        ]
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def with_expenses(
+    plan: EnrichmentPlan,
+    user_id: str,
+    capture_id: str,
+    expenses: Sequence[ExpenseLike],
+    *,
+    default_currency: str,
+    spent_at: str,
+) -> EnrichmentPlan:
+    """Add one ``note`` node (``kind=expense``) per detected expense, each with
+    its ``derived_from`` provenance edge. Same shape as a manual expense
+    (``/v1/finance``), so the finance summary counts both alike."""
+    if not expenses:
+        return plan
+    nodes = list(plan.nodes)
+    edges = list(plan.edges)
+    for index, expense in enumerate(expenses):
+        key = expense_dedup_key(
+            user_id, capture_id, index, expense.amount, expense.description
+        )
+        nodes.append(
+            NodePlan(
+                node_type=_EXPENSE_TYPE,
+                title=expense.description,
+                dedup_key=key,
+                confidence=_EXPENSE_CONFIDENCE,
+                attributes={
+                    "dedup_key": key,
+                    "kind": "expense",
+                    "amount": expense.amount,
+                    "currency": expense.currency or default_currency,
+                    "category": expense.category,
+                    "spent_at": spent_at,
+                    "capture_id": capture_id,
+                },
+            )
+        )
+        edges.append(
+            EdgePlan(
+                type="derived_from",
+                source=key,
+                target=CAPTURE_REF,
+                confidence=_EXPENSE_CONFIDENCE,
+            )
+        )
+    return EnrichmentPlan(nodes=tuple(nodes), edges=tuple(edges))

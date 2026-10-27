@@ -217,6 +217,38 @@ void main() {
       expect(find.text('Quitado.'), findsOneWidget);
     });
 
+    testWidgets('shows an expense it found and can drop it', (tester) async {
+      final graph = _FakeGraph();
+      graph.nodes = [
+        ...graph.nodes,
+        GraphNode(
+          id: 'x1',
+          type: 'note',
+          title: 'almuerzo',
+          createdAt: DateTime.utc(2026, 10, 20),
+          expense: const NodeExpense(
+              amount: 30, currency: 'BRL', category: 'food'),
+        ),
+      ];
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          graphApiClientProvider.overrideWithValue(graph),
+          feedbackApiProvider.overrideWithValue(FakeFeedbackApi()),
+        ],
+        child: MaterialApp(theme: AppTheme.dark(), home: screen),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Gasto'), findsOneWidget);
+      await tester.tap(find.text('R\$ 30,00 · almuerzo'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('No fue un gasto'));
+      await tester.pumpAndSettle();
+
+      expect(graph.removed, [('x1', false)]);
+      expect(find.text('R\$ 30,00 · almuerzo'), findsNothing);
+    });
+
     testWidgets('cancelling the removal changes nothing', (tester) async {
       final (graph, _) = await pump(tester, screen);
 

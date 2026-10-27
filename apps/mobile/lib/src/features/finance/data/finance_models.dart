@@ -61,3 +61,51 @@ class FinanceSummary {
             .toList(),
       );
 }
+
+/// One expense — typed by the user or found by mindOS in a capture.
+class Expense {
+  const Expense({
+    required this.id,
+    required this.amount,
+    required this.currency,
+    required this.category,
+    required this.spentAt,
+    this.note,
+    this.origin = 'manual_text',
+    this.captureId,
+  });
+
+  final String id;
+  final double amount;
+  final String currency;
+
+  /// Canonical key (food, transport, ...).
+  final String category;
+  final DateTime spentAt;
+  final String? note;
+  final String origin;
+
+  /// The capture the AI found it in (null when typed by hand).
+  final String? captureId;
+
+  bool get fromAi => origin == 'ai';
+
+  factory Expense.fromJson(Map<String, dynamic> json) => Expense(
+        id: json['id'] as String,
+        amount: (json['amount'] as num?)?.toDouble() ?? 0,
+        currency: (json['currency'] as String?) ?? 'USD',
+        category: (json['category'] as String?) ?? 'other',
+        spentAt: DateTime.parse(
+            (json['spent_at'] ?? json['created_at']) as String),
+        note: json['note'] as String?,
+        origin: (json['origin'] as String?) ?? 'manual_text',
+        captureId: json['capture_id'] as String?,
+      );
+}
+
+/// A page of the expense list.
+class ExpensePage {
+  const ExpensePage({required this.data, this.nextCursor});
+  final List<Expense> data;
+  final String? nextCursor;
+}

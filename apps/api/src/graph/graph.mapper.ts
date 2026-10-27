@@ -1,4 +1,9 @@
 import { Edge, Node } from '@prisma/client';
+import {
+  readAmount,
+  readCategory,
+  readCurrency,
+} from '../finance/finance.mapper';
 import { EntityGroup } from './entity-groups';
 
 /**
@@ -57,12 +62,24 @@ export interface GraphSummaryResponse {
   total: number;
 }
 
+/** An expense the AI found in a capture (mejoras-v2 §E). */
+export interface CaptureExpense {
+  amount: number;
+  currency: string;
+  category: string;
+}
+
+/** A node of "Lo que entendí"; expenses carry their amount. */
+export interface CaptureNodeResponse extends GraphNodeResponse {
+  expense?: CaptureExpense;
+}
+
 /** What the brain extracted from a single capture. */
 export interface CaptureEntitiesResponse {
   capture_id: string;
   /** Pipeline status so the UI can show a "still thinking" state. */
   status: 'raw' | 'processing' | 'processed' | 'failed';
-  nodes: GraphNodeResponse[];
+  nodes: CaptureNodeResponse[];
   edges: GraphEdgeResponse[];
 }
 
@@ -123,6 +140,22 @@ export function toGraphNode(node: GraphNodeFields): GraphNodeResponse {
     confidence: node.confidence ?? null,
     occurred_at: node.occurredAt ? node.occurredAt.toISOString() : null,
     created_at: node.createdAt.toISOString(),
+  };
+}
+
+export function toCaptureNode(
+  node: GraphNodeFields & Pick<Node, 'attributes'>,
+): CaptureNodeResponse {
+  const base = toGraphNode(node);
+  const kind = (node.attributes as { kind?: unknown } | null)?.kind;
+  if (kind !== 'expense') return base;
+  return {
+    ...base,
+    expense: {
+      amount: readAmount(node),
+      currency: readCurrency(node),
+      category: readCategory(node),
+    },
   };
 }
 

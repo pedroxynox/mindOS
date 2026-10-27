@@ -161,3 +161,55 @@ async def test_another_user_cannot_see_the_capture() -> None:
         assert visible == 0
     finally:
         await pool.close()
+
+
+async def test_detected_expense_is_written_in_the_users_currency() -> None:
+    # mejoras-v2 §E: the ambiguous "$" resolves to users.currency, read in the
+    # same RLS-scoped load as the capture; the expense is a `note` with
+    # kind=expense and its derived_from edge, like a manual one.
+    pool = await create_pool(APP_DSN)
+    try:
+        user_id = str(uuid.uuid4())
+        capture_id = str(uuid.uuid4())
+        await _seed_user(pool, user_id)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE users SET currency = 'MXN' WHERE id = $1", user_id
+            )
+        await _seed_capture(pool, user_id, capture_id, "Paid $12 for lunch.")
+
+        store = PgGraphStore(pool, embedding_dim=1536)
+        capture = await store.load_capture(user_id, capture_id)
+        assert capture is not None
+        assert capture.user_currency == "MXN"
+        assert capture.created_at is not None
+
+        await run_understanding(
+            capture_id, user_id, provider=FakeProvider(), store=store
+        )
+
+        async with rls_tx(pool, user_id) as conn:
+            rows = await conn.fetch(
+                "SELECT id, type, attributes->>'currency' AS currency, "
+                "(attributes->>'amount')::float AS amount, "
+                "attributes->>'category' AS category, "
+                "attributes->>'spent_at' AS spent_at "
+                "FROM nodes WHERE attributes->>'kind' = 'expense'"
+            )
+            assert len(rows) == 1
+            expense = rows[0]
+            edges = await conn.fetchval(
+                "SELECT count(*) FROM edges WHERE source_node_id = $1 "
+                "AND target_node_id = $2 AND type = 'derived_from'",
+                expense["id"],
+                capture_id,
+            )
+        assert expense["type"] == "note"
+        assert (expense["currency"], expense["amount"]) == ("MXN", 12.0)
+        assert expense["category"] == "food"
+        assert expense["spent_at"].endswith("Z")
+        assert edges == 1
+        # extraction + expense + embedding cost rows.
+        assert await _count(pool, user_id, "SELECT count(*) FROM llm_usage") == 3
+    finally:
+        await pool.close()

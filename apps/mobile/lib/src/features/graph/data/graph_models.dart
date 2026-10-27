@@ -15,6 +15,7 @@ class GraphNode {
     this.occurredAt,
     required this.createdAt,
     this.mentions = 1,
+    this.expense,
   });
 
   final String id;
@@ -24,6 +25,9 @@ class GraphNode {
   final DateTime? occurredAt;
   final DateTime createdAt;
   final int mentions;
+
+  /// Set when this node is an expense the AI found in the capture.
+  final NodeExpense? expense;
 
   /// Title for display, never empty.
   String get label =>
@@ -40,8 +44,30 @@ class GraphNode {
           : null,
       createdAt: DateTime.parse(json['created_at'] as String),
       mentions: (json['mentions'] as num?)?.toInt() ?? 1,
+      expense: json['expense'] is Map<String, dynamic>
+          ? NodeExpense.fromJson(json['expense'] as Map<String, dynamic>)
+          : null,
     );
   }
+}
+
+/// Amount of an expense node (mejoras-v2 §E).
+class NodeExpense {
+  const NodeExpense({
+    required this.amount,
+    required this.currency,
+    required this.category,
+  });
+
+  final double amount;
+  final String currency;
+  final String category;
+
+  factory NodeExpense.fromJson(Map<String, dynamic> json) => NodeExpense(
+        amount: (json['amount'] as num?)?.toDouble() ?? 0,
+        currency: (json['currency'] as String?) ?? 'USD',
+        category: (json['category'] as String?) ?? 'other',
+      );
 }
 
 /// A semantic relationship between two derived nodes.

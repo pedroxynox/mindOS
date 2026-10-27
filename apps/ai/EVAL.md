@@ -137,3 +137,29 @@ ruff check .
 mypy app
 pytest
 ```
+
+## Examen de gastos (mejoras-v2 E, fuera del gate)
+
+El detector de gastos es una **segunda llamada pequeña** (`expenses-v1`,
+`app/understanding/expenses.py`). Solo se hace si la captura tiene pistas de
+dinero; el prompt v8 y el gate ADR-018 no cambian. Tiene su propio examen:
+
+```bash
+python -m app.eval.run_eval --suite expenses               # fake, sin coste
+python -m app.eval.run_eval --suite expenses --provider openai
+```
+
+O desde **Actions → F2 comprehension eval**, con `suite = gastos`.
+
+- **Casos:** `app/eval/expenses_dataset.json` (20, en es, pt y en). Cada caso
+  trae los gastos ya hechos y la moneda del usuario. Los pagos futuros,
+  ingresos, préstamos y presupuestos no deben dar ningún gasto.
+- **Métricas:**
+  - P, R y F1 de importes (emparejados uno a uno);
+  - acierto de moneda (si es ambigua, cuenta la del usuario) y de categoría;
+  - tasa de gastos falsos;
+  - recall de la pista de dinero. Debe ser 1.0: el filtro nunca puede ocultar
+    un gasto real, y un test lo comprueba sin red.
+- **Umbrales provisionales:** F1 ≥ 0.85, moneda ≥ 0.90, categoría ≥ 0.80,
+  gastos falsos ≤ 0.10. Solo informan; con `--gate`, el run falla si no se
+  cumplen.

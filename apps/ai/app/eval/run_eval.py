@@ -9,6 +9,7 @@ Run it with:
     python -m app.eval.run_eval                 # FakeProvider (offline), report only
     python -m app.eval.run_eval --gate          # exit != 0 if thresholds not met
     python -m app.eval.run_eval --provider openai --gate
+    python -m app.eval.run_eval --suite expenses   # expense detector (not ADR-018)
 
 Thresholds are PROVISIONAL (design §13.2) — pending ratification by the product
 owner. They are read from Settings so they can be tuned without code changes.
@@ -241,6 +242,13 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         help="Exit non-zero if the acceptance thresholds are not met.",
     )
+    parser.add_argument(
+        "--suite",
+        choices=["comprehension", "expenses"],
+        default="comprehension",
+        help="comprehension = the F2 exam (ADR-018 gate); expenses = the "
+        "expense detector (mejoras-v2 §E, its own provisional thresholds).",
+    )
     return parser.parse_args(argv)
 
 
@@ -256,6 +264,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.provider:
         s = Settings(**{**default_settings.model_dump(), "llm_provider": args.provider})
     provider = build_provider(s)
+    if args.suite == "expenses":
+        return _main_expenses(provider, s, gate=args.gate)
     dataset = load_dataset()
     try:
         report, errors = asyncio.run(
@@ -274,6 +284,42 @@ def main(argv: list[str] | None = None) -> int:
         print(_render_unevaluated(errors), file=sys.stderr)
         return EXIT_PROVIDER_UNAVAILABLE
     if args.gate:
+        passed, _ = report.gate(thresholds)
+        return 0 if passed else 1
+    return 0
+
+
+def _main_expenses(provider: AIProvider, s: Settings, *, gate: bool) -> int:
+    """The expense suite: same CLI contract (report, exit 2 on provider
+    errors, exit 1 below thresholds with --gate), its own dataset."""
+    from app.eval.expenses_eval import (
+        ExpenseThresholds,
+        load_expense_cases,
+        render_expense_report,
+        run_expense_eval,
+    )
+
+    try:
+        report, errors = asyncio.run(
+            run_expense_eval(
+                provider,
+                load_expense_cases(),
+                request_delay_s=s.eval_request_delay_s,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - catastrophic whole-run failure only
+        message = _classify_provider_error(exc, s.llm_provider)
+        if message is None:
+            raise
+        print(message, file=sys.stderr)
+        return EXIT_PROVIDER_UNAVAILABLE
+    thresholds = ExpenseThresholds()
+    print(render_expense_report(report, thresholds, s.llm_provider))
+    if errors:
+        for case_id, detail in errors:
+            print(f"  NO EVALUADO {case_id}: {detail}", file=sys.stderr)
+        return EXIT_PROVIDER_UNAVAILABLE
+    if gate:
         passed, _ = report.gate(thresholds)
         return 0 if passed else 1
     return 0

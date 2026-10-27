@@ -1,4 +1,5 @@
 import { Node } from '@prisma/client';
+import { canonicalCategory, ExpenseCategory } from './categories';
 
 /**
  * Finance (lightweight, ADR-020): expenses are `note` nodes with
@@ -9,14 +10,24 @@ import { Node } from '@prisma/client';
 export interface ExpenseResponse {
   id: string;
   amount: number;
-  category: string | null;
+  /** Canonical key (food, transport, ...; see categories.ts). */
+  category: ExpenseCategory;
   currency: string;
+  /** What it was for (the user's note, or the AI's short description). */
   note: string | null;
   /** When the money was spent (defaults to when it was logged). */
   spent_at: string;
   /** 'manual_text' when typed by the user, 'ai' when detected in a capture. */
   origin: string;
+  /** The capture the AI found it in (null for manual expenses). */
+  capture_id: string | null;
   created_at: string;
+}
+
+/** A page of `GET /v1/finance/expenses`. */
+export interface ExpenseListPage {
+  data: ExpenseResponse[];
+  next_cursor: string | null;
 }
 
 export interface CategoryTotal {
@@ -52,6 +63,7 @@ type ExpenseAttrs = {
   category?: unknown;
   currency?: unknown;
   spent_at?: unknown;
+  capture_id?: unknown;
 };
 
 export function readAmount(node: Pick<Node, 'attributes'>): number {
@@ -68,11 +80,10 @@ export function readCurrency(node: Pick<Node, 'attributes'>): string {
     : 'USD';
 }
 
-export function readCategory(node: Pick<Node, 'attributes'>): string | null {
+/** Canonical category; legacy free text ("comida") maps to its key. */
+export function readCategory(node: Pick<Node, 'attributes'>): ExpenseCategory {
   const a = (node.attributes ?? {}) as ExpenseAttrs;
-  return typeof a.category === 'string' && a.category.trim().length > 0
-    ? a.category.trim()
-    : null;
+  return canonicalCategory(a.category);
 }
 
 /** When the expense happened: `spent_at` if valid, else when it was logged. */
@@ -88,16 +99,21 @@ export function readSpentAt(
 }
 
 export function toExpenseResponse(
-  node: Pick<Node, 'id' | 'attributes' | 'createdAt' | 'body' | 'origin'>,
+  node: Pick<
+    Node,
+    'id' | 'attributes' | 'createdAt' | 'body' | 'origin' | 'title'
+  >,
 ): ExpenseResponse {
+  const a = (node.attributes ?? {}) as ExpenseAttrs;
   return {
     id: node.id,
     amount: readAmount(node),
     category: readCategory(node),
     currency: readCurrency(node),
-    note: node.body ?? null,
+    note: node.body?.trim() || node.title?.trim() || null,
     spent_at: readSpentAt(node).toISOString(),
     origin: node.origin,
+    capture_id: typeof a.capture_id === 'string' ? a.capture_id : null,
     created_at: node.createdAt.toISOString(),
   };
 }

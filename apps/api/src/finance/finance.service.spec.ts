@@ -1,14 +1,18 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaRlsService } from '../prisma/prisma-rls.service';
 import { UserSettingsService } from '../users/user-settings.service';
+import { canonicalCategory, EXPENSE_CATEGORIES } from './categories';
 import { computeSummary, FinanceService } from './finance.service';
+import { ListExpensesQueryDto } from './dto/list-expenses-query.dto';
 
 /**
  * Finance summary math (D-013/D-014): expenses are bucketed by the LOCAL day
  * they were spent, only the user's currency is summed (others are reported
- * apart), categories are aggregated for the week, and the week-over-week
- * change is computed (null without a baseline).
+ * apart), categories are aggregated for the week under their canonical key
+ * (legacy free text included), and the week-over-week change is computed
+ * (null without a baseline). The expense list mixes manual and AI-detected
+ * expenses; removing one soft-deletes it and its provenance edge.
  */
 const TODAY = '2026-07-10';
 
@@ -81,9 +85,9 @@ describe('computeSummary', () => {
     ];
     const s = computeSummary(rows, TODAY, 'UTC', 'BRL');
     expect(s.by_category).toEqual([
-      { category: 'transporte', total: 25 },
-      { category: 'comida', total: 15 },
-      { category: 'otros', total: 7 },
+      { category: 'transport', total: 25 },
+      { category: 'food', total: 15 },
+      { category: 'other', total: 7 },
     ]);
   });
 
@@ -102,12 +106,48 @@ describe('computeSummary', () => {
   });
 });
 
+describe('canonicalCategory', () => {
+  it.each([
+    ['food', 'food'],
+    ['Comida', 'food'],
+    ['  Alimentación ', 'food'],
+    ['almoço', 'food'],
+    ['Uber', 'transport'],
+    ['aluguel', 'home'],
+    ['Farmacia', 'health'],
+    ['cine', 'leisure'],
+    ['ropa', 'shopping'],
+    ['luz', 'bills'],
+    ['Cursos', 'education'],
+    ['otros', 'other'],
+    ['algo raro', 'other'],
+    [undefined, 'other'],
+    [42, 'other'],
+  ])('%j → %s', (raw, expected) => {
+    expect(canonicalCategory(raw)).toBe(expected);
+  });
+
+  it('keeps every canonical key as is', () => {
+    for (const key of EXPENSE_CATEGORIES) {
+      expect(canonicalCategory(key)).toBe(key);
+    }
+  });
+});
+
 describe('FinanceService', () => {
   const USER_ID = '11111111-1111-1111-1111-111111111111';
 
   function build(
     settings: { timezone: string; currency: string | null },
-    tx: { node: { create?: jest.Mock; findMany?: jest.Mock } },
+    tx: {
+      node: {
+        create?: jest.Mock;
+        findMany?: jest.Mock;
+        findFirst?: jest.Mock;
+        update?: jest.Mock;
+      };
+      edge?: { updateMany?: jest.Mock };
+    },
   ) {
     const withUser = jest.fn(
       async <T>(
@@ -145,6 +185,8 @@ describe('FinanceService', () => {
 
     expect(res.currency).toBe('BRL');
     expect(res.note).toBe('pan');
+    expect(res.category).toBe('other');
+    expect(res.capture_id).toBeNull();
     expect(typeof create.mock.calls[0][0].data.attributes.spent_at).toBe(
       'string',
     );
@@ -171,5 +213,101 @@ describe('FinanceService', () => {
 
     expect(s.currency).toBe('MXN');
     expect(findMany.mock.calls[0][0].orderBy).toEqual([{ createdAt: 'asc' }]);
+  });
+
+  it('stores a typed category under its canonical key', async () => {
+    const create = jest.fn().mockImplementation((args) =>
+      Promise.resolve({
+        id: 'e1',
+        attributes: args.data.attributes,
+        createdAt: new Date(),
+        body: null,
+        title: null,
+        origin: 'manual_text',
+      }),
+    );
+    const service = build(
+      { timezone: 'UTC', currency: null },
+      { node: { create } },
+    );
+
+    const res = await service.addExpense(USER_ID, {
+      amount: 9,
+      category: 'Taxi',
+    });
+
+    expect(create.mock.calls[0][0].data.attributes.category).toBe('transport');
+    expect(res.category).toBe('transport');
+    expect(res.currency).toBe('USD');
+  });
+
+  it('lists manual and AI expenses with a cursor', async () => {
+    const row = (id: string, extra: Record<string, unknown> = {}) => ({
+      id,
+      attributes: {
+        kind: 'expense',
+        amount: 30,
+        currency: 'BRL',
+        category: 'food',
+        spent_at: '2026-10-26T13:30:00.000Z',
+        ...extra,
+      },
+      createdAt: new Date('2026-10-26T13:31:00.000Z'),
+      body: null,
+      title: 'almuerzo',
+      origin: 'ai',
+    });
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([row('a', { capture_id: 'c1' }), row('b')]);
+    const service = build(
+      { timezone: 'UTC', currency: 'BRL' },
+      { node: { findMany } },
+    );
+    const query = Object.assign(new ListExpensesQueryDto(), { limit: 1 });
+
+    const page = await service.listExpenses(USER_ID, query);
+
+    expect(page.data).toEqual([
+      expect.objectContaining({
+        id: 'a',
+        note: 'almuerzo',
+        origin: 'ai',
+        capture_id: 'c1',
+        spent_at: '2026-10-26T13:30:00.000Z',
+      }),
+    ]);
+    expect(page.next_cursor).toBe('b');
+    const where = findMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({
+      userId: USER_ID,
+      type: 'note',
+      deletedAt: null,
+      attributes: { path: ['kind'], equals: 'expense' },
+    });
+  });
+
+  it('removes an expense and its edges, 404 when it is not an expense', async () => {
+    const findFirst = jest
+      .fn()
+      .mockResolvedValueOnce({ id: 'e1' })
+      .mockResolvedValueOnce(null);
+    const update = jest.fn().mockResolvedValue({});
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const service = build(
+      { timezone: 'UTC', currency: null },
+      { node: { findFirst, update }, edge: { updateMany } },
+    );
+
+    await service.removeExpense(USER_ID, 'e1');
+    expect(update.mock.calls[0][0].data.deletedAt).toBeInstanceOf(Date);
+    expect(updateMany.mock.calls[0][0].where.OR).toEqual([
+      { sourceNodeId: 'e1' },
+      { targetNodeId: 'e1' },
+    ]);
+
+    await expect(service.removeExpense(USER_ID, 'x')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

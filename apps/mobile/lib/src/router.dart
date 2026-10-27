@@ -8,6 +8,7 @@ import 'features/auth/auth_providers.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/auth/presentation/register_screen.dart';
 import 'features/capture/presentation/capture_screen.dart';
+import 'features/finance/presentation/finance_screen.dart';
 import 'features/graph/presentation/ask_screen.dart';
 import 'features/graph/presentation/capture_insights_screen.dart';
 import 'features/graph/presentation/entity_screen.dart';
@@ -75,6 +76,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/tasks', builder: (_, __) => const TasksScreen()),
       GoRoute(path: '/growth', builder: (_, __) => const GrowthScreen()),
+      GoRoute(path: '/finance', builder: (_, __) => const FinanceScreen()),
       GoRoute(path: '/account', builder: (_, __) => const AccountScreen()),
     ],
   );

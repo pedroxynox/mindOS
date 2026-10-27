@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../account/locale_defaults.dart';
 import '../../feedback/feedback_api.dart';
 import '../../feedback/feedback_thumbs.dart';
+import '../../finance/expense_categories.dart';
 import '../data/graph_models.dart';
 import '../graph_providers.dart';
 import 'graph_corrections.dart';
@@ -125,9 +127,10 @@ class _InsightsBody extends StatelessWidget {
       );
     }
 
-    // Group nodes by type for a tidy, sectioned view.
+    // Group nodes by type for a tidy, sectioned view; expenses apart.
+    final expenses = entities.nodes.where((n) => n.expense != null).toList();
     final byType = <String, List<GraphNode>>{};
-    for (final n in entities.nodes) {
+    for (final n in entities.nodes.where((n) => n.expense == null)) {
       byType.putIfAbsent(n.type, () => []).add(n);
     }
     final titleById = {
@@ -164,6 +167,10 @@ class _InsightsBody extends StatelessWidget {
         const SizedBox(height: 4),
         for (final type in types) ...[
           _TypeSection(type: type, nodes: byType[type]!),
+          const SizedBox(height: 8),
+        ],
+        if (expenses.isNotEmpty) ...[
+          _ExpenseSection(expenses: expenses),
           const SizedBox(height: 8),
         ],
         if (entities.edges.isNotEmpty) ...[
@@ -219,6 +226,109 @@ class _TypeSection extends ConsumerWidget {
                     backgroundColor: style.color.withValues(alpha: 0.10),
                     side: BorderSide(color: style.color.withValues(alpha: 0.30)),
                     onPressed: () => _openNodeActions(context, ref, n),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Expenses mindOS found in the capture, with their amount.
+class _ExpenseSection extends ConsumerWidget {
+  const _ExpenseSection({required this.expenses});
+  final List<GraphNode> expenses;
+
+  Future<void> _actions(
+    BuildContext context,
+    WidgetRef ref,
+    GraphNode node,
+  ) async {
+    final e = node.expense!;
+    final style = ExpenseCategoryStyle.of(e.category);
+    final money = formatMoney(e.amount, e.currency);
+    final action = await showModalBottomSheet<_NodeAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(style.icon, color: style.color),
+              title: Text(money),
+              subtitle: Text('${style.label} · ${node.label}'),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: const Text('Ver en Finanzas'),
+              onTap: () => Navigator.of(ctx).pop(_NodeAction.open),
+            ),
+            ListTile(
+              leading: Icon(Icons.remove_circle_outline,
+                  color: Theme.of(ctx).colorScheme.error),
+              title: Text('No fue un gasto',
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+              onTap: () => Navigator.of(ctx).pop(_NodeAction.remove),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+    if (action == _NodeAction.open) {
+      context.push('/finance');
+      return;
+    }
+    await runCorrection(
+      context,
+      ref,
+      () => ref.read(graphApiClientProvider).removeNode(node.id),
+      done: 'Quitado de tus gastos.',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.account_balance_wallet_outlined,
+                    color: theme.colorScheme.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  expenses.length == 1 ? 'Gasto' : 'Gastos',
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final n in expenses)
+                  ActionChip(
+                    tooltip: 'Ver o corregir',
+                    avatar: Icon(ExpenseCategoryStyle.of(n.expense!.category).icon,
+                        size: 16,
+                        color: ExpenseCategoryStyle.of(n.expense!.category).color),
+                    label: Text(
+                      '${formatMoney(n.expense!.amount, n.expense!.currency)} · ${n.label}',
+                    ),
+                    onPressed: () => _actions(context, ref, n),
                   ),
               ],
             ),

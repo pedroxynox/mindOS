@@ -515,6 +515,43 @@ describe('GraphService.captureEntities', () => {
     ]);
   });
 
+  it('adds the amount to expenses the AI found (mejoras-v2 §E)', async () => {
+    const findFirst = jest
+      .fn()
+      .mockResolvedValue({ id: CAPTURE_ID, status: 'processed' });
+    const findMany = jest.fn().mockResolvedValue([
+      node({
+        id: 'x1',
+        type: 'note',
+        title: 'almuerzo',
+        attributes: {
+          kind: 'expense',
+          amount: 30,
+          currency: 'BRL',
+          category: 'comida',
+        },
+      }),
+      node({ id: 'n2', type: 'note', title: 'idea' }),
+    ]);
+    const edgeFindMany = jest
+      .fn()
+      .mockResolvedValueOnce([{ sourceNodeId: 'x1' }, { sourceNodeId: 'n2' }])
+      .mockResolvedValueOnce([]);
+    const { service } = buildService({
+      node: { findFirst, findMany },
+      edge: { findMany: edgeFindMany },
+    });
+
+    const result = await service.captureEntities(USER_ID, CAPTURE_ID);
+
+    expect(result.nodes[0].expense).toEqual({
+      amount: 30,
+      currency: 'BRL',
+      category: 'food',
+    });
+    expect(result.nodes[1].expense).toBeUndefined();
+  });
+
   it('returns empty entities when nothing was extracted yet', async () => {
     const findFirst = jest
       .fn()
