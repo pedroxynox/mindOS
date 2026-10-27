@@ -46,7 +46,21 @@ class LocalCaptures extends Table {
   TextColumn get audioLocalPath => text().nullable()();
 
   /// S3 object key returned by the presign step, once the audio is uploaded.
+  /// (Legacy F1 path; voice notes now go straight to /captures/voice.)
   TextColumn get audioRef => text().nullable()();
+
+  /// The recorded voice note itself (schema v2, ADR-021). Kept on the device
+  /// only until it is synced, then cleared; it works on web too (no files).
+  BlobColumn get audioData => blob().nullable()();
+
+  /// MIME type of [audioData] (e.g. audio/webm, audio/mp4).
+  TextColumn get audioMime => text().nullable()();
+
+  /// Length of the recording, for display and cost attribution.
+  IntColumn get audioDurationMs => integer().nullable()();
+
+  /// Last terminal error shown to the user (e.g. "no se escuchó nada").
+  TextColumn get lastError => text().nullable()();
 
   /// When the event actually happened, if the user knows it (#03 §9).
   DateTimeColumn get occurredAt => dateTime().nullable()();

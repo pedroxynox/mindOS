@@ -31,6 +31,7 @@
 | ADR-018 | Umbrales realistas del gate de calidad de comprensión (F2 / R-001) | 🟢 Aceptado | [ADR-018-f2-comprehension-eval-gate.md](./ADR-018-f2-comprehension-eval-gate.md) |
 | ADR-019 | Puente cola↔Python: consumidor BullMQ nativo en Python | 🟢 Aceptado | [ADR-019-queue-python-consumer-bridge.md](./ADR-019-queue-python-consumer-bridge.md) |
 | ADR-020 | Tareas, Crecimiento y Finanzas adelantados sobre el grafo (nodos `note` con `attributes.kind`) | 🟠 Aceptado (retroactivo), sujeto a veto | [ADR-020-life-modules-as-note-nodes.md](./ADR-020-life-modules-as-note-nodes.md) |
+| ADR-021 | Notas de voz: transcribir al recibir y descartar el audio | 🟢 Aceptado | [ADR-021-voice-transcribe-and-discard.md](./ADR-021-voice-transcribe-and-discard.md) |
 
 ## Notas
 

@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app import __version__
@@ -160,6 +160,79 @@ class QueryResponse(BaseModel):
 
     answer: str
     sources: list[QuerySource]
+
+
+class TranscribeResponse(BaseModel):
+    """Transcript of one voice note plus what it cost (ADR-021)."""
+
+    text: str
+    provider: str
+    model: str
+    duration_s: float | None
+    cost_usd: float
+
+
+_AUDIO_TYPES = {
+    "audio/webm",
+    "audio/ogg",
+    "audio/opus",
+    "audio/mp4",
+    "audio/m4a",
+    "audio/x-m4a",
+    "audio/aac",
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/wave",
+    "audio/flac",
+}
+
+
+@app.post("/internal/transcribe", response_model=TranscribeResponse)
+async def internal_transcribe(
+    request: Request,
+    duration_ms: int | None = None,
+    x_internal_token: str | None = Header(default=None),
+) -> TranscribeResponse:
+    """Transcribe a voice note sent as the raw request body (ADR-021).
+
+    Called only by the API (shared internal token). The audio is held in memory
+    for the duration of this request and never written anywhere — voice is
+    transcribed and discarded.
+    """
+    _require_internal_auth(x_internal_token)
+    content_type = (request.headers.get("content-type") or "").split(";")[0]
+    content_type = content_type.strip().lower()
+    if content_type not in _AUDIO_TYPES:
+        raise HTTPException(status_code=415, detail="unsupported audio type")
+
+    audio = await request.body()
+    if not audio:
+        raise HTTPException(status_code=422, detail="empty audio")
+    if len(audio) > settings.transcribe_max_bytes:
+        raise HTTPException(status_code=413, detail="audio too large")
+
+    duration_s = duration_ms / 1000.0 if duration_ms and duration_ms > 0 else None
+    provider = _get_provider()
+    try:
+        completion = await provider.transcribe(  # type: ignore[attr-defined]
+            audio, content_type, duration_s=duration_s
+        )
+    except NotImplementedError as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except Exception as exc:  # upstream failure: the API retries later
+        logger.warning("transcription failed: %s", exc)
+        raise HTTPException(status_code=502, detail="transcription failed") from exc
+
+    usage = completion.usage
+    return TranscribeResponse(
+        text=completion.text.strip(),
+        provider=usage.provider,
+        model=usage.model,
+        duration_s=duration_s,
+        cost_usd=usage.cost_usd,
+    )
 
 
 @app.post("/internal/query", response_model=QueryResponse)

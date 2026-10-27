@@ -68,9 +68,16 @@ class AIProvider(ABC):
         """Return an embedding for the text. ``dim`` is provider-specific (D-008)."""
 
     @abstractmethod
-    async def transcribe(self, audio_bytes: bytes, content_type: str) -> Completion:
-        """Transcribe speech to text.
+    async def transcribe(
+        self,
+        audio_bytes: bytes,
+        content_type: str,
+        *,
+        duration_s: float | None = None,
+    ) -> Completion:
+        """Transcribe speech to text (voice notes, ADR-021).
 
-        Declared for contract completeness (used when a voice capture has no
-        ``body``). The comprehension PoC does not exercise this path.
+        ``duration_s`` (when the client knows it) lets per-minute-billed models
+        attribute an accurate cost. The returned ``Completion.text`` is the
+        transcript (may be empty when nothing intelligible was said).
         """

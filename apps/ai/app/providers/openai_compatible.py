@@ -116,6 +116,9 @@ class OpenAICompatibleProvider(AIProvider):
         max_retries: int,
         backoff_base_s: float,
         base_url: str | None = None,
+        transcribe_model: str | None = None,
+        transcribe_usd_per_min: float = 0.0,
+        transcribe_languages: tuple[str, ...] = ("es", "pt", "en"),
     ) -> None:
         try:
             from openai import AsyncOpenAI
@@ -136,6 +139,9 @@ class OpenAICompatibleProvider(AIProvider):
         self._prices_per_mtok = prices_per_mtok
         self._max_retries = max_retries
         self._backoff_base_s = backoff_base_s
+        self._transcribe_model = transcribe_model
+        self._transcribe_usd_per_min = transcribe_usd_per_min
+        self._transcribe_languages = transcribe_languages
         # Prefer deterministic output (temperature=0). A few models only accept
         # the DEFAULT temperature (1) and reject 0 with HTTP 400; we cannot tell
         # by name (gpt-5.4-mini accepts 0, gpt-5.5 does not), so we send it by
@@ -267,7 +273,69 @@ class OpenAICompatibleProvider(AIProvider):
         )
         return Embedding(vector=vector, dim=len(vector), usage=usage)
 
-    async def transcribe(self, audio_bytes: bytes, content_type: str) -> Completion:
-        # Declared for contract completeness; the comprehension PoC never calls
-        # this. Wire up speech-to-text here when voice transcription lands.
-        raise NotImplementedError("transcribe is out of scope for the F2 PoC")
+    async def transcribe(
+        self,
+        audio_bytes: bytes,
+        content_type: str,
+        *,
+        duration_s: float | None = None,
+    ) -> Completion:
+        """Speech-to-text via the OpenAI-compatible ``audio.transcriptions`` API.
+
+        gpt-transcribe takes a ``languages`` hint array (LatAm-first: es/pt/en);
+        Whisper-family models do not, so no hint is sent to them. Billing is per
+        audio minute, attributed from ``duration_s`` when known.
+        """
+        model = self._transcribe_model
+        if model is None:
+            raise NotImplementedError(
+                f"the {self._provider_name!r} provider does not support "
+                "speech-to-text; use 'openai' (or 'groq') for voice notes."
+            )
+        filename = "voice" + _extension_for(content_type)
+        extra_body: dict = {}
+        if model.startswith("gpt-transcribe"):
+            extra_body["languages"] = list(self._transcribe_languages)
+
+        response = await self._with_retries(
+            lambda: self._client.audio.transcriptions.create(
+                model=model,
+                file=(filename, audio_bytes, content_type),
+                response_format="json",
+                extra_body=extra_body or None,
+            )
+        )
+        text = (getattr(response, "text", None) or "").strip()
+        minutes = (duration_s or 0.0) / 60.0
+        usage = Usage(
+            provider=self._provider_name,
+            model=model,
+            operation="transcribe",
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=round(minutes * self._transcribe_usd_per_min, 6),
+        )
+        return Completion(text=text, usage=usage)
+
+
+_EXTENSIONS = {
+    "audio/webm": ".webm",
+    "audio/ogg": ".ogg",
+    "audio/opus": ".ogg",
+    "audio/mp4": ".m4a",
+    "audio/m4a": ".m4a",
+    "audio/x-m4a": ".m4a",
+    "audio/aac": ".m4a",
+    "audio/mpeg": ".mp3",
+    "audio/mp3": ".mp3",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+    "audio/wave": ".wav",
+    "audio/flac": ".flac",
+}
+
+
+def _extension_for(content_type: str) -> str:
+    """File extension the transcription API uses to detect the container."""
+    base = content_type.split(";", 1)[0].strip().lower()
+    return _EXTENSIONS.get(base, ".webm")

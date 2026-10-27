@@ -59,6 +59,29 @@ class CaptureRepository {
     return clientId;
   }
 
+  /// Persist a recorded VOICE NOTE optimistically (ADR-021). The bytes live in
+  /// the local outbox (works on web: no file system) until the SyncService
+  /// sends them to `/captures/voice`; the server transcribes and discards them.
+  Future<String> saveVoiceNote({
+    required Uint8List audio,
+    required String mimeType,
+    int? durationMs,
+    DateTime? createdAtLocal,
+  }) async {
+    final clientId = _uuid.v4();
+    await _db.insertCapture(
+      LocalCapturesCompanion.insert(
+        clientId: clientId,
+        type: CaptureKind.voice,
+        audioData: Value(audio),
+        audioMime: Value(mimeType),
+        audioDurationMs: Value(durationMs),
+        createdAtLocal: createdAtLocal ?? DateTime.now(),
+      ),
+    );
+    return clientId;
+  }
+
   /// Observable stream of all local captures (newest first) for the UI.
   Stream<List<LocalCapture>> watchCaptures() => _db.watchAllCaptures();
 

@@ -310,9 +310,20 @@ class FakeProvider(AIProvider):
         )
         return Embedding(vector=vector, dim=_EMBED_DIM, usage=usage)
 
-    async def transcribe(self, audio_bytes: bytes, content_type: str) -> Completion:
-        # Not exercised by the PoC; kept deterministic for contract completeness.
-        text = f"[fake transcription of {len(audio_bytes)} bytes]"
+    async def transcribe(
+        self,
+        audio_bytes: bytes,
+        content_type: str,
+        *,
+        duration_s: float | None = None,
+    ) -> Completion:
+        # Deterministic offline stand-in: empty audio -> empty transcript (lets
+        # the API's "nothing was heard" path be exercised end to end).
+        text = (
+            f"Nota de voz de prueba ({len(audio_bytes)} bytes)"
+            if audio_bytes
+            else ""
+        )
         usage = Usage(
             provider=_PROVIDER_NAME,
             model="fake-stt-1",

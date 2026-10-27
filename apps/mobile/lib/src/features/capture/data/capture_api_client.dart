@@ -4,17 +4,25 @@ import 'package:http/http.dart' as http;
 
 import '../../auth/data/auth_session.dart';
 
-/// Result of a successful `POST /v1/captures` (2xx).
+/// Result of a successful `POST /v1/captures` or `/captures/voice` (2xx).
 class CreateCaptureResult {
-  const CreateCaptureResult({required this.captureId, required this.status});
+  const CreateCaptureResult({
+    required this.captureId,
+    required this.status,
+    this.content,
+  });
 
   final String captureId;
   final String status;
+
+  /// The capture text — for a voice note, its transcript.
+  final String? content;
 
   factory CreateCaptureResult.fromJson(Map<String, dynamic> json) {
     return CreateCaptureResult(
       captureId: json['capture_id'] as String,
       status: json['status'] as String,
+      content: json['content'] as String?,
     );
   }
 }
@@ -48,6 +56,19 @@ class CaptureValidationException implements Exception {
   final int statusCode;
   final String? body;
 
+  /// The API's user-facing message, when the body carries one.
+  String? get userMessage {
+    final b = body;
+    if (b == null || b.isEmpty) return null;
+    try {
+      final json = jsonDecode(b);
+      if (json is Map<String, dynamic> && json['message'] is String) {
+        return json['message'] as String;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   @override
   String toString() => 'CaptureValidationException($statusCode): $body';
 }
@@ -78,6 +99,18 @@ abstract class CaptureApiClient {
     required String uploadUrl,
     required List<int> bytes,
     required String contentType,
+  });
+
+  /// Send a recorded voice note (raw bytes) to `POST /v1/captures/voice`; the
+  /// server transcribes it and returns the capture with the transcript.
+  /// Same error contract as [createCapture].
+  Future<CreateCaptureResult> createVoiceCapture({
+    required String idempotencyKey,
+    required List<int> audio,
+    required String contentType,
+    String? clientId,
+    DateTime? occurredAt,
+    int? durationMs,
   });
 
   /// Create a capture. `idempotencyKey` is the outbox `clientId`.
@@ -222,6 +255,60 @@ class HttpCaptureApiClient implements CaptureApiClient {
       rethrow;
     } catch (e) {
       throw CaptureTransientException('createCapture failed: $e');
+    }
+  }
+
+  @override
+  Future<CreateCaptureResult> createVoiceCapture({
+    required String idempotencyKey,
+    required List<int> audio,
+    required String contentType,
+    String? clientId,
+    DateTime? occurredAt,
+    int? durationMs,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/captures/voice').replace(
+      queryParameters: {
+        if (clientId != null) 'client_id': clientId,
+        if (occurredAt != null)
+          'occurred_at': occurredAt.toUtc().toIso8601String(),
+        if (durationMs != null) 'duration_ms': '$durationMs',
+      },
+    );
+    Future<http.Response> once() {
+      final token = _tokens.accessToken;
+      return _client
+          .post(
+            uri,
+            headers: {
+              'content-type': contentType,
+              'idempotency-key': idempotencyKey,
+              if (token != null && token.isNotEmpty)
+                'authorization': 'Bearer $token',
+            },
+            body: audio,
+          )
+          // Transcription can take a while (and the AI may be waking up).
+          .timeout(const Duration(seconds: 100));
+    }
+
+    try {
+      var response = await once();
+      if (response.statusCode == 401 && await _tokens.refresh()) {
+        response = await once();
+      }
+      if (response.statusCode == 202 || response.statusCode == 200) {
+        return CreateCaptureResult.fromJson(
+          jsonDecode(response.body) as Map<String, dynamic>,
+        );
+      }
+      _throwForStatus(response.statusCode, response.body);
+    } on CaptureValidationException {
+      rethrow;
+    } on CaptureTransientException {
+      rethrow;
+    } catch (e) {
+      throw CaptureTransientException('createVoiceCapture failed: $e');
     }
   }
 

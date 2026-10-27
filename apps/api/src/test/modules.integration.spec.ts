@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import { BlobStorageService } from '../capture/blob-storage.service';
+import { CaptureService } from '../capture/capture.service';
+import { IdempotencyService } from '../capture/idempotency.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PrismaRlsService } from '../prisma/prisma-rls.service';
 import { BriefingService } from '../briefing/briefing.service';
@@ -76,6 +80,55 @@ describeIntegration('post-F2 modules (PostgreSQL + RLS)', () => {
     expect((await tasks.list(userA)).map((x) => x.id)).not.toContain(t.id);
     const after = await briefing.build(userA);
     expect(after.tasks.map((x) => x.id)).not.toContain(t.id);
+  });
+
+  it('stores a voice note as text + cost under RLS, idempotently (ADR-021)', async () => {
+    const transcribe = jest.fn().mockResolvedValue({
+      text: 'Llamar a Marcos mañana',
+      provider: 'openai',
+      model: 'gpt-transcribe',
+      duration_s: 4.2,
+      cost_usd: 0.000315,
+    });
+    const queue = {
+      enqueueUnderstanding: jest.fn().mockResolvedValue(undefined),
+    };
+    const captures = new CaptureService(
+      rls,
+      new IdempotencyService(rls),
+      {} as BlobStorageService,
+      queue,
+      { transcribe },
+    );
+    const key = randomUUID();
+    const audio = Buffer.from('fake-opus-bytes');
+
+    const first = await captures.createVoice(userA, key, {
+      audio,
+      contentType: 'audio/webm',
+      clientId: key,
+      durationMs: 4200,
+    });
+    const replay = await captures.createVoice(userA, key, {
+      audio,
+      contentType: 'audio/webm',
+      clientId: key,
+      durationMs: 4200,
+    });
+
+    expect(first.content).toBe('Llamar a Marcos mañana');
+    expect(replay.capture_id).toBe(first.capture_id);
+    expect(transcribe).toHaveBeenCalledTimes(1); // no double charge
+
+    const usage = await rls.withUser(userA, (tx) =>
+      tx.llmUsage.findMany({ where: { captureId: first.capture_id } }),
+    );
+    expect(usage).toHaveLength(1);
+    expect(usage[0].operation).toBe('transcribe');
+    const hidden = await rls.withUser(userB, (tx) =>
+      tx.llmUsage.findMany({ where: { captureId: first.capture_id } }),
+    );
+    expect(hidden).toHaveLength(0);
   });
 
   it('persists timezone/currency and uses them for finance and habits', async () => {

@@ -8,6 +8,7 @@ import { CaptureType, CreateCaptureDto } from './dto/create-capture.dto';
 import { IdempotencyService } from './idempotency.service';
 import { CaptureResponse } from './capture.mapper';
 import { UnderstandingQueuePort } from './understanding.queue.port';
+import { VoiceTranscriber } from './voice-transcriber';
 
 /**
  * Unit tests for CaptureService (task 6.5): persist-before-enqueue ordering,
@@ -81,6 +82,7 @@ function buildHarness(): Harness {
     idempotency as unknown as IdempotencyService,
     blobs as unknown as BlobStorageService,
     queue as unknown as UnderstandingQueuePort,
+    { transcribe: jest.fn() } as unknown as VoiceTranscriber,
   );
 
   return { service, order, idempotency, blobs, queue };
@@ -188,6 +190,7 @@ describe('CaptureService', () => {
       { lookup: jest.fn() } as unknown as IdempotencyService,
       {} as unknown as BlobStorageService,
       { enqueueUnderstanding: jest.fn() } as unknown as UnderstandingQueuePort,
+      { transcribe: jest.fn() } as unknown as VoiceTranscriber,
     );
     await expect(service.findOne(USER_ID, randomUUID())).rejects.toBeInstanceOf(
       NotFoundException,

@@ -43,6 +43,15 @@ flutter run --dart-define=API_BASE_URL=http://localhost:3000/v1             # de
 flutter build web --release --dart-define=API_BASE_URL=https://mindos-api.onrender.com/v1
 ```
 
+## Voice notes (ADR-021)
+Recording uses the `record` plugin: Opus/WebM in browsers (AAC/MP4 on Safari)
+and AAC/M4A on mobile. The audio sits in the offline outbox until it is synced
+to `POST /v1/captures/voice`; the server transcribes it and the audio is
+discarded. **Native builds** need the microphone permission in the generated
+platform folders:
+- Android: `<uses-permission android:name="android.permission.RECORD_AUDIO"/>` in `android/app/src/main/AndroidManifest.xml`.
+- iOS: `NSMicrophoneUsageDescription` in `ios/Runner/Info.plist`.
+
 ## Quality
 - `flutter analyze --no-fatal-infos`: static analysis
 - `flutter test`: tests. There are 15, all for capture; new screens have none
