@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../shared/format.dart';
 import '../graph_providers.dart';
 import 'node_type_style.dart';
 
 /// Lists all derived nodes of one type (e.g. all people, all topics), page by
-/// page with "Cargar más". Reached from the Memoria count chips.
+/// page with "Cargar más". Reached from the Memoria count chips. People,
+/// projects... come grouped by name ("3 menciones"); tapping one opens its
+/// card (`/node/:id`).
 class NodesListScreen extends ConsumerWidget {
   const NodesListScreen({super.key, required this.type});
 
@@ -67,9 +71,12 @@ class NodesListScreen extends ConsumerWidget {
                 backgroundColor: style.color.withValues(alpha: 0.15),
                 child: Icon(style.icon, color: style.color, size: 20),
               ),
-              title: Text(
-                (n.title ?? '').trim().isEmpty ? '(sin título)' : n.title!.trim(),
-              ),
+              title: Text(n.label),
+              subtitle: n.mentions > 1
+                  ? Text(plural(n.mentions, 'mención', 'menciones'))
+                  : null,
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/node/${n.id}'),
             ),
           );
         },

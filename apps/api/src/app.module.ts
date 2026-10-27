@@ -12,6 +12,7 @@ import { QueryModule } from './query/query.module';
 import { TasksModule } from './tasks/tasks.module';
 import { GrowthModule } from './growth/growth.module';
 import { FinanceModule } from './finance/finance.module';
+import { FeedbackModule } from './feedback/feedback.module';
 import { UsersModule } from './users/users.module';
 
 /**
@@ -47,6 +48,7 @@ import { UsersModule } from './users/users.module';
     TasksModule,
     GrowthModule,
     FinanceModule,
+    FeedbackModule,
   ],
   providers: [
     {

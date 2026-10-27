@@ -42,13 +42,3 @@ export function isoWeekKey(key: string): string {
   const week = Math.floor((thursday.getTime() - jan1) / DAY_MS / 7) + 1;
   return `${weekYear}-W${String(week).padStart(2, '0')}`;
 }
-
-/** Normalise a person/entity name for grouping: trim, lowercase, no accents. */
-export function normalizeName(name: string): string {
-  return name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-}

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../theme.dart';
 import '../../widgets/presence_orb.dart';
+import '../feedback/feedback_api.dart';
+import '../feedback/feedback_thumbs.dart';
 import '../graph/data/briefing_models.dart';
 import '../graph/graph_providers.dart';
 import '../shared/format.dart';
@@ -44,6 +46,7 @@ List<String> composeBriefingLines(Briefing b, {DateTime? now}) {
 }
 
 /// "mindOS te habla primero": the proactive briefing card at the top of Hoy.
+/// Once loaded it can be rated (👍/👎, one vote per local day).
 class BriefingHero extends ConsumerWidget {
   const BriefingHero({super.key});
 
@@ -105,6 +108,17 @@ class BriefingHero extends ConsumerWidget {
                           ),
                         ),
                       ],
+                      if (async.hasValue && !isLoading)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FeedbackThumbs(
+                            target: FeedbackTarget.briefing(
+                              localDayKey(DateTime.now()),
+                            ),
+                            prompt: '¿Te sirve este resumen?',
+                            thanks: 'Gracias.',
+                          ),
+                        ),
                     ],
                   ),
                 ),

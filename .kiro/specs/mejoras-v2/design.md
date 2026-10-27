@@ -120,13 +120,17 @@ Reglas comunes:
 - **Migración:** tabla `feedback(id, user_id, target_type, target_id, useful,
   reason, created_at)` con RLS fail-closed y grants mínimos.
 - **API:**
-  - `POST /v1/feedback {target_type: capture|query|briefing|node, target_id?, useful, reason?}`.
+  - `POST /v1/feedback {target_type: capture|query|briefing|node, target_id, useful, reason?}`
+    (votar otra vez reemplaza el voto) y `GET /v1/feedback?target_type=&target_id=`
+    (voto actual o `null`).
   - `GET /v1/graph/nodes/:id` → la entidad (agrupada por nombre normalizado
     entre capturas), sus conexiones, las tareas relacionadas y las capturas
     donde aparece.
-  - `PATCH /v1/graph/nodes/:id {title}` renombra.
-  - `DELETE /v1/graph/nodes/:id` hace soft delete del nodo y de sus aristas. Si
-    la captura se reprocesa, el nodo sigue borrado.
+  - `PATCH /v1/graph/nodes/:id {title, scope?: node|entity}` renombra una
+    mención (por defecto) o todas.
+  - `DELETE /v1/graph/nodes/:id?scope=node|entity` hace soft delete del nodo (o
+    de todas las menciones) y de sus aristas. Si la captura se reprocesa, el
+    nodo sigue borrado.
   - `PATCH /v1/graph/edges/:id {confirmed}`: `true` → `user_confirmed`;
     `false` → soft delete.
   - Las aristas de `captures/:id/entities` incluyen `id`.

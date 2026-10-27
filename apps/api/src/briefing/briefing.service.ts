@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { normalizeName } from '../common/time';
+import { normalizeLabel } from '../common/text';
 import { localDay } from '../common/tz';
 import { PrismaRlsService } from '../prisma/prisma-rls.service';
 import { UserSettingsService } from '../users/user-settings.service';
@@ -164,7 +164,7 @@ export function groupPeople(
     const person = byId.get(edge.targetNodeId);
     const title = person?.title?.trim();
     if (!title) continue;
-    const key = normalizeName(title);
+    const key = normalizeLabel(title);
     const group = groups.get(key) ?? { name: title, tasks: new Set<string>() };
     group.tasks.add(edge.sourceNodeId);
     groups.set(key, group);

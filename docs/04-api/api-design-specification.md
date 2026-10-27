@@ -14,7 +14,7 @@
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 0.3 |
+| Versión | 0.4 |
 | Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00, #01, #02, #03 |
@@ -130,10 +130,10 @@ Códigos HTTP: `200/201` éxito, `202` aceptado (async), `400` validación,
 | `POST /auth/register`, `/auth/login`, `/auth/refresh` | ✅ | Igual, más `POST /auth/logout` (204). Límite de 5 peticiones por minuto |
 | `GET /account/export`, `DELETE /account` | ❌ | Pendiente (F4) |
 | `POST /captures` | ✅ | 202 + `Idempotency-Key`. Además: `POST /captures/audio-upload` (presign), `GET /captures`, `GET /captures/:id` |
-| `GET /nodes`, `GET /nodes/{id}`, `GET /nodes/{id}/connections`, `PATCH /nodes/{id}`, `PATCH /edges/{id}` | ❌ | Sustituidos por la lectura **de solo lectura** `/graph/*` (§5.7). No hay edición ni corrección de aristas (FR-2.4 pendiente) |
+| `GET /nodes`, `GET /nodes/{id}`, `GET /nodes/{id}/connections`, `PATCH /nodes/{id}`, `PATCH /edges/{id}` | 🟡 | Bajo `/graph/*` (§5.7): listas agrupadas por nombre, ficha de entidad, renombrar, quitar y confirmar o rechazar conexiones (FR-2.4, mejoras-v2 PR D). Sin `connections` paginadas aparte: la ficha trae lo relacionado |
 | `POST /query` (SSE, fuentes = nodos) | 🟡 | **JSON síncrono, sin streaming.** Las fuentes son **capturas**, no nodos (§5.7) |
 | `GET /briefing` (secciones) | 🟡 | Forma simplificada: tareas + próximos eventos (§5.7). **Ninguna pantalla de la app lo usa** |
-| `POST /feedback` | ❌ | Pendiente (FR-3.5) |
+| `POST /feedback` | ✅ | Un voto por objetivo (votar otra vez lo reemplaza), más `GET /feedback` para leer el voto actual (mejoras-v2 PR D) |
 | Tiempo real (WebSocket/SSE, ADR-013) | ❌ | No implementado. La app consulta cada 3 s mientras una captura se procesa |
 | — (fuera del contrato original) | ✅ | `/tasks`, `/growth/*` y `/finance/*`, adelantados por [ADR-020](../02-architecture/adr/ADR-020-life-modules-as-note-nodes.md) (§5.7) |
 
@@ -328,18 +328,63 @@ Devuelve el Daily Briefing priorizado por contexto temporal.
 Todos requieren JWT. Los datos se aíslan por usuario con RLS
 (`PrismaRlsService.withUser`).
 
-**Grafo (solo lectura)**
+**Grafo y correcciones** (FR-2.4)
+
+La IA crea un nodo por captura y nombre: "Marcos" en cinco capturas son cinco
+filas. Personas, proyectos, eventos, temas y decisiones se **agrupan por nombre
+normalizado** (minúsculas, sin tildes ni puntuación en los bordes, mismas reglas
+que `normalize_label` en la IA). Tareas y notas van una a una.
+
 ```json
-// GET /v1/graph/summary → 200 (excluye capture y note)
+// GET /v1/graph/summary → 200: entidades distintas por tipo; tareas una a una; excluye capture y note
 { "counts": { "task": 12, "person": 5, "topic": 9 }, "total": 26 }
 
-// GET /v1/graph/nodes?type=person&limit=20&cursor=<id> → 200 (type=capture → 400; limit 1..100)
+// GET /v1/graph/nodes?type=person&limit=20&cursor=… → 200 (type=capture → 400; limit 1..100)
+//   Agrupados: cursor = desplazamiento ("20"); orden = mención más reciente primero.
+//   task/note: cursor = id. `id` = la mención más reciente; `mentions` = cuántas.
 { "data": [ { "id": "…", "type": "person", "title": "Marcos", "confidence": 0.9,
-              "occurred_at": null, "created_at": "…" } ], "next_cursor": null }
+              "occurred_at": null, "created_at": "…", "mentions": 3 } ], "next_cursor": null }
+
+// GET /v1/graph/nodes/:id → 200 (cualquier id de la entidad; 404 ajeno o borrado; 400 si es una captura)
+{ "id": "…", "type": "person", "title": "Marcos", "mentions": 3, "node_ids": ["…"],
+  "confidence": 0.9, "user_edited": false, "first_seen_at": "…", "last_seen_at": "…",
+  "captures": [ { "id": "…", "snippet": "Llamar a Marcos…", "modality": "voice", "occurred_at": null, "created_at": "…" } ],
+  "related":  [ { "id": "…", "type": "project", "title": "Aurora", "mentions": 2 } ],   // misma captura o arista directa
+  "tasks":    [ { "id": "…", "title": "Llamar a Marcos", "done": false, "priority": "high", "due_at": null } ] }
+
+// PATCH /v1/graph/nodes/:id { "title": "Marcos Pérez", "scope"?: "node" | "entity" } → 200
+//   node (por defecto): solo esa mención; si el nombre nuevo ya existe, se une a esa entidad.
+//   entity: todas las menciones. Marca attributes.user_edited.
+{ "id": "…", "type": "person", "title": "Marcos Pérez", "confidence": 0.9, "occurred_at": null, "created_at": "…", "updated": 3 }
+
+// DELETE /v1/graph/nodes/:id?scope=node|entity → 204
+//   Soft delete del nodo (o de todas las menciones) y de todas sus aristas. La captura no se toca.
+
+// PATCH /v1/graph/edges/:id { "confirmed": true | false } → 200
+//   true → user_confirmed; false → soft delete. derived_from (procedencia) → 400.
+{ "id": "…", "source": "…", "target": "…", "type": "assigned_to", "confidence": 0.8, "user_confirmed": true, "deleted": false }
 
 // GET /v1/graph/captures/:id/entities → 200 (404 si no es del usuario)
 { "capture_id": "…", "status": "processed",
-  "nodes": [ /* GraphNode */ ], "edges": [ { "source": "…", "target": "…", "type": "mentions", "confidence": 0.8 } ] }
+  "nodes": [ /* GraphNode */ ],
+  "edges": [ { "id": "…", "source": "…", "target": "…", "type": "mentions", "confidence": 0.8, "user_confirmed": false } ] }
+```
+
+Reprocesar una captura no deshace las correcciones: el worker hace upsert por
+`dedup_key` y en conflicto solo actualiza `confidence`, así que un nodo borrado
+sigue borrado y un nombre corregido se mantiene (test de integración en
+`modules.integration.spec.ts`).
+
+**Feedback** (FR-3.5, North Star)
+```json
+// POST /v1/feedback → 201. Un voto por (usuario, target_type, target_id); votar otra vez lo reemplaza.
+//   target_type: capture | query | briefing | node
+//   target_id:   id de captura o nodo, la pregunta (≤ 1000) o el día local "YYYY-MM-DD" (briefing)
+{ "target_type": "capture", "target_id": "…", "useful": false, "reason"?: "faltó Ana" }
+→ { "id": "…", "target_type": "capture", "target_id": "…", "useful": false, "reason": "faltó Ana", "updated_at": "…" }
+
+// GET /v1/feedback?target_type=capture&target_id=… → 200
+{ "target_type": "capture", "target_id": "…", "useful": false }   // null si no votó
 ```
 
 **Consulta (RAG)**
@@ -462,4 +507,5 @@ Cómo el cliente descubre que una captura ya fue comprendida (ADR-02):
 |---------|-------|-------|---------|
 | 0.1 | 2026-07-01 | CTO | Borrador inicial. Estilo REST/JSON + SSE (ADR-013, antes "ADR-A1"), convenciones globales, mapa de recursos por contexto, endpoints del MVP (auth, captura, grafo, query streaming, briefing, feedback), contrato async, seguridad a nivel de API y non-goals. |
 | 0.2 | 2026-07-03 | CPTO | Consolidación de ADRs (D-004): la decisión de estilo de API embebida ("ADR-A1") se extrajo a un archivo individual [ADR-013](../02-architecture/adr/ADR-013-rest-json-sse-api-style.md) en `../02-architecture/adr/`; §2 deja solo un índice con enlace. Referencia cruzada normalizada a 3 dígitos. |
+| 0.4 | 2026-10-27 | CPTO | mejoras-v2 PR D: §5.7 documenta las correcciones del grafo (listas agrupadas por nombre, ficha de entidad, renombrar, quitar, confirmar o rechazar conexiones) y `/v1/feedback` (votar y leer el voto). §5.0 actualizado. |
 | 0.3 | 2026-10-27 | CPTO | Añadidos **§5.0 Estado de implementación** (contrato de diseño frente a lo implementado) y **§5.7 Endpoints implementados**: graph, query JSON sin SSE, briefing simplificado, tasks, growth y finance (ADR-020). Se anotan la falta de feedback, edición del grafo, export y borrado, y tiempo real, además de la inconsistencia camelCase/snake_case en las entradas (D-015). Corrige la deriva D-017. |

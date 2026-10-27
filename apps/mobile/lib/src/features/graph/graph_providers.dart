@@ -30,6 +30,12 @@ final captureEntitiesProvider = FutureProvider.autoDispose
   return ref.watch(graphApiClientProvider).captureEntities(captureId);
 });
 
+/// One entity (person, project, topic...) with its captures and links.
+final entityProvider =
+    FutureProvider.autoDispose.family<EntityDetail, String>((ref, id) async {
+  return ref.watch(graphApiClientProvider).entity(id);
+});
+
 /// Paginated list of derived nodes of one type ("Cargar más").
 class NodesListState {
   const NodesListState({

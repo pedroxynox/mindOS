@@ -51,3 +51,9 @@ String greetingFor(DateTime now, {String? name}) {
 /// "1 tarea" / "3 tareas" style pluralisation.
 String plural(int n, String singular, String pluralForm) =>
     '$n ${n == 1 ? singular : pluralForm}';
+
+/// Local calendar day as `YYYY-MM-DD` (e.g. the briefing's feedback key).
+String localDayKey(DateTime dt) {
+  final l = dt.toLocal();
+  return '${l.year.toString().padLeft(4, '0')}-${_two(l.month)}-${_two(l.day)}';
+}

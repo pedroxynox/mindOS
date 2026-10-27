@@ -36,6 +36,36 @@ class GraphApiClient {
     return CaptureEntities.fromJson(json as Map<String, dynamic>);
   }
 
+  /// One entity with its captures, related entities and tasks.
+  Future<EntityDetail> entity(String id) async {
+    final json = await _api.get('/graph/nodes/$id');
+    return EntityDetail.fromJson(json as Map<String, dynamic>);
+  }
+
+  /// Rename one mention ([wholeEntity] false) or every mention of the name.
+  /// Returns how many mentions were renamed.
+  Future<int> renameNode(
+    String id,
+    String title, {
+    bool wholeEntity = false,
+  }) async {
+    final json = await _api.patch('/graph/nodes/$id', {
+      'title': title,
+      'scope': wholeEntity ? 'entity' : 'node',
+    }) as Map<String, dynamic>?;
+    return (json?['updated'] as num?)?.toInt() ?? 1;
+  }
+
+  /// Forget one mention ([wholeEntity] false) or the whole entity.
+  Future<void> removeNode(String id, {bool wholeEntity = false}) async {
+    await _api.delete('/graph/nodes/$id?scope=${wholeEntity ? 'entity' : 'node'}');
+  }
+
+  /// Confirm (keep) or reject (remove) a connection the AI proposed.
+  Future<void> reviewEdge(String id, {required bool confirmed}) async {
+    await _api.patch('/graph/edges/$id', {'confirmed': confirmed});
+  }
+
   /// The proactive Daily Briefing.
   Future<Briefing> briefing() async {
     final json = await _api.get('/briefing');

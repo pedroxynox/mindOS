@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mindos/src/features/feedback/feedback_api.dart';
 import 'package:mindos/src/features/graph/data/graph_api_client.dart';
 import 'package:mindos/src/features/graph/data/query_models.dart';
 import 'package:mindos/src/features/graph/graph_providers.dart';
@@ -33,11 +34,17 @@ class _FakeGraphApi extends GraphApiClient {
 // Conversar: a question is sent, the grounded answer and its cited notes are
 // shown; a 503 (AI waking up) is shown as a friendly error, not a crash.
 void main() {
+  late FakeFeedbackApi feedback;
+
   Future<_FakeGraphApi> pumpAsk(WidgetTester tester, {bool fail = false}) async {
     final api = _FakeGraphApi(fail: fail);
+    feedback = FakeFeedbackApi();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [graphApiClientProvider.overrideWithValue(api)],
+        overrides: [
+          graphApiClientProvider.overrideWithValue(api),
+          feedbackApiProvider.overrideWithValue(feedback),
+        ],
         child: MaterialApp(theme: AppTheme.dark(), home: const AskScreen()),
       ),
     );
@@ -62,6 +69,14 @@ void main() {
     expect(find.text('En qué me baso'), findsOneWidget);
     expect(find.text('Llamar a Marcos mañana'), findsOneWidget);
 
+    // The answer can be rated; the vote is keyed by the question.
+    expect(find.text('¿Te sirvió esta respuesta?'), findsOneWidget);
+    await tester.tap(find.byTooltip('Me sirvió'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(feedback.votes, [
+      (const FeedbackTarget.query('¿Qué tengo con Marcos?'), true),
+    ]);
+
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 400));
   });
@@ -72,6 +87,7 @@ void main() {
     await send(tester, 'hola');
 
     expect(find.textContaining('despertando'), findsOneWidget);
+    expect(find.byTooltip('Me sirvió'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 400));

@@ -10,6 +10,7 @@ import 'features/auth/presentation/register_screen.dart';
 import 'features/capture/presentation/capture_screen.dart';
 import 'features/graph/presentation/ask_screen.dart';
 import 'features/graph/presentation/capture_insights_screen.dart';
+import 'features/graph/presentation/entity_screen.dart';
 import 'features/graph/presentation/nodes_list_screen.dart';
 import 'features/growth/presentation/growth_screen.dart';
 import 'features/home/home_screen.dart';
@@ -61,6 +62,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/capture/:id/insights',
         builder: (_, state) =>
             CaptureInsightsScreen(captureId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/node/:id',
+        builder: (_, state) =>
+            EntityScreen(nodeId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/graph/:type',

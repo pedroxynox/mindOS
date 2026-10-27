@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mindos/src/features/account/account_providers.dart';
 import 'package:mindos/src/features/account/data/me_api.dart';
 import 'package:mindos/src/features/auth/auth_providers.dart';
+import 'package:mindos/src/features/feedback/feedback_api.dart';
 import 'package:mindos/src/features/finance/data/finance_models.dart';
 import 'package:mindos/src/features/finance/finance_providers.dart';
 import 'package:mindos/src/features/graph/data/briefing_models.dart';
@@ -16,12 +17,17 @@ import 'package:mindos/src/features/tasks/tasks_providers.dart';
 import 'package:mindos/src/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../helpers.dart';
+
 // Hoy renders the briefing ("mindOS te habla primero"), the user's name in the
 // greeting, the top priorities and the summary cards — with "Metas" (not the
 // old mislabelled "Proyectos"). Providers are overridden; no network. The
 // PresenceOrb animates forever, so frames are driven with bounded pumps.
 void main() {
+  late FakeFeedbackApi feedback;
+
   Future<void> pumpHome(WidgetTester tester) async {
+    feedback = FakeFeedbackApi();
     SharedPreferences.setMockInitialValues({
       'mindos.auth.access': 'a',
       'mindos.auth.email': 'pedro@example.com',
@@ -34,6 +40,7 @@ void main() {
       ProviderScope(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
+          feedbackApiProvider.overrideWithValue(feedback),
           meProvider.overrideWith((ref) async => const Me(
                 id: 'u',
                 email: 'pedro@example.com',
@@ -90,6 +97,14 @@ void main() {
     expect(find.text('Correr 10K'), findsOneWidget);
     // Money is shown in the user's currency, never a hard-coded "$".
     expect(find.text('R\$ 1.234,50'), findsOneWidget);
+
+    // The briefing can be rated once per local day.
+    expect(find.text('¿Te sirve este resumen?'), findsOneWidget);
+    await tester.tap(find.byTooltip('No me sirvió'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(feedback.votes.single.$1.type, 'briefing');
+    expect(feedback.votes.single.$1.id, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
+    expect(feedback.votes.single.$2, isFalse);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
