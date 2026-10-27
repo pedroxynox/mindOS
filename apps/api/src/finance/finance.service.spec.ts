@@ -18,7 +18,13 @@ function expense(
   extra: Record<string, unknown> = {},
 ): { attributes: Prisma.JsonValue; createdAt: Date } {
   return {
-    attributes: { kind: 'expense', amount, currency: 'BRL', spent_at: spentAt, ...extra },
+    attributes: {
+      kind: 'expense',
+      amount,
+      currency: 'BRL',
+      spent_at: spentAt,
+      ...extra,
+    },
     createdAt: new Date(spentAt),
   };
 }
@@ -83,7 +89,10 @@ describe('computeSummary', () => {
 
   it('returns null change without a baseline and ignores non-positive amounts', () => {
     const s = computeSummary(
-      [expense(30, '2026-07-10T10:00:00Z'), expense(-5, '2026-07-09T10:00:00Z')],
+      [
+        expense(30, '2026-07-10T10:00:00Z'),
+        expense(-5, '2026-07-09T10:00:00Z'),
+      ],
       TODAY,
       'UTC',
       'BRL',
@@ -108,7 +117,9 @@ describe('FinanceService', () => {
     );
     return new FinanceService(
       { withUser } as unknown as PrismaRlsService,
-      { get: jest.fn().mockResolvedValue(settings) } as unknown as UserSettingsService,
+      {
+        get: jest.fn().mockResolvedValue(settings),
+      } as unknown as UserSettingsService,
     );
   }
 
@@ -122,13 +133,21 @@ describe('FinanceService', () => {
         origin: 'manual_text',
       }),
     );
-    const service = build({ timezone: 'America/Sao_Paulo', currency: 'BRL' }, { node: { create } });
+    const service = build(
+      { timezone: 'America/Sao_Paulo', currency: 'BRL' },
+      { node: { create } },
+    );
 
-    const res = await service.addExpense(USER_ID, { amount: 12.5, note: ' pan ' });
+    const res = await service.addExpense(USER_ID, {
+      amount: 12.5,
+      note: ' pan ',
+    });
 
     expect(res.currency).toBe('BRL');
     expect(res.note).toBe('pan');
-    expect(typeof create.mock.calls[0][0].data.attributes.spent_at).toBe('string');
+    expect(typeof create.mock.calls[0][0].data.attributes.spent_at).toBe(
+      'string',
+    );
   });
 
   it('rejects an expense dated in the future', async () => {
@@ -143,7 +162,10 @@ describe('FinanceService', () => {
 
   it('summarises in the chosen currency with an explicit order', async () => {
     const findMany = jest.fn().mockResolvedValue([]);
-    const service = build({ timezone: 'UTC', currency: 'MXN' }, { node: { findMany } });
+    const service = build(
+      { timezone: 'UTC', currency: 'MXN' },
+      { node: { findMany } },
+    );
 
     const s = await service.summary(USER_ID, new Date('2026-07-10T12:00:00Z'));
 

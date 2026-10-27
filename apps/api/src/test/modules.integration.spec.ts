@@ -59,7 +59,10 @@ describeIntegration('post-F2 modules (PostgreSQL + RLS)', () => {
   });
 
   it('isolates tasks per user and soft-deletes them', async () => {
-    const t = await tasks.create(userA, { title: 'Pagar la luz', priority: 'high' });
+    const t = await tasks.create(userA, {
+      title: 'Pagar la luz',
+      priority: 'high',
+    });
 
     expect((await tasks.list(userA)).map((x) => x.id)).toContain(t.id);
     expect((await tasks.list(userB)).map((x) => x.id)).not.toContain(t.id);
@@ -85,14 +88,19 @@ describeIntegration('post-F2 modules (PostgreSQL + RLS)', () => {
       currency: 'BRL',
     });
 
-    const e = await finance.addExpense(userA, { amount: 30, category: 'comida' });
+    const e = await finance.addExpense(userA, {
+      amount: 30,
+      category: 'comida',
+    });
     expect(e.currency).toBe('BRL');
     await finance.addExpense(userA, { amount: 10, currency: 'USD' });
 
     const summary = await finance.summary(userA);
     expect(summary.currency).toBe('BRL');
     expect(summary.week_total).toBe(30);
-    expect(summary.other_currencies).toEqual([{ currency: 'USD', week_total: 10 }]);
+    expect(summary.other_currencies).toEqual([
+      { currency: 'USD', week_total: 10 },
+    ]);
 
     // User B sees none of user A's money.
     const other = await finance.summary(userB);

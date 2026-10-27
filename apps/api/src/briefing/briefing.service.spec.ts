@@ -152,7 +152,10 @@ describe('BriefingService.build', () => {
 
   it("uses the user's timezone for today's window", async () => {
     const findMany = jest.fn().mockResolvedValue([]);
-    const { service } = buildService({ node: { findMany } }, 'America/Mexico_City');
+    const { service } = buildService(
+      { node: { findMany } },
+      'America/Mexico_City',
+    );
 
     // 03:00 UTC on the 11th is still the 10th in Mexico City (UTC-6).
     await service.build(USER_ID, new Date('2026-07-11T03:00:00.000Z'));

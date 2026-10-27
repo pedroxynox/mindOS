@@ -148,7 +148,10 @@ export class GrowthService {
 
   // --- Habits ----------------------------------------------------------------
 
-  async listHabits(userId: string, todayKey?: string): Promise<HabitResponse[]> {
+  async listHabits(
+    userId: string,
+    todayKey?: string,
+  ): Promise<HabitResponse[]> {
     const today = todayKey ?? (await this.todayKeyFor(userId));
     const rows = await this.listByKind(userId, 'habit');
     return rows.map((r) => toHabitResponse(r, today));

@@ -30,9 +30,14 @@ function buildService(tx: {
     ): Promise<T> => work(tx as unknown as Prisma.TransactionClient),
   );
   const settings = {
-    get: jest.fn().mockResolvedValue({ timezone: 'America/Sao_Paulo', currency: null }),
+    get: jest
+      .fn()
+      .mockResolvedValue({ timezone: 'America/Sao_Paulo', currency: null }),
   } as unknown as UserSettingsService;
-  return new GrowthService({ withUser } as unknown as PrismaRlsService, settings);
+  return new GrowthService(
+    { withUser } as unknown as PrismaRlsService,
+    settings,
+  );
 }
 
 function habitNode(attributes: Record<string, unknown>) {

@@ -76,7 +76,9 @@ export function readCategory(node: Pick<Node, 'attributes'>): string | null {
 }
 
 /** When the expense happened: `spent_at` if valid, else when it was logged. */
-export function readSpentAt(node: Pick<Node, 'attributes' | 'createdAt'>): Date {
+export function readSpentAt(
+  node: Pick<Node, 'attributes' | 'createdAt'>,
+): Date {
   const a = (node.attributes ?? {}) as ExpenseAttrs;
   if (typeof a.spent_at === 'string') {
     const d = new Date(a.spent_at);

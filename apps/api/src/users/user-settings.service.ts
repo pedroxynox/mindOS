@@ -51,7 +51,10 @@ export class UserSettingsService {
       },
     });
     if (!user) {
-      throw new NotFoundException({ code: 'not_found', message: 'User not found.' });
+      throw new NotFoundException({
+        code: 'not_found',
+        message: 'User not found.',
+      });
     }
     return {
       id: user.id,

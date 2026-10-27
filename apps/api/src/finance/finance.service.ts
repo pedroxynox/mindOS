@@ -84,7 +84,9 @@ export function computeSummary(
     daily: daily.map(round2),
     by_category: [...byCategory.entries()]
       .map(([category, total]) => ({ category, total: round2(total) }))
-      .sort((a, b) => b.total - a.total || a.category.localeCompare(b.category)),
+      .sort(
+        (a, b) => b.total - a.total || a.category.localeCompare(b.category),
+      ),
     other_currencies: [...others.entries()]
       .map(([c, total]) => ({ currency: c, week_total: round2(total) }))
       .sort((a, b) => b.week_total - a.week_total),
@@ -175,7 +177,9 @@ export class FinanceService {
     // their most recent expense (explicit order above), else USD.
     const currency =
       chosen ??
-      (rows.length > 0 ? readCurrency(rows[rows.length - 1]) : DEFAULT_CURRENCY);
+      (rows.length > 0
+        ? readCurrency(rows[rows.length - 1])
+        : DEFAULT_CURRENCY);
 
     return { currency, ...computeSummary(rows, todayKey, timezone, currency) };
   }

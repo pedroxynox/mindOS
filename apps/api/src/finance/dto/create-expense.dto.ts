@@ -25,7 +25,9 @@ export class CreateExpenseDto {
 
   /** ISO-4217 code; defaults to the user's currency (or USD). */
   @IsOptional()
-  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.toUpperCase() : value,
+  )
   @IsISO4217CurrencyCode()
   currency?: string;
 

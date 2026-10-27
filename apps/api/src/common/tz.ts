@@ -59,7 +59,14 @@ function wallClock(instant: Date, timeZone: string) {
 /** Offset (ms) of `timeZone` from UTC at `instant` (e.g. -6h for CDMX). */
 export function zoneOffsetMs(instant: Date, timeZone: string): number {
   const w = wallClock(instant, timeZone);
-  const asUtc = Date.UTC(w.year, w.month - 1, w.day, w.hour, w.minute, w.second);
+  const asUtc = Date.UTC(
+    w.year,
+    w.month - 1,
+    w.day,
+    w.hour,
+    w.minute,
+    w.second,
+  );
   const truncated = instant.getTime() - instant.getUTCMilliseconds();
   return asUtc - truncated;
 }

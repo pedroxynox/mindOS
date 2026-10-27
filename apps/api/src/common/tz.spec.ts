@@ -41,9 +41,9 @@ describe('tz helpers', () => {
   });
 
   it('starts the local day at local midnight (UTC instant)', () => {
-    expect(startOfLocalDayKey('2026-07-10', 'America/Sao_Paulo').toISOString()).toBe(
-      '2026-07-10T03:00:00.000Z',
-    );
+    expect(
+      startOfLocalDayKey('2026-07-10', 'America/Sao_Paulo').toISOString(),
+    ).toBe('2026-07-10T03:00:00.000Z');
     expect(startOfLocalDayKey('2026-07-10', 'UTC').toISOString()).toBe(
       '2026-07-10T00:00:00.000Z',
     );
@@ -51,7 +51,10 @@ describe('tz helpers', () => {
 
   it('handles DST transitions (23h and 25h days)', () => {
     // US spring forward 2026-03-08 and fall back 2026-11-01 (New York).
-    const spring = localDay(new Date('2026-03-08T12:00:00Z'), 'America/New_York');
+    const spring = localDay(
+      new Date('2026-03-08T12:00:00Z'),
+      'America/New_York',
+    );
     expect(spring.start.toISOString()).toBe('2026-03-08T05:00:00.000Z');
     expect(spring.end.getTime() - spring.start.getTime()).toBe(23 * 3600_000);
     const fall = localDay(new Date('2026-11-01T12:00:00Z'), 'America/New_York');

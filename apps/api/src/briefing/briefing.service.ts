@@ -69,7 +69,10 @@ export class BriefingService {
   ) {}
 
   /** Build the briefing with "today" in the user's own timezone (D-013). */
-  async build(userId: string, now: Date = new Date()): Promise<BriefingResponse> {
+  async build(
+    userId: string,
+    now: Date = new Date(),
+  ): Promise<BriefingResponse> {
     const { timezone } = await this.settings.get(userId);
     const day: DayWindow = localDay(now, timezone);
     return this.rls.withUser(userId, async (tx) => {
