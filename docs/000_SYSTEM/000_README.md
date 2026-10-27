@@ -2,17 +2,17 @@
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 1.0 |
+| Versión | 1.1 |
 | Estado | 🟢 Vigente |
 | Ámbito | Puerta de entrada a la capa de gobernanza de mindOS |
 | Depende de | — (raíz de la serie 000) |
-| Última actualización | 2026-07-02 |
+| Última actualización | 2026-10-27 |
 
 Bienvenido al **Sistema Operativo del Proyecto** de mindOS. Este directorio (`docs/000_SYSTEM/`) es la **capa de gobernanza**: el conjunto de documentos que rige **toda** la cadena documental de fundación (#00–#08) y **todo** el código del monorepo. Si la cadena #00–#08 responde *qué construimos y cómo*, la serie 000 responde *cómo decidimos, cómo trabajamos y cómo nos mantenemos honestos*.
 
 > **Principio fundacional:** el conocimiento vive en el **repo**, no en el chat. Toda decisión, riesgo, deuda y estado se persiste en estos documentos. Una conversación que no deja rastro en el repo no ocurrió.
 
-## 1. Los 13 documentos de gobernanza (000–012)
+## 1. Los 14 documentos de gobernanza (000–013)
 
 | # | Documento | Propósito (una línea) |
 |---|-----------|-----------------------|
@@ -29,6 +29,7 @@ Bienvenido al **Sistema Operativo del Proyecto** de mindOS. Este directorio (`do
 | 010 | [Master Index](./010_MASTER_INDEX.md) | Mapa completo del conocimiento y dueños de la verdad. |
 | 011 | [Glossary](./011_GLOSSARY.md) | Lenguaje ubicuo: definiciones canónicas. |
 | 012 | [Risk & Debt Register](./012_RISK_AND_DEBT_REGISTER.md) | Registro append-only de riesgos y deuda técnica. |
+| 013 | [Codebase Audit](./013_CODEBASE_AUDIT.md) | Auditoría de higiene del código (2026-07-10) y recomendaciones pendientes. |
 
 ## 2. Orden de lectura (ingeniero o IA nuevo)
 1. **001 — CPTO Charter:** entiende quién manda técnicamente y con qué criterio.
@@ -59,3 +60,4 @@ La serie 000 no reemplaza a la cadena [#00–#08](../README.md); la **gobierna**
 | Versión | Fecha | Cambios |
 |---------|-------|---------|
 | 1.0 | 2026-07-02 | Puerta de entrada inicial a la capa de gobernanza. |
+| 1.1 | 2026-10-27 | Añadido el documento 013 (Codebase Audit) al índice de la serie. |

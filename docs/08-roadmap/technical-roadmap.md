@@ -8,11 +8,11 @@
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 0.4 |
+| Versión | 0.5 |
 | Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00–#07 (toda la cadena) |
-| Última actualización | 2026-07-02 |
+| Última actualización | 2026-10-27 |
 
 ---
 
@@ -68,7 +68,18 @@ producto todavía. Elimina el riesgo de integración temprano.
 
 **Hecho cuando (revisado por ADR-011, aceptado):** (1) CI verde en api/ai/mobile; (2) build y publicación de imágenes de contenedor de api y ai vía CI; (3) despliegue continuo a UN único entorno de staging (host/PaaS de contenedores simple, sin Kubernetes); (4) IaC mínima y declarativa de ese entorno. La infraestructura pesada (Kubernetes, prod aislado, IaC completa, observabilidad avanzada) se difiere a una fase pre-beta.
 
-> *Estado real hoy: (1) cumplido; (2)(3)(4) pendientes. F0 ≈70%.*
+> *Estado real a 2026-07-02: (1) cumplido; (2)(3)(4) pendientes. F0 ≈70%.*
+>
+> **Estado (2026-10-27), F0 ≈90 %:**
+>
+> | Criterio | Estado |
+> |----------|--------|
+> | (1) CI verde | ✅ |
+> | (2) Imágenes publicadas por CI | ❌ Render construye las imágenes desde los Dockerfiles; CI no las publica |
+> | (3) Despliegue continuo a un entorno | ✅ en espíritu: Render despliega desde `main` a su **único** entorno, que es producción y no staging |
+> | (4) IaC mínima declarativa | ✅ con el Blueprint `render.yaml` |
+>
+> Falta un staging separado (R-003, R-008).
 
 **Riesgo que elimina:** integración de infraestructura y pipeline (el "no
 compila en prod" tardío).
@@ -128,6 +139,18 @@ seguir.
 **Hecho cuando:** el usuario abre mindOS y recibe un briefing útil, pregunta
 *"¿qué tengo pendiente con Ana?"* y obtiene una respuesta correcta que cita sus
 fuentes del grafo, sin alucinar. **El bucle de valor del PRD queda cerrado.**
+
+> **Estado (2026-10-27), F3 ~70 %:**
+>
+> | Pieza | Estado |
+> |-------|--------|
+> | Lectura del grafo + "Lo que entendí" + Memoria | ✅ |
+> | `GET /v1/briefing` | ✅ en la API, pero **no se muestra en la app** (D-016) |
+> | `POST /v1/query` | ✅ con citas a capturas, **sin SSE** |
+> | RAG | 🟡 solo semántico, **sin travesía de grafo** |
+> | `POST /v1/feedback` | ❌ |
+>
+> Detalle en [009](../000_SYSTEM/009_CURRENT_STATE.md) y [#04 §5.0](../04-api/api-design-specification.md).
 
 **Riesgo que elimina:** que el valor entregado no sea percibido como útil (se
 mide con feedback real).
@@ -193,7 +216,24 @@ Coherente con los non-goals del PRD (#01 §7) y las fases V2+ del producto:
 
 ### 3.1 Ficha reservada — Módulo **Finanzas** (función futura, V4)
 
-> **Estado: RESERVADA (no se construye ahora).** Anotada a petición del founder
+> **Actualización (2026-10-27): ADELANTADO EN VERSIÓN BÁSICA Y MANUAL.** El
+> 2026-07-10 se construyó un Finanzas mínimo:
+> - registro manual de gastos (`POST /v1/finance/expenses`);
+> - resumen de la semana actual frente a la anterior (`GET /v1/finance/summary`);
+> - tarjeta en "Hoy".
+>
+> En la misma tanda se adelantaron Tareas con prioridad y Crecimiento (metas,
+> hábitos, reflexión). Todo se guarda como nodos `note` con `attributes.kind`,
+> sin el dominio `amount`/`category` propio que pedía esta ficha. Ver
+> [ADR-020](../02-architecture/adr/ADR-020-life-modules-as-note-nodes.md), que
+> registra la decisión de forma retroactiva y fija cuándo migrar a tablas
+> propias.
+>
+> **Sigue pendiente lo que define esta ficha:** que la **IA lea los gastos desde
+> las capturas**, además de categorías agregadas, presupuestos y moneda por
+> usuario (D-014). El texto original se conserva debajo.
+>
+> **Estado original: RESERVADA (no se construye ahora).** Anotada a petición del founder
 > (2026-07-09) para que el trabajo actual no cierre puertas. **No** forma parte
 > del MVP (F0–F5); es un **módulo de dominio de vida** posterior, coherente con
 > el non-goal del PRD y con la fila "finanzas, salud → V4" de la tabla anterior.
@@ -251,9 +291,15 @@ El MVP es un éxito si, al final de F5:
 
 ---
 
-## 6. Siguiente paso inmediato (tras aprobar este documento)
+## 6. Siguiente paso inmediato
 
-Con la fundación documental completa (#00–#08 aprobados), el siguiente paso es
+> **Actualizado (2026-10-27):** F0–F2 están hechas y F3 lo está en su mayor
+> parte. El siguiente paso vivo y su lista priorizada están en
+> [009 §5](../000_SYSTEM/009_CURRENT_STATE.md): voz, briefing visible, feedback,
+> zona horaria y moneda, y tests. El texto original de esta sección se conserva
+> como historia.
+
+*(Original)* Con la fundación documental completa (#00–#08 aprobados), el siguiente paso es
 **iniciar F0**: crear el esqueleto del monorepo y el pipeline CI/CD.
 
 > Este es el punto donde, por primera vez, escribimos código de producción — y
@@ -279,3 +325,4 @@ Con la fundación documental completa (#00–#08 aprobados), el siguiente paso e
 | 0.2 | 2026-07-02 | CPTO | Cabecera de supersesión (ADR-010). Corrección de deriva en F0/F1 (stack de dos backends, auth JWT propia, superficie Flutter). Nota de refinamiento de la DoD de F0 (ADR-011). |
 | 0.3 | 2026-07-02 | CPTO | DoD de F0 actualizada por ADR-011 (aceptado): CD mínimo + diferimiento de infra pesada. |
 | 0.4 | 2026-07-09 | CPTO | Añadida §3.1 "Ficha reservada — Módulo Finanzas (V4)" a petición del founder: sección de Finanzas donde la IA convierte capturas en gastos/ingresos con montos, categorías y resúmenes; es una AMPLIACIÓN sobre F2 (requiere un dominio `amount`/`category` que hoy no existe) y va DESPUÉS de encender el bucle central (F1–F3), no ahora. No forma parte del MVP. |
+| 0.5 | 2026-10-27 | CPTO | Puesta al día:<br>- estado real de **F0 (~90 %)** y de **F3 (~70 %)**;<br>- §3.1 Finanzas: **adelantado en versión básica y manual** (ADR-020) y queda pendiente la versión con IA;<br>- §6 apunta a 009 §5 como siguiente paso vivo.<br>Los textos originales se conservan como historia. Corrige la deriva D-017. |

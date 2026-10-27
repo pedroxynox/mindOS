@@ -40,12 +40,14 @@ function taskRow(id: string, attributes: Record<string, unknown>) {
 
 describe('TasksService.list', () => {
   it('orders open tasks by priority and puts done tasks last', async () => {
-    const findMany = jest.fn().mockResolvedValue([
-      taskRow('low', { priority: 'low', done: false }),
-      taskRow('done', { priority: 'high', done: true }),
-      taskRow('high', { priority: 'high', done: false }),
-      taskRow('med', { priority: 'medium', done: false }),
-    ]);
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([
+        taskRow('low', { priority: 'low', done: false }),
+        taskRow('done', { priority: 'high', done: true }),
+        taskRow('high', { priority: 'high', done: false }),
+        taskRow('med', { priority: 'medium', done: false }),
+      ]);
     const service = buildService({ node: { findMany } });
 
     const result = await service.list(USER_ID, 'all');
@@ -54,10 +56,12 @@ describe('TasksService.list', () => {
   });
 
   it('hides done tasks when filter is pending', async () => {
-    const findMany = jest.fn().mockResolvedValue([
-      taskRow('a', { priority: 'medium', done: true }),
-      taskRow('b', { priority: 'medium', done: false }),
-    ]);
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([
+        taskRow('a', { priority: 'medium', done: true }),
+        taskRow('b', { priority: 'medium', done: false }),
+      ]);
     const service = buildService({ node: { findMany } });
 
     const result = await service.list(USER_ID, 'pending');
@@ -117,5 +121,58 @@ describe('TasksService.update', () => {
     await expect(
       service.update(USER_ID, 'missing', { done: true }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('clears done_at when re-opening and sets/clears the due date', async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 't1',
+      title: 'x',
+      attributes: {
+        done: true,
+        done_at: '2026-07-09T00:00:00.000Z',
+        due_at: 'old',
+      },
+    });
+    const update = jest.fn().mockImplementation((args) =>
+      Promise.resolve({
+        id: 't1',
+        title: 'x',
+        attributes: args.data.attributes,
+        origin: 'manual_text',
+        createdAt: new Date('2026-07-10T00:00:00.000Z'),
+      }),
+    );
+    const service = buildService({ node: { findFirst, update } });
+
+    const reopened = await service.update(USER_ID, 't1', {
+      done: false,
+      due_at: null,
+    });
+
+    expect(reopened.done).toBe(false);
+    expect(reopened.done_at).toBeNull();
+    expect(reopened.due_at).toBeNull();
+  });
+});
+
+describe('TasksService.remove', () => {
+  it('soft-deletes an owned task', async () => {
+    const findFirst = jest.fn().mockResolvedValue({ id: 't1' });
+    const update = jest.fn().mockResolvedValue({});
+    const service = buildService({ node: { findFirst, update } });
+
+    await service.remove(USER_ID, 't1');
+
+    expect(update.mock.calls[0][0]).toMatchObject({ where: { id: 't1' } });
+    expect(update.mock.calls[0][0].data.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it('throws NotFound for a task that is not the caller’s', async () => {
+    const service = buildService({
+      node: { findFirst: jest.fn().mockResolvedValue(null) },
+    });
+    await expect(service.remove(USER_ID, 'x')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

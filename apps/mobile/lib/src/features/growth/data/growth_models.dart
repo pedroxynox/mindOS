@@ -36,15 +36,30 @@ class Habit {
     required this.cadence,
     required this.streak,
     required this.doneToday,
+    this.streakUnit = 'day',
+    this.periodDone = false,
     this.area,
   });
 
   final String id;
   final String? title;
-  final String cadence;
+  final String cadence; // 'daily' | 'weekly'
   final int streak;
   final bool doneToday;
+
+  /// 'day' for daily habits, 'week' for weekly ones.
+  final String streakUnit;
+
+  /// Whether the current period (today / this week) is already satisfied.
+  final bool periodDone;
   final String? area;
+
+  bool get isWeekly => cadence == 'weekly';
+
+  /// "3 días" / "1 semana".
+  String get streakLabel => streakUnit == 'week'
+      ? '$streak ${streak == 1 ? "semana" : "semanas"}'
+      : '$streak ${streak == 1 ? "día" : "días"}';
 
   factory Habit.fromJson(Map<String, dynamic> json) => Habit(
         id: json['id'] as String,
@@ -52,6 +67,8 @@ class Habit {
         cadence: (json['cadence'] as String?) ?? 'daily',
         streak: (json['streak'] as num?)?.toInt() ?? 0,
         doneToday: json['done_today'] == true,
+        streakUnit: (json['streak_unit'] as String?) ?? 'day',
+        periodDone: json['period_done'] == true || json['done_today'] == true,
         area: json['area'] as String?,
       );
 }

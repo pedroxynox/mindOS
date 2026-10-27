@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -54,6 +56,15 @@ export class GrowthController {
     return this.growth.updateGoal(user.id, id, dto);
   }
 
+  @Delete('goals/:id')
+  @HttpCode(204)
+  async removeGoal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.growth.remove(user.id, id, 'goal');
+  }
+
   @Get('habits')
   listHabits(@CurrentUser() user: AuthenticatedUser): Promise<HabitResponse[]> {
     return this.growth.listHabits(user.id);
@@ -76,6 +87,15 @@ export class GrowthController {
     return this.growth.toggleHabitToday(user.id, id);
   }
 
+  @Delete('habits/:id')
+  @HttpCode(204)
+  async removeHabit(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.growth.remove(user.id, id, 'habit');
+  }
+
   @Get('reflections')
   listReflections(
     @CurrentUser() user: AuthenticatedUser,
@@ -89,5 +109,14 @@ export class GrowthController {
     @Body() dto: CreateReflectionDto,
   ): Promise<ReflectionResponse> {
     return this.growth.createReflection(user.id, dto);
+  }
+
+  @Delete('reflections/:id')
+  @HttpCode(204)
+  async removeReflection(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.growth.remove(user.id, id, 'reflection');
   }
 }

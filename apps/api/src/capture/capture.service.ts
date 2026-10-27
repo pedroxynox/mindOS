@@ -4,8 +4,10 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { PrismaRlsService } from '../prisma/prisma-rls.service';
 import {
   BlobStorageService,
@@ -20,6 +22,33 @@ import {
   UNDERSTANDING_QUEUE_PORT,
   UnderstandingQueuePort,
 } from './understanding.queue.port';
+import { VOICE_TRANSCRIBER, VoiceTranscriber } from './voice-transcriber';
+
+/** A voice note received as raw bytes (ADR-021). */
+export interface VoiceUpload {
+  audio: Buffer;
+  contentType: string;
+  clientId?: string;
+  occurredAt?: string;
+  durationMs?: number;
+}
+
+/** Audio containers the client may send (browser MediaRecorder + mobile). */
+export const VOICE_CONTENT_TYPES = new Set([
+  'audio/webm',
+  'audio/ogg',
+  'audio/opus',
+  'audio/mp4',
+  'audio/m4a',
+  'audio/x-m4a',
+  'audio/aac',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/x-wav',
+]);
+
+/** Max size of one voice note (≈ 10+ minutes of opus). */
+export const VOICE_MAX_BYTES = 10 * 1024 * 1024;
 
 /** A page of captures returned by the list endpoint. */
 export interface CaptureListPage {
@@ -47,6 +76,8 @@ export class CaptureService {
     private readonly blobs: BlobStorageService,
     @Inject(UNDERSTANDING_QUEUE_PORT)
     private readonly queue: UnderstandingQueuePort,
+    @Inject(VOICE_TRANSCRIBER)
+    private readonly transcriber: VoiceTranscriber,
   ) {}
 
   /** Create a capture (or return the prior one for an idempotent replay). */
@@ -105,21 +136,124 @@ export class CaptureService {
 
     // 5) Hand off to understanding (F2). A failure here must NOT break the 202:
     //    the reconciliation sweep (task 9) re-enqueues raw captures.
+    await this.enqueue(userId, capture.id);
+    return response;
+  }
+
+  /**
+   * Create a capture from a VOICE NOTE (ADR-021): transcribe it via the AI
+   * service, persist the transcript as the capture body (origin `voice`) with
+   * its cost, then hand off to understanding exactly like a text capture. The
+   * audio is never stored — not in Postgres, not in object storage.
+   *
+   * Idempotent per `Idempotency-Key`: the request hash covers a sha256 of the
+   * audio, so a replay returns the original capture WITHOUT re-transcribing.
+   */
+  async createVoice(
+    userId: string,
+    key: string,
+    upload: VoiceUpload,
+  ): Promise<CaptureResponse> {
+    const contentType = upload.contentType.split(';')[0].trim().toLowerCase();
+    if (!VOICE_CONTENT_TYPES.has(contentType)) {
+      throw new BadRequestException({
+        code: 'unsupported_audio',
+        message: 'Formato de audio no soportado.',
+      });
+    }
+    if (upload.audio.length === 0) {
+      throw new UnprocessableEntityException({
+        code: 'empty_audio',
+        message: 'La nota de voz está vacía.',
+      });
+    }
+
+    const audioHash = createHash('sha256').update(upload.audio).digest('hex');
+    const pseudo: CreateCaptureDto = {
+      type: CaptureType.voice,
+      content: `sha256:${audioHash}`,
+      occurred_at: upload.occurredAt,
+      client_id: upload.clientId,
+    };
+    const prior = await this.idempotency.lookup(userId, key, pseudo);
+    if (prior) {
+      return prior;
+    }
+    const occurredAt = this.resolveOccurredAt(upload.occurredAt);
+
+    // Slow network call OUTSIDE any transaction.
+    const transcript = await this.transcriber.transcribe(
+      upload.audio,
+      contentType,
+      upload.durationMs,
+    );
+    const text = transcript.text.trim();
+    if (!text) {
+      throw new UnprocessableEntityException({
+        code: 'empty_transcript',
+        message:
+          'No se escuchó nada en la nota de voz. Intenta grabar de nuevo.',
+      });
+    }
+
+    const capture = await this.rls.withUser(userId, async (tx) => {
+      const node = await tx.node.create({
+        data: {
+          userId,
+          type: 'capture',
+          status: 'raw',
+          origin: 'voice',
+          body: text.slice(0, 20_000),
+          attributes: {
+            modality: 'voice',
+            transcription: {
+              provider: transcript.provider,
+              model: transcript.model,
+              duration_s: transcript.duration_s,
+            },
+          },
+          occurredAt,
+        },
+      });
+      await this.idempotency.store(tx, {
+        userId,
+        key,
+        captureId: node.id,
+        dto: pseudo,
+      });
+      // Per-user cost of the transcription (first-class metric, #02).
+      await tx.llmUsage.create({
+        data: {
+          userId,
+          captureId: node.id,
+          provider: transcript.provider,
+          model: transcript.model,
+          operation: 'transcribe',
+          costUsd: transcript.cost_usd,
+        },
+      });
+      return node;
+    });
+
+    await this.enqueue(userId, capture.id);
+    return toCaptureResponse(capture);
+  }
+
+  /** Enqueue understanding; never fails the request (reconciliation retries). */
+  private async enqueue(userId: string, captureId: string): Promise<void> {
     try {
       await this.queue.enqueueUnderstanding({
         schema_version: 1,
-        capture_id: capture.id,
+        capture_id: captureId,
         user_id: userId,
         enqueued_at: new Date().toISOString(),
       });
     } catch (error) {
       this.logger.error(
-        `Enqueue failed for capture ${capture.id}; it is persisted and will be ` +
+        `Enqueue failed for capture ${captureId}; it is persisted and will be ` +
           `reconciled. Cause: ${(error as Error).message}`,
       );
     }
-
-    return response;
   }
 
   /** Mint a presigned upload URL for a voice capture (design.md §7.1). */

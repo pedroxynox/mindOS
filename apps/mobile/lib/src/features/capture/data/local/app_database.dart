@@ -22,8 +22,23 @@ class AppDatabase extends _$AppDatabase {
   /// `NativeDatabase.memory()` for fast, isolated unit tests.
   AppDatabase.withExecutor(super.executor);
 
+  /// v2 (ADR-021): voice notes are stored in the outbox itself (`audioData`,
+  /// `audioMime`, `audioDurationMs`) plus a user-facing `lastError`.
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(localCaptures, localCaptures.audioData);
+            await m.addColumn(localCaptures, localCaptures.audioMime);
+            await m.addColumn(localCaptures, localCaptures.audioDurationMs);
+            await m.addColumn(localCaptures, localCaptures.lastError);
+          }
+        },
+      );
 
   // --- Outbox queries used by CaptureRepository / SyncService ---------------
 
@@ -110,12 +125,33 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Mark a capture as terminally failed (4xx validation) — no auto-retry.
-  Future<void> markFailed(String clientId) {
+  /// [reason] is a user-facing explanation shown next to the capture.
+  Future<void> markFailed(String clientId, {String? reason}) {
     return (update(localCaptures)..where((t) => t.clientId.equals(clientId)))
         .write(
-      const LocalCapturesCompanion(
-        syncState: Value(SyncState.failed),
-        nextAttemptAt: Value<DateTime?>(null),
+      LocalCapturesCompanion(
+        syncState: const Value(SyncState.failed),
+        nextAttemptAt: const Value<DateTime?>(null),
+        lastError: Value(reason),
+      ),
+    );
+  }
+
+  /// A voice note was transcribed: keep the transcript as the content and
+  /// free the audio bytes (they are never needed again — ADR-021).
+  Future<void> markVoiceSynced(
+    String clientId,
+    String serverId,
+    String? transcript,
+  ) {
+    return (update(localCaptures)..where((t) => t.clientId.equals(clientId)))
+        .write(
+      LocalCapturesCompanion(
+        syncState: const Value(SyncState.synced),
+        serverId: Value(serverId),
+        content: Value(transcript),
+        audioData: const Value(null),
+        lastError: const Value(null),
       ),
     );
   }

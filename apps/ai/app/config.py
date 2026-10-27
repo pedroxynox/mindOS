@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-5.4-mini"
     openai_embedding_model: str = "text-embedding-3-small"
+    # Speech-to-text for voice notes (ADR-021). gpt-transcribe is OpenAI's
+    # current recommended file-transcription model (whisper-1 and the gpt-4o
+    # transcribe models leave the API on 2027-02-26). Billed per audio minute.
+    openai_transcribe_model: str = "gpt-transcribe"
+    openai_transcribe_usd_per_min: float = 0.0045
 
     # Groq provider (only required when llm_provider = 'groq'). Groq exposes an
     # OpenAI-compatible API, so it reuses the same client and the resilience
@@ -64,6 +69,7 @@ class Settings(BaseSettings):
     # any code change (see https://console.groq.com/docs/models).
     groq_api_key: str | None = None
     groq_model: str = "llama-3.3-70b-versatile"
+    groq_transcribe_model: str = "whisper-large-v3-turbo"
 
     # Gemini provider (only required when llm_provider = 'gemini'). Google
     # exposes an OpenAI-compatible endpoint for its Gemini models, so it reuses
@@ -104,6 +110,11 @@ class Settings(BaseSettings):
     # requests-per-minute limit of a fresh provider account. Keep at 0 for the
     # offline FakeProvider (no network); set a small value for real OpenAI runs.
     eval_request_delay_s: float = 0.0
+
+    # --- Voice notes (ADR-021) -----------------------------------------------
+    # Upper bound for one voice note sent to /internal/transcribe (bytes). The
+    # API enforces the same limit before forwarding; 10 MB ≈ 10+ min of opus.
+    transcribe_max_bytes: int = 10 * 1024 * 1024
 
 
 settings = Settings()

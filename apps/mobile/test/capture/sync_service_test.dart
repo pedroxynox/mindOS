@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -150,18 +151,67 @@ void main() {
       expect(rowSecond!.serverId, 'srv-1');
     });
 
-    test('voice capture presigns, uploads and stores audio_ref', () async {
-      final clientId =
-          await repo.saveVoice(audioLocalPath: '/tmp/rec.m4a');
+    test('voice note is sent once, transcript stored, audio freed', () async {
+      final repo = CaptureRepository(db);
+      final id = await repo.saveVoiceNote(
+        audio: Uint8List.fromList(List.filled(32, 7)),
+        mimeType: 'audio/webm',
+        durationMs: 4200,
+      );
 
       final report = await sync.drainOnce();
-      expect(report.synced, 1);
-      expect(api.presignCalls, 1);
-      expect(api.uploadCalls, 1);
 
-      final row = await repo.findByClientId(clientId);
-      expect(row!.audioRef, isNotNull);
-      expect(row.syncState, SyncState.synced);
+      expect(report.synced, 1);
+      expect(api.transcriptions, 1);
+      expect(api.voiceAudio[id], hasLength(32));
+      final row = await db.captureByClientId(id);
+      expect(row!.syncState, SyncState.synced);
+      expect(row.content, 'Transcripción de 32 bytes');
+      expect(row.audioData, isNull); // the bytes never linger on the device
+    });
+
+    test('a silent voice note fails with the server message (no retry)', () async {
+      final repo = CaptureRepository(db);
+      final id = await repo.saveVoiceNote(
+        audio: Uint8List.fromList([1, 2, 3]),
+        mimeType: 'audio/webm',
+      );
+      api.nextVoiceIsSilent = true;
+
+      final report = await sync.drainOnce();
+
+      expect(report.failed, 1);
+      final row = await db.captureByClientId(id);
+      expect(row!.syncState, SyncState.failed);
+      expect(row.lastError, 'No se escuchó nada en la nota de voz.');
+      expect(row.audioData, isNotNull);
+    });
+
+    test('transcription unavailable keeps the voice note pending', () async {
+      final repo = CaptureRepository(db);
+      final id = await repo.saveVoiceNote(
+        audio: Uint8List.fromList([1, 2, 3]),
+        mimeType: 'audio/mp4',
+      );
+      api.voiceTransient = 1;
+
+      final report = await sync.drainOnce();
+
+      expect(report.retried, 1);
+      final row = await db.captureByClientId(id);
+      expect(row!.syncState, SyncState.pending);
+      expect(row.retryCount, 1);
+    });
+
+    test('a legacy voice row with only a file path is read once and sent',
+        () async {
+      final clientId = await repo.saveVoice(audioLocalPath: '/tmp/rec.m4a');
+
+      final report = await sync.drainOnce();
+
+      expect(report.synced, 1);
+      expect(api.voiceAudio[clientId], hasLength(16)); // fakeAudioReader
+      expect(api.presignCalls, 0); // no S3 detour anymore (ADR-021)
     });
   });
 
