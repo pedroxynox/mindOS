@@ -5,6 +5,7 @@ import {
   CreateGoalDto,
   CreateHabitDto,
   CreateReflectionDto,
+  resolveTargetDate,
   UpdateGoalDto,
 } from './dto/growth.dto';
 import {
@@ -12,6 +13,7 @@ import {
   GoalResponse,
   GrowthKind,
   HabitResponse,
+  readLog,
   ReflectionResponse,
   toGoalResponse,
   toHabitResponse,
@@ -81,7 +83,7 @@ export class GrowthService {
       kind: 'goal',
       progress: 0,
       done: false,
-      target_date: dto.targetDate ?? null,
+      target_date: resolveTargetDate(dto) ?? null,
       ...(dto.area ? { area: dto.area } : {}),
     };
     const node = await this.rls.withUser(userId, (tx) =>
@@ -109,31 +111,45 @@ export class GrowthService {
       const existing = await this.findOwned(tx, userId, id, 'goal');
       if (!existing) throw this.notFound('Goal');
 
-      const next = { ...((existing.attributes ?? {}) as Record<string, unknown>) };
+      const next = {
+        ...((existing.attributes ?? {}) as Record<string, unknown>),
+      };
       if (dto.progress !== undefined) {
         next.progress = dto.progress;
-        if (dto.progress >= 100) next.done = true;
+        // `done` is derived from progress: lowering it re-opens the goal.
+        next.done = dto.progress >= 100;
       }
-      if (dto.targetDate !== undefined) next.target_date = dto.targetDate;
+      const targetDate = resolveTargetDate(dto);
+      if (targetDate !== undefined) next.target_date = targetDate;
 
       const data: Prisma.NodeUpdateInput = {
         attributes: next as Prisma.InputJsonValue,
       };
       if (dto.title !== undefined) data.title = dto.title.trim();
 
-      const updated = await tx.node.update({ where: { id }, data, select: SELECT });
+      const updated = await tx.node.update({
+        where: { id },
+        data,
+        select: SELECT,
+      });
       return toGoalResponse(updated);
     });
   }
 
   // --- Habits ----------------------------------------------------------------
 
-  async listHabits(userId: string): Promise<HabitResponse[]> {
+  async listHabits(
+    userId: string,
+    todayKey: string = dateKey(new Date()),
+  ): Promise<HabitResponse[]> {
     const rows = await this.listByKind(userId, 'habit');
-    return rows.map((r) => toHabitResponse(r));
+    return rows.map((r) => toHabitResponse(r, todayKey));
   }
 
-  async createHabit(userId: string, dto: CreateHabitDto): Promise<HabitResponse> {
+  async createHabit(
+    userId: string,
+    dto: CreateHabitDto,
+  ): Promise<HabitResponse> {
     const attributes: Prisma.InputJsonValue = {
       kind: 'habit',
       cadence: dto.cadence ?? 'daily',
@@ -156,17 +172,22 @@ export class GrowthService {
     return toHabitResponse(node);
   }
 
-  /** Toggle today's completion for a habit (idempotent per day). */
-  async toggleHabitToday(userId: string, id: string): Promise<HabitResponse> {
+  /**
+   * Toggle today's completion for a habit (idempotent per day). `todayKey` is
+   * the user's current calendar day (UTC until a timezone is known).
+   */
+  async toggleHabitToday(
+    userId: string,
+    id: string,
+    todayKey: string = dateKey(new Date()),
+  ): Promise<HabitResponse> {
     return this.rls.withUser(userId, async (tx) => {
       const existing = await this.findOwned(tx, userId, id, 'habit');
       if (!existing) throw this.notFound('Habit');
 
       const attrs = (existing.attributes ?? {}) as Record<string, unknown>;
-      const log = Array.isArray(attrs.log)
-        ? (attrs.log as unknown[]).filter((x): x is string => typeof x === 'string')
-        : [];
-      const today = dateKey(new Date());
+      const log = readLog(existing.attributes);
+      const today = todayKey;
       const next = log.includes(today)
         ? log.filter((d) => d !== today)
         : [...log, today];
@@ -176,7 +197,7 @@ export class GrowthService {
         data: { attributes: { ...attrs, log: next } as Prisma.InputJsonValue },
         select: SELECT,
       });
-      return toHabitResponse(updated);
+      return toHabitResponse(updated, todayKey);
     });
   }
 
@@ -209,6 +230,19 @@ export class GrowthService {
       }),
     );
     return toReflectionResponse(node);
+  }
+
+  /** Soft-delete a goal, habit or reflection owned by the caller. */
+  async remove(userId: string, id: string, kind: GrowthKind): Promise<void> {
+    await this.rls.withUser(userId, async (tx) => {
+      const existing = await this.findOwned(tx, userId, id, kind);
+      if (!existing) {
+        throw this.notFound(
+          kind === 'goal' ? 'Goal' : kind === 'habit' ? 'Habit' : 'Reflection',
+        );
+      }
+      await tx.node.update({ where: { id }, data: { deletedAt: new Date() } });
+    });
   }
 
   private notFound(what: string): NotFoundException {

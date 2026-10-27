@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/mindos_api.dart';
 import 'data/graph_api_client.dart';
 import 'data/query_models.dart';
 import 'graph_providers.dart';
@@ -34,7 +35,7 @@ class AskController extends StateNotifier<AskState> {
     try {
       final answer = await _client.ask(q);
       state = AskState(question: q, answer: answer);
-    } on GraphApiException catch (e) {
+    } on ApiException catch (e) {
       state = AskState(question: q, errorMessage: e.message);
     } catch (_) {
       state = AskState(

@@ -84,6 +84,36 @@ class AuthApiClient {
     throw AuthException(_messageFor(response), response.statusCode);
   }
 
+  /// Exchange the (single-use, rotating) refresh token for a new token pair.
+  ///
+  /// Throws [AuthException] with the HTTP status when the server REJECTS the
+  /// token (401/400: expired, revoked or reused — the session is over), and an
+  /// [AuthException] without status on network failure (the session may still
+  /// be valid; the caller should not log the user out for that).
+  Future<AuthTokens> refresh(String refreshToken) async {
+    late http.Response response;
+    try {
+      response = await _client
+          .post(
+            Uri.parse('$_baseUrl/auth/refresh'),
+            headers: const {'content-type': 'application/json'},
+            body: jsonEncode({'refreshToken': refreshToken}),
+          )
+          .timeout(timeout);
+    } catch (_) {
+      throw const AuthException('No se pudo conectar con el servidor.');
+    }
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return AuthTokens.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    }
+    throw AuthException(
+      'Tu sesión expiró. Inicia sesión de nuevo.',
+      response.statusCode,
+    );
+  }
+
   /// Best-effort session revocation. Never throws — logging out locally must
   /// always succeed even if the network call fails.
   Future<void> logout(String refreshToken) async {

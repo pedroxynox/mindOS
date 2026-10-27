@@ -165,24 +165,19 @@ class OpenAICompatibleProvider(AIProvider):
             self._prices_per_mtok, model, input_tokens, output_tokens
         )
 
-    async def complete(
-        self, prompt: str, *, schema: dict | None = None
+    async def _chat(
+        self, messages: list[dict], *, json_mode: bool
     ) -> Completion:
+        """One chat completion with retries and the adaptive temperature.
+
+        ``json_mode`` asks for a JSON object (structured extraction); plain mode
+        is for text meant for a human (RAG answers).
+        """
         from openai import BadRequestError
 
-        base_kwargs: dict = {
-            "model": self._model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You output only valid JSON. No prose, no markdown."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-            "response_format": {"type": "json_object"},
-        }
+        base_kwargs: dict = {"model": self._model, "messages": messages}
+        if json_mode:
+            base_kwargs["response_format"] = {"type": "json_object"}
 
         with_temperature = dict(base_kwargs)
         if self._send_temperature:
@@ -202,7 +197,7 @@ class OpenAICompatibleProvider(AIProvider):
                 )
             else:
                 raise
-        text = response.choices[0].message.content or "{}"
+        text = response.choices[0].message.content or ("{}" if json_mode else "")
         u = response.usage
         input_tokens = u.prompt_tokens if u else 0
         output_tokens = u.completion_tokens if u else 0
@@ -215,6 +210,37 @@ class OpenAICompatibleProvider(AIProvider):
             cost_usd=self._estimate_cost(self._model, input_tokens, output_tokens),
         )
         return Completion(text=text, usage=usage)
+
+    async def complete(
+        self, prompt: str, *, schema: dict | None = None
+    ) -> Completion:
+        return await self._chat(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You output only valid JSON. No prose, no markdown."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            json_mode=True,
+        )
+
+    async def complete_text(self, prompt: str) -> Completion:
+        return await self._chat(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a concise personal assistant. Answer in plain "
+                        "text (no JSON, no markdown headings)."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            json_mode=False,
+        )
 
     async def embed(self, text: str) -> Embedding:
         embedding_model = self._embedding_model

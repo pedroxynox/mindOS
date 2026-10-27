@@ -51,6 +51,18 @@ class AIProvider(ABC):
     async def complete(self, prompt: str, *, schema: dict | None = None) -> Completion:
         """Complete/structure text. ``schema`` requests typed JSON output."""
 
+    async def complete_text(self, prompt: str) -> Completion:
+        """Free-form (plain text) completion, e.g. a grounded RAG answer.
+
+        ``complete`` is JSON-mode by contract (structured extraction); answers
+        meant for a human must NOT go through it, or the user sees raw JSON.
+        Providers override this; the default refuses loudly rather than
+        silently returning JSON.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement complete_text"
+        )
+
     @abstractmethod
     async def embed(self, text: str) -> Embedding:
         """Return an embedding for the text. ``dim`` is provider-specific (D-008)."""
