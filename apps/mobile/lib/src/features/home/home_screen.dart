@@ -4,19 +4,23 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth_providers.dart';
 import '../finance/finance_providers.dart';
+import '../graph/graph_providers.dart';
 import '../growth/data/growth_models.dart';
 import '../growth/growth_providers.dart';
 import '../tasks/data/task_model.dart';
+import '../shared/format.dart';
 import '../tasks/tasks_providers.dart';
 import '../../theme.dart';
 import '../../widgets/cosmic_background.dart';
 import '../../widgets/fade_in.dart';
 import '../../widgets/mini_charts.dart';
+import 'briefing_hero.dart';
 import 'focus_score.dart';
 
-/// "Hoy" — the dashboard. Contextual greeting, a focus card (score + the three
-/// priorities that matter), a quick summary grid (finance, habits, projects,
-/// reminders) and mindOS's top recommendation.
+/// "Hoy" — the dashboard. A greeting by time of day, the Daily Briefing
+/// (mindOS speaks first), a focus card (score + the three priorities that
+/// matter), a quick summary grid (finance, habits, goals, reminders) and
+/// mindOS's top recommendation.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -24,9 +28,6 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final name = ref.watch(tokenStoreProvider).displayName;
-    final tasks = ref.watch(tasksListProvider).valueOrNull ?? const <Task>[];
-    final pending = tasks.where((t) => !t.done).toList();
-    final reminders = _dueTomorrow(tasks);
 
     return Scaffold(
       extendBody: true,
@@ -42,6 +43,7 @@ class HomeScreen extends ConsumerWidget {
           child: RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(tasksListProvider);
+              ref.invalidate(briefingProvider);
               ref.invalidate(financeSummaryProvider);
               ref.invalidate(habitsProvider);
               ref.invalidate(goalsProvider);
@@ -55,20 +57,15 @@ class HomeScreen extends ConsumerWidget {
                 _Header(onAvatar: () => _logout(context, ref)),
                 const SizedBox(height: 18),
                 Text(
-                  name != null ? 'Buenos días, $name' : _greeting(),
+                  greetingFor(DateTime.now(), name: name),
                   style: theme.textTheme.headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Así va todo para hoy. Tienes ${pending.length} '
-                  '${pending.length == 1 ? "prioridad" : "prioridades"} y '
-                  '$reminders ${reminders == 1 ? "recordatorio" : "recordatorios"} importantes.',
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant, height: 1.4),
-                ),
-                const SizedBox(height: 20),
-                const FadeInUp(child: _FocusCard()),
+                const SizedBox(height: 14),
+                const FadeInUp(child: BriefingHero()),
+                const SizedBox(height: 16),
+                const FadeInUp(
+                    delay: Duration(milliseconds: 40), child: _FocusCard()),
                 const SizedBox(height: 26),
                 Text('Resumen rápido',
                     style: theme.textTheme.titleMedium
@@ -84,13 +81,6 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  static String _greeting() {
-    final h = DateTime.now().hour;
-    if (h < 12) return 'Buenos días';
-    if (h < 19) return 'Buenas tardes';
-    return 'Buenas noches';
   }
 
   static int _dueTomorrow(List<Task> tasks) {
@@ -223,11 +213,7 @@ class _FocusCard extends ConsumerWidget {
     return _dotColors[s.hashCode.abs() % _dotColors.length];
   }
 
-  String _timeOf(Task t) {
-    if (t.dueAt == null) return '';
-    final l = t.dueAt!.toLocal();
-    return '${l.hour.toString().padLeft(2, '0')}:${l.minute.toString().padLeft(2, '0')}';
-  }
+  String _timeOf(Task t) => t.dueAt == null ? '' : formatTime(t.dueAt!);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -414,7 +400,7 @@ class _SummaryGrid extends StatelessWidget {
         SizedBox(
           height: 150,
           child: Row(children: [
-            Expanded(child: _ProjectCard()),
+            Expanded(child: _GoalCard()),
             SizedBox(width: 14),
             Expanded(child: _ReminderCard()),
           ]),
@@ -467,9 +453,13 @@ class _FinanceCard extends ConsumerWidget {
                 Row(children: [
                   Icon(Icons.add, size: 16, color: theme.colorScheme.primary),
                   const SizedBox(width: 4),
-                  Text('Toca para registrar',
-                      style: TextStyle(
-                          color: theme.colorScheme.primary, fontSize: 12)),
+                  Flexible(
+                    child: Text('Toca para registrar',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: theme.colorScheme.primary, fontSize: 12)),
+                  ),
                 ]),
               ],
             );
@@ -575,7 +565,7 @@ class _HabitCard extends ConsumerWidget {
             );
           }
           final h = habits.first;
-          const target = 7;
+          final target = h.isWeekly ? 4 : 7;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -596,7 +586,7 @@ class _HabitCard extends ConsumerWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('${h.streak} ${h.streak == 1 ? "día" : "días"}',
+                      Text(h.streakLabel,
                           style: theme.textTheme.headlineSmall
                               ?.copyWith(fontWeight: FontWeight.w700)),
                       Text(h.streak > 0 ? '¡Vas por buen camino!' : 'Empieza hoy',
@@ -621,8 +611,9 @@ class _HabitCard extends ConsumerWidget {
   }
 }
 
-class _ProjectCard extends ConsumerWidget {
-  const _ProjectCard();
+/// The most recent Growth goal and its progress (was mislabelled "Proyectos").
+class _GoalCard extends ConsumerWidget {
+  const _GoalCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -631,16 +622,16 @@ class _ProjectCard extends ConsumerWidget {
     return _DashCard(
       onTap: () => context.push('/growth'),
       child: async.when(
-        loading: () => const _CardLabel('Proyectos'),
-        error: (_, __) => const _CardLabel('Proyectos'),
+        loading: () => const _CardLabel('Metas'),
+        error: (_, __) => const _CardLabel('Metas'),
         data: (goals) {
           if (goals.isEmpty) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _CardLabel('Proyectos'),
+                const _CardLabel('Metas'),
                 const Spacer(),
-                Text('Crea una meta',
+                Text('Define tu primera meta',
                     style: theme.textTheme.bodyMedium
                         ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
               ],
@@ -650,7 +641,7 @@ class _ProjectCard extends ConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _CardLabel('Proyectos'),
+              const _CardLabel('Metas'),
               const SizedBox(height: 2),
               Text(
                 (g.title ?? 'Meta').trim(),
@@ -663,7 +654,7 @@ class _ProjectCard extends ConsumerWidget {
               Text('${g.progress}%',
                   style: theme.textTheme.headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w700)),
-              Text('Avance total',
+              Text('Avance',
                   style: TextStyle(
                       color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
               const SizedBox(height: 8),

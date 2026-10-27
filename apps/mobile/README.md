@@ -1,36 +1,55 @@
-# mindOS — Mobile (Flutter)
+# mindOS — App (Flutter, web + mobile)
 
-Mobile-first surface (ADR-010): Flutter + Riverpod + GoRouter + Drift (SQLite)
-+ Material 3. Primary client for the Brazil/Latin America market.
+The primary surface (ADR-010): Flutter, Riverpod, GoRouter and Drift (SQLite on
+mobile, WASM on web). One codebase serves the mobile app and the web app at
+`https://mindos-web.onrender.com`. The dark "presence" theme is forced and the
+font is Inter.
+
+## Screens (routes)
+| Route | Screen |
+|-------|--------|
+| `/login`, `/register` | Auth (session persisted with `shared_preferences`) |
+| `/` | **Hoy**: focus card + focus score, finance, habit, goal ("Proyectos"), reminders, recommendation |
+| `/capture` | Text capture, offline-first (Drift outbox → `SyncService`). Voice is disabled for now |
+| `/capture/:id/insights` | **Lo que entendí**: extracted entities and connections (polls while processing) |
+| `/ask` | **Conversar**: RAG answers with sources and the `PresenceOrb` |
+| `/memory` | **Memoria**: graph counts and timeline of captures |
+| `/graph/:type` | Nodes of one type (first page only) |
+| `/tasks` | Tasks: done, priority, create |
+| `/growth` | Goals, habits, reflection |
+
+HTTP clients: `GraphApiClient` (graph, briefing, query) and `MindosApi` (tasks,
+growth, finance), plus the auth and capture clients. Unifying them is pending
+(D-016).
 
 ## Requirements
-- Flutter SDK 3.24+ (Dart 3.5+)
+- Flutter SDK (stable; Render pins 3.44.6), Dart 3.5+
 
 ## First-time setup
-Platform folders (`android/`, `ios/`) are generated locally — they are not
-committed. Run this once inside `apps/mobile`:
+Native platform folders (`android/`, `ios/`) are generated locally and are not
+committed. `web/` **is** committed, because it includes `sqlite3.wasm` and
+`drift_worker.js` for Drift on the web.
 
 ```bash
 flutter create . --project-name mindos --platforms=android,ios
 flutter pub get
+dart run build_runner build --delete-conflicting-outputs   # generates app_database.g.dart
 ```
 
 ## Run
 ```bash
-# Point the app at your API (defaults to http://localhost:3000/v1)
-flutter run --dart-define=API_BASE_URL=http://localhost:3000/v1
+flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000/v1   # web
+flutter run --dart-define=API_BASE_URL=http://localhost:3000/v1             # device/emulator
+flutter build web --release --dart-define=API_BASE_URL=https://mindos-api.onrender.com/v1
 ```
 
-The F0 screen calls `GET /v1/health` on the API and shows whether mindOS is
-alive end-to-end (mobile -> API).
-
 ## Quality
-- `flutter analyze` — static analysis
-- `flutter test` — tests
+- `flutter analyze --no-fatal-infos`: static analysis
+- `flutter test`: tests. There are 15, all for capture; new screens have none
+  yet (D-012).
 
 ## Installing Flutter (local/CI-like Linux)
-No package manager ships Flutter; install the stable SDK directly and add it to
-`PATH` (clone it **outside** the repo so it never pollutes the working tree):
+Install the stable SDK **outside** the repo and add it to `PATH`:
 
 ```bash
 git clone --depth 1 -b stable https://github.com/flutter/flutter.git "$HOME/flutter"
@@ -39,15 +58,5 @@ flutter --version          # first run downloads the embedded Dart SDK
 flutter config --no-analytics
 ```
 
-Then, inside `apps/mobile`:
-
-```bash
-flutter pub get
-dart run build_runner build --delete-conflicting-outputs   # generates Drift's app_database.g.dart
-flutter analyze --no-fatal-infos
-flutter test
-```
-
 For `flutter test`, the Dart toolchain alone is enough (no Android/iOS SDK
-needed); `NativeDatabase.memory()` uses the bundled `sqlite3`.
-
+needed): `NativeDatabase.memory()` uses the bundled `sqlite3`.

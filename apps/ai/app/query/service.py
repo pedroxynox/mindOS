@@ -11,6 +11,7 @@ the prompt/format) can be unit-tested with a fake provider and no database.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 
 from app.config import Settings
@@ -80,6 +81,33 @@ _NO_NOTES_ANSWER = (
 )
 
 
+_ANSWER_KEYS = ("answer", "respuesta", "resposta", "response", "text")
+
+
+def unwrap_answer(text: str) -> str:
+    """Return the human answer even if a model wrapped it in JSON.
+
+    Answers go through ``complete_text`` (plain text), but some models still
+    reply ``{"answer": "..."}``. If the whole reply is a JSON object, pick a
+    known answer key (or its only string value); otherwise keep the text as is.
+    """
+    raw = text.strip()
+    if not (raw.startswith("{") and raw.endswith("}")):
+        return raw
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+    if not isinstance(data, dict):
+        return raw
+    for key in _ANSWER_KEYS:
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    strings = [v for v in data.values() if isinstance(v, str) and v.strip()]
+    return strings[0].strip() if len(strings) == 1 else raw
+
+
 async def answer_from_sources(
     question: str,
     sources: list[Source],
@@ -90,8 +118,8 @@ async def answer_from_sources(
     if not sources:
         return QueryAnswer(answer=_NO_NOTES_ANSWER, sources=[])
     prompt = build_answer_prompt(question, [s.snippet for s in sources])
-    completion = await provider.complete(prompt)
-    return QueryAnswer(answer=completion.text.strip(), sources=sources)
+    completion = await provider.complete_text(prompt)
+    return QueryAnswer(answer=unwrap_answer(completion.text), sources=sources)
 
 
 async def retrieve_sources(

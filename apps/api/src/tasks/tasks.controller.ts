@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -49,5 +51,15 @@ export class TasksController {
     @Body() dto: UpdateTaskDto,
   ): Promise<TaskResponse> {
     return this.tasks.update(user.id, id, dto);
+  }
+
+  /** Soft-delete a task. 204 on success, 404 if it is not the caller's. */
+  @Delete(':id')
+  @HttpCode(204)
+  async remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.tasks.remove(user.id, id);
   }
 }

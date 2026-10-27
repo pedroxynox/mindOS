@@ -9,3 +9,6 @@ venv/
 *.egg-info/
 dist/
 build/
+
+# Hypothesis example database (local test runs)
+.hypothesis/

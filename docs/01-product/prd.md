@@ -9,14 +9,23 @@
 > (2026-07-01):** la decisión D1 (superficie) cambió de web desktop-primary a
 > **mobile-first** (Flutter), coherente con el mercado LatAm (P2 #07). Los
 > requisitos funcionales y el bucle de valor siguen vigentes.
+>
+> 📌 **Nota de estado (2026-10-27):** el MVP construido **amplía** este alcance:
+> - Tareas con prioridad, Crecimiento (metas, hábitos, reflexión) y Finanzas
+>   básico se adelantaron por decisión del founder
+>   ([ADR-020](../02-architecture/adr/ADR-020-life-modules-as-note-nodes.md)).
+> - La app es Flutter para **web y móvil**, no una PWA.
+>
+> Los non-goals de §7 afectados están anotados. Estado vivo:
+> [009](../000_SYSTEM/009_CURRENT_STATE.md).
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 0.1 (borrador para revisión) |
+| Versión | 0.2 |
 | Estado | 🟢 Aprobado |
 | Autor | Founder + CTO |
 | Depende de | #00 Vision & Problem Statement |
-| Última actualización | 2026-07-01 |
+| Última actualización | 2026-10-27 |
 
 ---
 
@@ -189,11 +198,11 @@ posterior.
 Documentar lo que NO haremos es tan importante como lo que sí. Para el MVP,
 mindOS **no**:
 
-- No gestiona finanzas.
+- No gestiona finanzas. *(Revisado 2026-10-27: hay un registro manual básico de gastos, ADR-020; la gestión financiera completa sigue fuera del MVP.)*
 - No es una app de notas con edición rica (documentos largos, wikis).
 - No ofrece colaboración multiusuario ni compartición.
 - No integra múltiples fuentes externas (solo calendario en MVP).
-- No tiene app nativa iOS/Android (PWA en su lugar).
+- No tiene app nativa iOS/Android (PWA en su lugar). *(Revisado por ADR-010: Flutter para móvil y web; aún no publicada en tiendas.)*
 - No ejecuta acciones autónomas sin confirmación.
 - No ofrece visualización de grafo (llega en V2).
 - No soporta equipos ni espacios de trabajo compartidos.
@@ -280,3 +289,4 @@ El MVP se considera listo para usuarios reales cuando:
 | Versión | Fecha | Autor | Cambios |
 |---------|-------|-------|---------|
 | 0.1 | 2026-07-01 | Founder + CTO | Borrador inicial. Define bucle de valor, decisiones fundacionales de MVP, requisitos funcionales por pilar, non-goals, métricas y criterios de aceptación. |
+| 0.2 | 2026-10-27 | CPTO | Nota de estado: el alcance construido amplía el MVP con Tareas, Crecimiento y Finanzas básico (ADR-020) y la app es Flutter para web y móvil. Non-goals de §7 anotados (finanzas y app nativa). Los requisitos y el bucle de valor no cambian. Corrige la deriva D-017. |

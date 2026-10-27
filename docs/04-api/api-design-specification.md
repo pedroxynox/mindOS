@@ -14,11 +14,11 @@
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 0.1 (borrador para revisión) |
+| Versión | 0.3 |
 | Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00, #01, #02, #03 |
-| Última actualización | 2026-07-01 |
+| Última actualización | 2026-10-27 |
 
 ---
 
@@ -118,6 +118,28 @@ Códigos HTTP: `200/201` éxito, `202` aceptado (async), `400` validación,
 ---
 
 ## 5. Endpoints del MVP
+
+### 5.0 Estado de implementación (verificado en código, 2026-10-27)
+
+> El contrato de §5.1–§5.6 es la **referencia de diseño**. Lo que hay
+> **implementado hoy** en `apps/api` (NestJS) es lo de esta tabla. Ante una
+> discrepancia, para integrar manda la columna "Implementado".
+
+| Contrato de diseño | Estado | Implementado (`/v1`, JWT salvo auth y health) |
+|--------------------|--------|-----------------------------------------------|
+| `POST /auth/register`, `/auth/login`, `/auth/refresh` | ✅ | Igual, más `POST /auth/logout` (204). Límite de 5 peticiones por minuto |
+| `GET /account/export`, `DELETE /account` | ❌ | Pendiente (F4) |
+| `POST /captures` | ✅ | 202 + `Idempotency-Key`. Además: `POST /captures/audio-upload` (presign), `GET /captures`, `GET /captures/:id` |
+| `GET /nodes`, `GET /nodes/{id}`, `GET /nodes/{id}/connections`, `PATCH /nodes/{id}`, `PATCH /edges/{id}` | ❌ | Sustituidos por la lectura **de solo lectura** `/graph/*` (§5.7). No hay edición ni corrección de aristas (FR-2.4 pendiente) |
+| `POST /query` (SSE, fuentes = nodos) | 🟡 | **JSON síncrono, sin streaming.** Las fuentes son **capturas**, no nodos (§5.7) |
+| `GET /briefing` (secciones) | 🟡 | Forma simplificada: tareas + próximos eventos (§5.7). **Ninguna pantalla de la app lo usa** |
+| `POST /feedback` | ❌ | Pendiente (FR-3.5) |
+| Tiempo real (WebSocket/SSE, ADR-013) | ❌ | No implementado. La app consulta cada 3 s mientras una captura se procesa |
+| — (fuera del contrato original) | ✅ | `/tasks`, `/growth/*` y `/finance/*`, adelantados por [ADR-020](../02-architecture/adr/ADR-020-life-modules-as-note-nodes.md) (§5.7) |
+
+⚠ **Convención:** las respuestas usan `snake_case`, pero las **entradas** de
+tasks y growth usan `camelCase` (`dueAt`, `targetDate`), a diferencia de
+captures (`occurred_at`). Está registrado como deuda (D-015).
 
 ### 5.1 Identity & Account
 
@@ -301,6 +323,78 @@ Devuelve el Daily Briefing priorizado por contexto temporal.
 
 ---
 
+### 5.7 Endpoints implementados (contrato real, 2026-10-27)
+
+Todos requieren JWT. Los datos se aíslan por usuario con RLS
+(`PrismaRlsService.withUser`).
+
+**Grafo (solo lectura)**
+```json
+// GET /v1/graph/summary → 200 (excluye capture y note)
+{ "counts": { "task": 12, "person": 5, "topic": 9 }, "total": 26 }
+
+// GET /v1/graph/nodes?type=person&limit=20&cursor=<id> → 200 (type=capture → 400; limit 1..100)
+{ "data": [ { "id": "…", "type": "person", "title": "Marcos", "confidence": 0.9,
+              "occurred_at": null, "created_at": "…" } ], "next_cursor": null }
+
+// GET /v1/graph/captures/:id/entities → 200 (404 si no es del usuario)
+{ "capture_id": "…", "status": "processed",
+  "nodes": [ /* GraphNode */ ], "edges": [ { "source": "…", "target": "…", "type": "mentions", "confidence": 0.8 } ] }
+```
+
+**Consulta (RAG)**
+```json
+// POST /v1/query  { "question": "¿Qué tengo con Marcos?" }   (1..1000 caracteres)
+// → 200 (la API reenvía a la IA: POST /internal/query, x-internal-token)
+{ "answer": "Tienes que llamar a Marcos mañana [1].",
+  "sources": [ { "capture_id": "…", "snippet": "Llamar a Marcos mañana…" } ] }
+// Si la IA no responde o está dormida (timeout 90 s) → 503 query_unavailable
+```
+
+**Briefing**
+```json
+// GET /v1/briefing → 200 ("hoy" en UTC, D-013)
+{ "generated_at": "…", "task_total": 7,
+  "tasks": [ { "id": "…", "title": "…" } ],                              // las 5 más recientes
+  "upcoming_events": [ { "id": "…", "title": "…", "occurred_at": "…" } ] } // desde hoy, máx. 5
+```
+
+**Tareas** (nodos `task`; las de la IA y las manuales comparten contrato)
+```json
+// GET /v1/tasks?filter=pending|all → 200 Task[]
+//   Orden: abiertas primero → prioridad high>medium>low → due_at asc (sin fecha al final) → created_at desc
+// POST /v1/tasks   { "title": "…", "priority": "high|medium|low"?, "dueAt": "ISO"?, "area": "…"? }
+// PATCH /v1/tasks/:id { "title"?, "done"?, "priority"?, "dueAt"?: "ISO"|null, "area"?: "…"|null }
+// Task:
+{ "id": "…", "title": "…", "done": false, "done_at": null, "priority": "medium",
+  "due_at": null, "area": null, "origin": "ai|manual_text", "created_at": "…" }
+```
+
+**Crecimiento** (nodos `note` con `attributes.kind` = `goal`, `habit` o `reflection`)
+```json
+// GET|POST /v1/growth/goals          POST { "title": "…", "targetDate"?: "ISO", "area"?: "…" }
+// PATCH    /v1/growth/goals/:id      { "title"?, "progress"?: 0..100, "targetDate"?: "ISO"|null }
+{ "id": "…", "title": "…", "progress": 40, "done": false, "target_date": null, "area": null, "created_at": "…" }
+
+// GET|POST /v1/growth/habits         POST { "title": "…", "cadence"?: "daily|weekly", "area"?: "…" }
+// POST     /v1/growth/habits/:id/check  → marca o desmarca hoy (UTC)
+{ "id": "…", "title": "…", "cadence": "daily", "streak": 3, "done_today": true, "area": null, "created_at": "…" }
+
+// GET|POST /v1/growth/reflections    POST { "body": "…", "mood"?: "…" }
+{ "id": "…", "body": "…", "mood": null, "created_at": "…" }
+```
+
+**Finanzas** (nodos `note` con `attributes.kind = expense`)
+```json
+// POST /v1/finance/expenses { "amount": 12.5, "category"?: "comida", "currency"?: "USD", "note"?: "…" }
+{ "id": "…", "amount": 12.5, "category": "comida", "currency": "USD", "created_at": "…" }
+
+// GET /v1/finance/summary → semana actual frente a la anterior (UTC; moneda: ver D-014)
+{ "currency": "USD", "week_total": 120.4, "prev_week_total": 98.0, "change_pct": 23, "daily": [0, 12.5, 0, 40, 0, 67.9, 0] }
+```
+
+---
+
 ## 6. Contrato de procesamiento asíncrono
 
 Cómo el cliente descubre que una captura ya fue comprendida (ADR-02):
@@ -368,3 +462,4 @@ Cómo el cliente descubre que una captura ya fue comprendida (ADR-02):
 |---------|-------|-------|---------|
 | 0.1 | 2026-07-01 | CTO | Borrador inicial. Estilo REST/JSON + SSE (ADR-013, antes "ADR-A1"), convenciones globales, mapa de recursos por contexto, endpoints del MVP (auth, captura, grafo, query streaming, briefing, feedback), contrato async, seguridad a nivel de API y non-goals. |
 | 0.2 | 2026-07-03 | CPTO | Consolidación de ADRs (D-004): la decisión de estilo de API embebida ("ADR-A1") se extrajo a un archivo individual [ADR-013](../02-architecture/adr/ADR-013-rest-json-sse-api-style.md) en `../02-architecture/adr/`; §2 deja solo un índice con enlace. Referencia cruzada normalizada a 3 dígitos. |
+| 0.3 | 2026-10-27 | CPTO | Añadidos **§5.0 Estado de implementación** (contrato de diseño frente a lo implementado) y **§5.7 Endpoints implementados**: graph, query JSON sin SSE, briefing simplificado, tasks, growth y finance (ADR-020). Se anotan la falta de feedback, edición del grafo, export y borrado, y tiempo real, además de la inconsistencia camelCase/snake_case en las entradas (D-015). Corrige la deriva D-017. |

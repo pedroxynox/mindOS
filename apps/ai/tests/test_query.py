@@ -9,12 +9,14 @@ from fastapi.testclient import TestClient
 
 import app.main as main
 from app.providers.base import Completion, Usage
+from app.providers.fake_provider import FakeProvider
 from app.query.service import (
     Source,
     answer_from_sources,
     build_answer_prompt,
     format_vector,
     snippet_of,
+    unwrap_answer,
 )
 
 client = TestClient(main.app)
@@ -23,13 +25,20 @@ client = TestClient(main.app)
 class _StubProvider:
     """Records the prompt it was given and returns a canned completion."""
 
-    def __init__(self) -> None:
-        self.prompt: str | None = None
+    def __init__(self, reply: str = "  Tienes que llamar a Marcos [1].  ") -> None:
+        self.prompt = None
+        self.reply = reply
+        self.json_calls = 0
 
     async def complete(self, prompt: str, *, schema: dict | None = None) -> Completion:
+        # JSON mode must NOT be used for human answers.
+        self.json_calls += 1
+        raise AssertionError("RAG answers must use complete_text, not complete")
+
+    async def complete_text(self, prompt: str) -> Completion:
         self.prompt = prompt
         return Completion(
-            text="  Tienes que llamar a Marcos [1].  ",
+            text=self.reply,
             usage=Usage("fake", "m", "complete", 1, 1, 0.0),
         )
 
@@ -101,3 +110,26 @@ def test_internal_query_rejects_wrong_token(monkeypatch) -> None:
         headers={"X-Internal-Token": "wrong"},
     )
     assert res.status_code == 401
+
+
+async def test_answer_is_unwrapped_when_model_replies_with_json() -> None:
+    provider = _StubProvider(reply='{"respuesta": "Llama a Marcos mañana [1]."}')
+    sources = [Source(capture_id="c1", snippet="Llamar a Marcos mañana")]
+    result = await answer_from_sources("¿Qué hago?", sources, provider=provider)
+    assert result.answer == "Llama a Marcos mañana [1]."
+    assert provider.json_calls == 0
+
+
+def test_unwrap_answer_keeps_plain_text_and_ambiguous_json() -> None:
+    assert unwrap_answer("  Hola [1].  ") == "Hola [1]."
+    assert unwrap_answer('{"answer": "  ok  "}') == "ok"
+    assert unwrap_answer('{"only": "valor único"}') == "valor único"
+    ambiguous = '{"a": "uno", "b": "dos"}'
+    assert unwrap_answer(ambiguous) == ambiguous
+    assert unwrap_answer("{not json}") == "{not json}"
+
+
+async def test_fake_provider_complete_text_cites_first_note() -> None:
+    prompt = build_answer_prompt("¿Qué tengo?", ["Comprar pan", "Llamar a Ana"])
+    completion = await FakeProvider().complete_text(prompt)
+    assert completion.text == "Según tus notas: Comprar pan [1]."
