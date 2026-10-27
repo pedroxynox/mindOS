@@ -39,10 +39,18 @@ comienza hasta que su predecesor ha sido validado.
 | 07 | [Security & Privacy Framework](./07-security/security-and-privacy-framework.md) | 🟢 Aprobado | Políticas de datos, auth, compliance |
 | 08 | [Roadmap Técnico](./08-roadmap/technical-roadmap.md) | 🟢 Aprobado | Secuencia de implementación por fases |
 
-> **Estado de construcción:** fundación completa (#00–#08 aprobados). En curso:
-> **F0 — Cimientos técnicos** (esqueleto del monorepo). Ver
-> [ADR-010](./02-architecture/adr/ADR-010-final-stack-and-two-backends.md) para
-> el stack definitivo.
+> **Estado de construcción (2026-10-27):** F0–F2 completas, F3 ~70 % y módulos
+> Tareas, Crecimiento y Finanzas adelantados
+> ([ADR-020](./02-architecture/adr/ADR-020-life-modules-as-note-nodes.md)). En
+> producción en Render + Neon. El estado vivo está en
+> [009](./000_SYSTEM/009_CURRENT_STATE.md) y el resumen para el founder en
+> [ESTADO_DEL_PROYECTO](./ESTADO_DEL_PROYECTO.md). Stack definitivo:
+> [ADR-010](./02-architecture/adr/ADR-010-final-stack-and-two-backends.md).
+>
+> **Documentos operativos:** despliegue en
+> [DEPLOY_RENDER](./06-infrastructure/DEPLOY_RENDER.md), examen de la IA en
+> [HOW_TO_RUN_THE_AI_EXAM](./HOW_TO_RUN_THE_AI_EXAM.md) y auditoría de código en
+> [013](./000_SYSTEM/013_CODEBASE_AUDIT.md).
 
 ### Leyenda de estados
 - ⚪ Pendiente — aún no iniciado
