@@ -8,6 +8,7 @@ import { CaptureService } from './capture.service';
 import { CaptureType, CreateCaptureDto } from './dto/create-capture.dto';
 import { IdempotencyService } from './idempotency.service';
 import { UnderstandingQueuePort } from './understanding.queue.port';
+import { VoiceTranscriber } from './voice-transcriber';
 
 /**
  * Property-based tests for CaptureService (task 6.6).
@@ -106,7 +107,9 @@ function buildHarness(): CaptureService {
     enqueueUnderstanding: () => Promise.resolve(),
   } as unknown as UnderstandingQueuePort;
 
-  return new CaptureService(rls, idempotency, blobs, queue);
+  return new CaptureService(rls, idempotency, blobs, queue, {
+    transcribe: () => Promise.reject(new Error('not used')),
+  } as unknown as VoiceTranscriber);
 }
 
 describe('CaptureService (PBT)', () => {

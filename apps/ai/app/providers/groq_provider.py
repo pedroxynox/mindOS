@@ -55,4 +55,7 @@ class GroqProvider(OpenAICompatibleProvider):
             # Reuse the shared resilience settings (same SDK, same 429 semantics).
             max_retries=settings.openai_max_retries,
             backoff_base_s=settings.openai_backoff_base_s,
+            # Groq hosts Whisper large-v3 turbo (cheap, no language array).
+            transcribe_model=settings.groq_transcribe_model,
+            transcribe_usd_per_min=0.0007,
         )

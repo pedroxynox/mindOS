@@ -27,6 +27,8 @@ dependencies:
   # Persists the auth session (tokens) across app restarts. Works on web
   # (localStorage) and mobile (native prefs) with one API.
   shared_preferences: ^2.3.0
+  flutter_timezone: ^5.0.2
+  record: ^6.2.0
 
 dev_dependencies:
   flutter_test:

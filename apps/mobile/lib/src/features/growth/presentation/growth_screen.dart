@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/format.dart';
 import '../data/growth_models.dart';
 import '../growth_providers.dart';
 
@@ -67,6 +68,12 @@ class _GoalsView extends ConsumerWidget {
                 await ref.read(growthApiProvider).updateGoalProgress(goals[i].id, p);
                 ref.invalidate(goalsProvider);
               },
+              onDelete: () async {
+                if (await _confirmDelete(context, 'esta meta')) {
+                  await ref.read(growthApiProvider).deleteGoal(goals[i].id);
+                  ref.invalidate(goalsProvider);
+                }
+              },
             ),
           );
         },
@@ -84,15 +91,23 @@ class _GoalsView extends ConsumerWidget {
 }
 
 class _GoalCard extends StatelessWidget {
-  const _GoalCard({required this.goal, required this.onChange});
+  const _GoalCard({
+    required this.goal,
+    required this.onChange,
+    required this.onDelete,
+  });
   final Goal goal;
   final Future<void> Function(int progress) onChange;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
-      child: Padding(
+      child: InkWell(
+        onLongPress: onDelete,
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,6 +163,7 @@ class _GoalCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -187,6 +203,12 @@ class _HabitsView extends ConsumerWidget {
                 await ref.read(growthApiProvider).checkHabit(habits[i].id);
                 ref.invalidate(habitsProvider);
               },
+              onDelete: () async {
+                if (await _confirmDelete(context, 'este hábito')) {
+                  await ref.read(growthApiProvider).deleteHabit(habits[i].id);
+                  ref.invalidate(habitsProvider);
+                }
+              },
             ),
           );
         },
@@ -195,31 +217,46 @@ class _HabitsView extends ConsumerWidget {
   }
 
   Future<void> _addHabit(BuildContext context, WidgetRef ref) async {
-    final title =
-        await _promptText(context, 'Nuevo hábito', 'p. ej. Meditar 10 min');
-    if (title != null && title.isNotEmpty) {
-      await ref.read(growthApiProvider).createHabit(title);
+    final result = await showDialog<(String, String)>(
+      context: context,
+      builder: (_) => const _NewHabitDialog(),
+    );
+    if (result != null && result.$1.isNotEmpty) {
+      await ref
+          .read(growthApiProvider)
+          .createHabit(result.$1, cadence: result.$2);
       ref.invalidate(habitsProvider);
     }
   }
 }
 
 class _HabitTile extends StatelessWidget {
-  const _HabitTile({required this.habit, required this.onCheck});
+  const _HabitTile({
+    required this.habit,
+    required this.onCheck,
+    required this.onDelete,
+  });
   final Habit habit;
   final VoidCallback onCheck;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
       child: ListTile(
+        onLongPress: onDelete,
         title: Text(
           (habit.title ?? '').trim().isEmpty ? '(sin título)' : habit.title!.trim(),
         ),
-        subtitle: Text(habit.streak > 0
-            ? '🔥 Racha de ${habit.streak} ${habit.streak == 1 ? "día" : "días"}'
-            : 'Sin racha todavía'),
+        subtitle: Text([
+          habit.isWeekly ? 'Semanal' : 'Diario',
+          habit.streak > 0
+              ? '🔥 Racha de ${habit.streakLabel}'
+              : 'Sin racha todavía',
+          if (habit.isWeekly && habit.periodDone && !habit.doneToday)
+            'cumplido esta semana',
+        ].join(' · ')),
         trailing: IconButton(
           iconSize: 32,
           tooltip: habit.doneToday ? 'Hecho hoy' : 'Marcar hoy',
@@ -327,7 +364,15 @@ class _ReflectionViewState extends ConsumerState<_ReflectionView> {
                   child: ListTile(
                     leading: const Icon(Icons.notes),
                     title: Text((items[i].body ?? '').trim()),
-                    subtitle: Text(_formatDate(items[i].createdAt)),
+                    subtitle: Text(formatShortDate(items[i].createdAt)),
+                    onLongPress: () async {
+                      if (await _confirmDelete(context, 'esta reflexión')) {
+                        await ref
+                            .read(growthApiProvider)
+                            .deleteReflection(items[i].id);
+                        ref.invalidate(reflectionsProvider);
+                      }
+                    },
                   ),
                 ),
               );
@@ -338,14 +383,6 @@ class _ReflectionViewState extends ConsumerState<_ReflectionView> {
     );
   }
 
-  static String _formatDate(DateTime dt) {
-    final d = dt.toLocal();
-    const months = [
-      'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-      'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
-    ];
-    return '${d.day} ${months[d.month - 1]}';
-  }
 }
 
 // --- Shared ------------------------------------------------------------------
@@ -404,4 +441,82 @@ Future<String?> _promptText(
     ),
   );
   return ok == true ? controller.text.trim() : null;
+}
+
+/// Ask before deleting (long-press on a goal, habit or reflection).
+Future<bool> _confirmDelete(BuildContext context, String what) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Eliminar'),
+      content: Text('¿Seguro que quieres eliminar $what?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Eliminar'),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
+/// New habit: title + cadence (daily or weekly).
+class _NewHabitDialog extends StatefulWidget {
+  const _NewHabitDialog();
+
+  @override
+  State<_NewHabitDialog> createState() => _NewHabitDialogState();
+}
+
+class _NewHabitDialogState extends State<_NewHabitDialog> {
+  final _controller = TextEditingController();
+  String _cadence = 'daily';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Nuevo hábito'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'p. ej. Meditar 10 min'),
+          ),
+          const SizedBox(height: 16),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'daily', label: Text('Diario')),
+              ButtonSegment(value: 'weekly', label: Text('Semanal')),
+            ],
+            selected: {_cadence},
+            onSelectionChanged: (s) => setState(() => _cadence = s.first),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () =>
+              Navigator.pop(context, (_controller.text.trim(), _cadence)),
+          child: const Text('Crear'),
+        ),
+      ],
+    );
+  }
 }

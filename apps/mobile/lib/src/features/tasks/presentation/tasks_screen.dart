@@ -1,23 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../graph/graph_providers.dart';
+import '../../shared/format.dart';
+import '../../shared/mindos_api.dart';
 import '../data/task_model.dart';
 import '../tasks_providers.dart';
 
-/// The Tareas tab: tasks ordered by priority, with quick complete, priority
-/// editing and manual creation. Combines AI-extracted tasks and manual ones.
+/// Tareas: tasks ordered by priority, with quick complete, an editor (title,
+/// priority, due date, delete) and manual creation. Combines AI-extracted tasks
+/// and manual ones.
 class TasksScreen extends ConsumerWidget {
   const TasksScreen({super.key});
 
-  Color _priorityColor(TaskPriority p) => switch (p) {
-        TaskPriority.high => const Color(0xFFC62828),
-        TaskPriority.medium => const Color(0xFFEF6C00),
-        TaskPriority.low => const Color(0xFF2E7D32),
+  static Color priorityColor(TaskPriority p) => switch (p) {
+        TaskPriority.high => const Color(0xFFFF6B6B),
+        TaskPriority.medium => const Color(0xFFF7C948),
+        TaskPriority.low => const Color(0xFF57D9A3),
       };
 
-  Future<void> _mutate(WidgetRef ref, Future<void> Function() action) async {
-    await action();
-    ref.invalidate(tasksListProvider);
+  /// Run a mutation, refresh what depends on tasks, and surface failures.
+  static Future<void> mutate(
+    BuildContext context,
+    WidgetRef ref,
+    Future<void> Function() action,
+  ) async {
+    try {
+      await action();
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      ref.invalidate(tasksListProvider);
+      ref.invalidate(briefingProvider);
+    }
   }
 
   @override
@@ -27,7 +46,7 @@ class TasksScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Tareas')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAdd(context, ref),
+        onPressed: () => _showEditor(context, ref, null),
         icon: const Icon(Icons.add),
         label: const Text('Nueva tarea'),
       ),
@@ -52,14 +71,14 @@ class TasksScreen extends ConsumerWidget {
               separatorBuilder: (_, __) => const SizedBox(height: 6),
               itemBuilder: (context, i) => _TaskTile(
                 task: tasks[i],
-                priorityColor: _priorityColor(tasks[i].priority),
-                onToggle: (v) => _mutate(
+                onToggle: (v) => mutate(
+                  context,
                   ref,
                   () => ref
                       .read(tasksApiProvider)
                       .update(tasks[i].id, done: v ?? false),
                 ),
-                onPriority: () => _pickPriority(context, ref, tasks[i]),
+                onTap: () => _showEditor(context, ref, tasks[i]),
               ),
             );
           },
@@ -90,90 +109,44 @@ class TasksScreen extends ConsumerWidget {
     ]);
   }
 
-  Future<void> _pickPriority(
+  /// Create ([task] == null) or edit a task in a bottom sheet.
+  Future<void> _showEditor(
     BuildContext context,
     WidgetRef ref,
-    Task task,
+    Task? task,
   ) async {
-    final choice = await showModalBottomSheet<TaskPriority>(
+    final result = await showModalBottomSheet<_EditorResult>(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(title: Text('Prioridad')),
-            for (final p in TaskPriority.values)
-              ListTile(
-                title: Text(p.label),
-                trailing: task.priority == p ? const Icon(Icons.check) : null,
-                onTap: () => Navigator.pop(ctx, p),
-              ),
-          ],
-        ),
-      ),
+      isScrollControlled: true,
+      builder: (ctx) => _TaskEditor(task: task),
     );
-    if (choice != null && choice != task.priority) {
-      await _mutate(
-        ref,
-        () => ref.read(tasksApiProvider).update(task.id, priority: choice),
-      );
+    if (result == null || !context.mounted) return;
+    final api = ref.read(tasksApiProvider);
+    if (result.delete && task != null) {
+      await mutate(context, ref, () => api.delete(task.id));
+      return;
     }
-  }
-
-  Future<void> _showAdd(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
-    var priority = TaskPriority.medium;
-    final created = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Nueva tarea'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: '¿Qué necesitas hacer?',
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  const Text('Prioridad:'),
-                  const SizedBox(width: 12),
-                  DropdownButton<TaskPriority>(
-                    value: priority,
-                    items: [
-                      for (final p in TaskPriority.values)
-                        DropdownMenuItem(value: p, child: Text(p.label)),
-                    ],
-                    onChanged: (v) =>
-                        setState(() => priority = v ?? TaskPriority.medium),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Crear'),
-            ),
-          ],
-        ),
-      ),
-    );
-    final title = controller.text.trim();
-    if (created == true && title.isNotEmpty) {
-      await _mutate(
+    if (task == null) {
+      await mutate(
+        context,
         ref,
-        () => ref.read(tasksApiProvider).create(title, priority: priority),
+        () => api.create(
+          result.title,
+          priority: result.priority,
+          dueAt: result.dueAt,
+        ),
+      );
+    } else {
+      await mutate(
+        context,
+        ref,
+        () => api.update(
+          task.id,
+          title: result.title != (task.title ?? '') ? result.title : null,
+          priority: result.priority != task.priority ? result.priority : null,
+          dueAt: result.dueAt,
+          clearDueAt: result.dueAt == null && task.dueAt != null,
+        ),
       );
     }
   }
@@ -182,21 +155,30 @@ class TasksScreen extends ConsumerWidget {
 class _TaskTile extends StatelessWidget {
   const _TaskTile({
     required this.task,
-    required this.priorityColor,
     required this.onToggle,
-    required this.onPriority,
+    required this.onTap,
   });
 
   final Task task;
-  final Color priorityColor;
   final ValueChanged<bool?> onToggle;
-  final VoidCallback onPriority;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final color = TasksScreen.priorityColor(task.priority);
+    final overdue = !task.done &&
+        task.dueAt != null &&
+        task.dueAt!.isBefore(DateTime.now());
+    final subtitle = <String>[
+      if (task.dueAt != null) 'Para ${formatDayTime(task.dueAt!)}',
+      if (task.area != null) task.area!,
+      if (task.fromAi) 'detectada por mindOS',
+    ].join(' · ');
+
     return Card(
       child: ListTile(
+        onTap: onTap,
         leading: Checkbox(value: task.done, onChanged: onToggle),
         title: Text(
           (task.title ?? '').trim().isEmpty ? '(sin título)' : task.title!.trim(),
@@ -205,28 +187,186 @@ class _TaskTile extends StatelessWidget {
             color: task.done ? theme.colorScheme.onSurfaceVariant : null,
           ),
         ),
-        subtitle: task.dueAt != null
-            ? Text('Para ${_formatDate(task.dueAt!)}')
-            : (task.area != null ? Text(task.area!) : null),
-        trailing: ActionChip(
-          label: Text(task.priority.label),
-          labelStyle: TextStyle(color: priorityColor, fontSize: 12),
-          side: BorderSide(color: priorityColor.withValues(alpha: 0.4)),
-          backgroundColor: priorityColor.withValues(alpha: 0.08),
-          onPressed: onPriority,
+        subtitle: subtitle.isEmpty
+            ? null
+            : Text(
+                subtitle,
+                style: TextStyle(
+                  color: overdue
+                      ? const Color(0xFFFF6B6B)
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.4)),
+          ),
+          child: Text(task.priority.label,
+              style: TextStyle(color: color, fontSize: 12)),
         ),
       ),
     );
   }
+}
 
-  static String _formatDate(DateTime dt) {
-    final d = dt.toLocal();
-    const months = [
-      'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-      'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
-    ];
-    final hh = d.hour.toString().padLeft(2, '0');
-    final mm = d.minute.toString().padLeft(2, '0');
-    return '${d.day} ${months[d.month - 1]} $hh:$mm';
+class _EditorResult {
+  const _EditorResult({
+    required this.title,
+    required this.priority,
+    this.dueAt,
+    this.delete = false,
+  });
+
+  final String title;
+  final TaskPriority priority;
+  final DateTime? dueAt;
+  final bool delete;
+}
+
+class _TaskEditor extends StatefulWidget {
+  const _TaskEditor({this.task});
+  final Task? task;
+
+  @override
+  State<_TaskEditor> createState() => _TaskEditorState();
+}
+
+class _TaskEditorState extends State<_TaskEditor> {
+  late final TextEditingController _title =
+      TextEditingController(text: widget.task?.title ?? '');
+  late TaskPriority _priority = widget.task?.priority ?? TaskPriority.medium;
+  late DateTime? _dueAt = widget.task?.dueAt?.toLocal();
+  String? _error;
+
+  @override
+  void dispose() {
+    _title.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDue() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _dueAt ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_dueAt ?? now.add(const Duration(hours: 1))),
+    );
+    if (!mounted) return;
+    setState(() {
+      _dueAt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time?.hour ?? 9,
+        time?.minute ?? 0,
+      );
+    });
+  }
+
+  void _submit() {
+    final title = _title.text.trim();
+    if (title.isEmpty) {
+      setState(() => _error = 'Escribe qué necesitas hacer');
+      return;
+    }
+    Navigator.pop(
+      context,
+      _EditorResult(title: title, priority: _priority, dueAt: _dueAt),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final editing = widget.task != null;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          20, 20, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(editing ? 'Editar tarea' : 'Nueva tarea',
+              style: theme.textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _title,
+            autofocus: !editing,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+            decoration: InputDecoration(
+              hintText: '¿Qué necesitas hacer?',
+              errorText: _error,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('Prioridad', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 8),
+          SegmentedButton<TaskPriority>(
+            segments: [
+              for (final p in TaskPriority.values)
+                ButtonSegment(value: p, label: Text(p.label)),
+            ],
+            selected: {_priority},
+            onSelectionChanged: (s) => setState(() => _priority = s.first),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickDue,
+                  icon: const Icon(Icons.event_outlined),
+                  label: Text(_dueAt == null
+                      ? 'Añadir fecha'
+                      : formatDayTime(_dueAt!)),
+                ),
+              ),
+              if (_dueAt != null)
+                IconButton(
+                  tooltip: 'Quitar fecha',
+                  onPressed: () => setState(() => _dueAt = null),
+                  icon: const Icon(Icons.close),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              if (editing)
+                TextButton.icon(
+                  onPressed: () => Navigator.pop(
+                    context,
+                    _EditorResult(
+                      title: _title.text,
+                      priority: _priority,
+                      delete: true,
+                    ),
+                  ),
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Eliminar'),
+                  style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFFF6B6B)),
+                ),
+              const Spacer(),
+              FilledButton(
+                onPressed: _submit,
+                child: Text(editing ? 'Guardar' : 'Crear'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

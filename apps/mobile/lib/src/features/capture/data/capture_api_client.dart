@@ -2,17 +2,27 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-/// Result of a successful `POST /v1/captures` (2xx).
+import '../../auth/data/auth_session.dart';
+
+/// Result of a successful `POST /v1/captures` or `/captures/voice` (2xx).
 class CreateCaptureResult {
-  const CreateCaptureResult({required this.captureId, required this.status});
+  const CreateCaptureResult({
+    required this.captureId,
+    required this.status,
+    this.content,
+  });
 
   final String captureId;
   final String status;
+
+  /// The capture text — for a voice note, its transcript.
+  final String? content;
 
   factory CreateCaptureResult.fromJson(Map<String, dynamic> json) {
     return CreateCaptureResult(
       captureId: json['capture_id'] as String,
       status: json['status'] as String,
+      content: json['content'] as String?,
     );
   }
 }
@@ -46,6 +56,19 @@ class CaptureValidationException implements Exception {
   final int statusCode;
   final String? body;
 
+  /// The API's user-facing message, when the body carries one.
+  String? get userMessage {
+    final b = body;
+    if (b == null || b.isEmpty) return null;
+    try {
+      final json = jsonDecode(b);
+      if (json is Map<String, dynamic> && json['message'] is String) {
+        return json['message'] as String;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   @override
   String toString() => 'CaptureValidationException($statusCode): $body';
 }
@@ -78,6 +101,18 @@ abstract class CaptureApiClient {
     required String contentType,
   });
 
+  /// Send a recorded voice note (raw bytes) to `POST /v1/captures/voice`; the
+  /// server transcribes it and returns the capture with the transcript.
+  /// Same error contract as [createCapture].
+  Future<CreateCaptureResult> createVoiceCapture({
+    required String idempotencyKey,
+    required List<int> audio,
+    required String contentType,
+    String? clientId,
+    DateTime? occurredAt,
+    int? durationMs,
+  });
+
   /// Create a capture. `idempotencyKey` is the outbox `clientId`.
   ///
   /// Returns a [CreateCaptureResult] on `2xx`; throws
@@ -91,17 +126,19 @@ abstract class CaptureApiClient {
 
 /// HTTP implementation talking to the NestJS Capture API (design.md §7).
 ///
-/// The bearer token is resolved lazily via [tokenProvider] so the client always
-/// uses the current access token.
+/// The bearer token comes from the shared [TokenSource]: on a 401 the session
+/// is refreshed once and the request retried. A 401 that persists is treated as
+/// TRANSIENT (the capture stays `pending` and is retried after the user signs
+/// in again) — an expired session must never mark a capture as failed.
 class HttpCaptureApiClient implements CaptureApiClient {
   HttpCaptureApiClient({
-    required Future<String?> Function() tokenProvider,
+    required TokenSource tokens,
     http.Client? client,
     this.timeout = const Duration(seconds: 20),
-  })  : _tokenProvider = tokenProvider,
+  })  : _tokens = tokens,
         _client = client ?? http.Client();
 
-  final Future<String?> Function() _tokenProvider;
+  final TokenSource _tokens;
   final http.Client _client;
   final Duration timeout;
 
@@ -110,12 +147,33 @@ class HttpCaptureApiClient implements CaptureApiClient {
     defaultValue: 'http://localhost:3000/v1',
   );
 
-  Future<Map<String, String>> _authHeaders() async {
-    final token = await _tokenProvider();
+  Map<String, String> _authHeaders() {
+    final token = _tokens.accessToken;
     return {
       'content-type': 'application/json',
-      if (token != null) 'authorization': 'Bearer $token',
+      if (token != null && token.isNotEmpty) 'authorization': 'Bearer $token',
     };
+  }
+
+  /// POST JSON with one transparent refresh-and-retry on 401.
+  Future<http.Response> _postJson(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String> extraHeaders = const {},
+  }) async {
+    Future<http.Response> once() => _client
+        .post(
+          Uri.parse('$_baseUrl$path'),
+          headers: {..._authHeaders(), ...extraHeaders},
+          body: jsonEncode(body),
+        )
+        .timeout(timeout);
+
+    var response = await once();
+    if (response.statusCode == 401 && await _tokens.refresh()) {
+      response = await once();
+    }
+    return response;
   }
 
   @override
@@ -124,17 +182,10 @@ class HttpCaptureApiClient implements CaptureApiClient {
     required int sizeBytes,
   }) async {
     try {
-      final response = await _client
-          .post(
-            Uri.parse('$_baseUrl/captures/audio-upload'),
-            headers: await _authHeaders(),
-            body: jsonEncode({
-              'content_type': contentType,
-              'size_bytes': sizeBytes,
-            }),
-          )
-          .timeout(timeout);
-
+      final response = await _postJson('/captures/audio-upload', {
+        'content_type': contentType,
+        'size_bytes': sizeBytes,
+      });
       if (response.statusCode == 200) {
         return PresignResult.fromJson(
           jsonDecode(response.body) as Map<String, dynamic>,
@@ -185,15 +236,11 @@ class HttpCaptureApiClient implements CaptureApiClient {
     required Map<String, dynamic> body,
   }) async {
     try {
-      final headers = await _authHeaders();
-      headers['idempotency-key'] = idempotencyKey;
-      final response = await _client
-          .post(
-            Uri.parse('$_baseUrl/captures'),
-            headers: headers,
-            body: jsonEncode(body),
-          )
-          .timeout(timeout);
+      final response = await _postJson(
+        '/captures',
+        body,
+        extraHeaders: {'idempotency-key': idempotencyKey},
+      );
 
       // 202 Accepted (created) or 200 OK (already existed) -> success.
       if (response.statusCode == 202 || response.statusCode == 200) {
@@ -211,9 +258,67 @@ class HttpCaptureApiClient implements CaptureApiClient {
     }
   }
 
+  @override
+  Future<CreateCaptureResult> createVoiceCapture({
+    required String idempotencyKey,
+    required List<int> audio,
+    required String contentType,
+    String? clientId,
+    DateTime? occurredAt,
+    int? durationMs,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/captures/voice').replace(
+      queryParameters: {
+        if (clientId != null) 'client_id': clientId,
+        if (occurredAt != null)
+          'occurred_at': occurredAt.toUtc().toIso8601String(),
+        if (durationMs != null) 'duration_ms': '$durationMs',
+      },
+    );
+    Future<http.Response> once() {
+      final token = _tokens.accessToken;
+      return _client
+          .post(
+            uri,
+            headers: {
+              'content-type': contentType,
+              'idempotency-key': idempotencyKey,
+              if (token != null && token.isNotEmpty)
+                'authorization': 'Bearer $token',
+            },
+            body: audio,
+          )
+          // Transcription can take a while (and the AI may be waking up).
+          .timeout(const Duration(seconds: 100));
+    }
+
+    try {
+      var response = await once();
+      if (response.statusCode == 401 && await _tokens.refresh()) {
+        response = await once();
+      }
+      if (response.statusCode == 202 || response.statusCode == 200) {
+        return CreateCaptureResult.fromJson(
+          jsonDecode(response.body) as Map<String, dynamic>,
+        );
+      }
+      _throwForStatus(response.statusCode, response.body);
+    } on CaptureValidationException {
+      rethrow;
+    } on CaptureTransientException {
+      rethrow;
+    } catch (e) {
+      throw CaptureTransientException('createVoiceCapture failed: $e');
+    }
+  }
+
   /// Map an HTTP error status onto the right exception type. Never returns.
   Never _throwForStatus(int statusCode, String body) {
-    if (statusCode >= 400 && statusCode < 500) {
+    // An auth problem is not the capture's fault: keep it pending (transient).
+    if (statusCode == 401) {
+      throw CaptureTransientException('session expired', statusCode);
+    }
+    if (statusCode >= 400 && statusCode < 500 && statusCode != 429) {
       // 409 idempotency_key_reuse is a client bug (distinct payload, same key);
       // treat as terminal so we do not spin on it.
       throw CaptureValidationException(statusCode, body);

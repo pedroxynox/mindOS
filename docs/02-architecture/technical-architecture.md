@@ -19,14 +19,30 @@
 > unificando el esquema con `ADR-010`/`011`/`012`. Aquí queda solo el índice con
 > enlaces (ver §3 y §5). Consolidación registrada como deuda
 > [D-004](../000_SYSTEM/012_RISK_AND_DEBT_REGISTER.md).
+>
+> 🧭 **TOPOLOGÍA IMPLEMENTADA (2026-10-27).** El diagrama de §2 es el diseño
+> original. Lo que corre hoy:
+> - **Flutter** (una sola base de código para web y móvil; offline-first con Drift).
+> - **API NestJS** (`/v1`): auth, captura, grafo, briefing, query-proxy, tareas,
+>   crecimiento y finanzas.
+> - **Cola BullMQ** (Redis) hacia el **worker Python** de comprensión (OpenAI).
+> - **Postgres + pgvector** (Neon) con RLS fail-closed.
+> - "Conversar": la API llama por HTTP interno al servicio de IA
+>   (`/internal/query`, secreto compartido).
+> - Sin WebSocket ni SSE: la app consulta periódicamente.
+> - Todo desplegado en **Render** (`render.yaml`).
+>
+> Contratos en [#04 §5.0](../04-api/api-design-specification.md). Estado en
+> [009](../000_SYSTEM/009_CURRENT_STATE.md). Los módulos adelantados están en
+> [ADR-020](./adr/ADR-020-life-modules-as-note-nodes.md).
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 0.1 (borrador para revisión) |
+| Versión | 0.4 |
 | Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00 Vision, #01 PRD |
-| Última actualización | 2026-07-01 |
+| Última actualización | 2026-10-27 |
 
 ---
 
@@ -264,3 +280,4 @@ Cada contexto tiene responsabilidad única y fronteras claras:
 | 0.1 | 2026-07-01 | CTO | Borrador inicial. Estilo arquitectónico (modular monolith + async), contextos acotados, stack tecnológico con ADRs y alternativas, flujos clave, atributos de calidad, soporte a la visión a 10 años y riesgos. |
 | 0.2 | 2026-07-01 | Founder + CTO | Añadido ADR-09: estrategia de IA (LLM externo ahora + IP en el motor de contexto + modelos propios especializados después). Decisión tomada tras descartar explícitamente la opción de modelo propio desde el día uno. |
 | 0.3 | 2026-07-03 | CPTO | Consolidación de ADRs (D-004): los ADR embebidos ADR-01..ADR-09 se extrajeron a archivos individuales `ADR-001`..`ADR-009` en `./adr/` (esquema uniforme de 3 dígitos). §3 y §5 dejan solo un índice con enlaces; el detalle vive en cada archivo. Referencias cruzadas normalizadas a 3 dígitos. |
+| 0.4 | 2026-10-27 | CPTO | Nota de **topología implementada** (Flutter web y móvil, NestJS, BullMQ, worker Python, Postgres+pgvector en Neon, RAG por HTTP interno, sin tiempo real, Render). El diagrama de §2 se conserva como diseño original. Corrige la deriva D-017. |

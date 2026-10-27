@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../feedback/feedback_api.dart';
+import '../../feedback/feedback_thumbs.dart';
 import '../ask_controller.dart';
 import '../data/query_models.dart';
 import '../../../widgets/cosmic_background.dart';
@@ -91,7 +93,10 @@ class _AskScreenState extends ConsumerState<AskScreen> {
                       _QuestionBubble(text: state.question!),
                     if (state.isLoading) const _Thinking(),
                     if (state.answer != null)
-                      _AnswerView(answer: state.answer!),
+                      _AnswerView(
+                        question: state.question ?? '',
+                        answer: state.answer!,
+                      ),
                     if (state.errorMessage != null)
                       _ErrorView(message: state.errorMessage!),
                   ],
@@ -201,7 +206,8 @@ class _Thinking extends StatelessWidget {
 }
 
 class _AnswerView extends StatelessWidget {
-  const _AnswerView({required this.answer});
+  const _AnswerView({required this.question, required this.answer});
+  final String question;
   final QueryAnswer answer;
 
   @override
@@ -233,6 +239,14 @@ class _AnswerView extends StatelessWidget {
             ],
           ),
         ),
+        if (question.isNotEmpty)
+          Align(
+            alignment: Alignment.centerRight,
+            child: FeedbackThumbs(
+              target: FeedbackTarget.query(question),
+              prompt: '¿Te sirvió esta respuesta?',
+            ),
+          ),
         if (answer.sources.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text('En qué me baso', style: theme.textTheme.titleSmall),

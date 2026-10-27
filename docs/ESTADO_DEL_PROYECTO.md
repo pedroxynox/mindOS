@@ -1,139 +1,98 @@
 # mindOS — Estado del Proyecto (para el fundador)
 
-> Documento en lenguaje simple, sin tecnicismos. Explica **qué es mindOS**, **qué
-> está hecho hoy**, **cómo funciona** y **qué sigue** para volverlo
-> extremadamente inteligente. Se actualiza cuando hay avances importantes.
+> En lenguaje simple. Qué es mindOS, qué hace hoy, qué falta y qué sigue.
+> Se actualiza con cada avance importante.
 >
-> Última actualización: 2026-07-10
+> Última actualización: 2026-10-27
 
 ---
 
 ## 1. Qué es mindOS (en una frase)
 
-Tu **sistema operativo personal con inteligencia artificial**: apuntas o dictas
-lo que tengas en mente y mindOS lo **entiende, lo organiza y lo conecta solo**,
-para ayudarte a decidir mejor con menos esfuerzo mental.
-
-No es una app de notas ni de tareas. El valor está en el "cerebro" que conecta
-todo: personas, proyectos, tareas, eventos y temas.
+Tu **sistema operativo personal con IA**. Escribes lo que tienes en mente y
+mindOS lo **entiende, lo organiza y lo conecta solo**, y luego te lo
+**devuelve**: te recuerda, te resume y te responde.
 
 ---
 
-## 2. Qué está HECHO hoy (y funcionando en internet)
+## 2. Qué puedes hacer HOY (en `https://mindos-web.onrender.com`)
 
-Piensa en mindOS como 4 piezas. Las 4 ya existen y están en línea:
+| Pantalla | Qué hace |
+|----------|----------|
+| **Hoy** | Tu día de un vistazo: prioridades, nivel de enfoque, gastos de la semana, hábito actual, meta actual, recordatorios de mañana y una recomendación |
+| **Capturar** | Escribes una nota. El cerebro la entiende en segundos |
+| **Lo que entendí** | Te muestra qué personas, tareas, proyectos, fechas y temas detectó, y cómo se conectan |
+| **Conversar** | Le preguntas *"¿qué tengo pendiente con Marcos?"* y responde **citando tus notas**, sin inventar |
+| **Memoria** | Todo lo que mindOS sabe de ti, por tipo, y tus últimas capturas |
+| **Tareas** | Marcar hechas, cambiar prioridad y crear tareas |
+| **Crecimiento** | Metas (con % de avance), hábitos (con racha) y reflexión diaria |
+| **Finanzas** | Registrar un gasto rápido y ver cuánto llevas esta semana frente a la anterior |
 
-| Pieza | Qué hace | Estado |
-|-------|----------|--------|
-| **La app web** | La pantalla que ves y usas desde el navegador: crear cuenta, iniciar sesión, escribir capturas. | 🟢 En línea |
-| **El servidor** | Recibe lo que escribes, lo guarda de forma segura y se lo pasa al cerebro. | 🟢 En línea |
-| **El cerebro (IA)** | Lee cada captura y entiende qué personas, tareas, proyectos, eventos y temas contiene, y cómo se conectan. | 🟢 En línea |
-| **La base de datos** | Guarda tu información de forma privada y aislada (cada usuario solo ve lo suyo). | 🟢 En línea (Neon) |
-
-**Dónde vive todo:** el servidor, el cerebro y la web están en **Render**; la
-base de datos en **Neon**. La app web queda en `https://mindos-web.onrender.com`.
-
-### Lo que ya puedes hacer hoy
-1. Entrar a la web, **crear una cuenta** e **iniciar sesión** (la sesión se
-   recuerda, no pide login cada vez).
-2. **Escribir una captura** (ej: *"Llamar a Marcos mañana para revisar el
-   presupuesto del proyecto Aurora"*).
-3. El cerebro la **entiende automáticamente** en segundos y guarda el
-   conocimiento conectado.
-
-### Calidad del cerebro (medida, no opinada)
-El cerebro fue sometido a un "examen" de 45 casos reales y lo **aprobó con
-margen**: entiende bien, casi no inventa cosas, y cuesta menos de un centavo por
-captura. Es un resultado sólido para producto real.
+**Calidad del cerebro:** aprobó con margen un examen de 45 casos. Entiende bien,
+casi no inventa y cuesta menos de 1 centavo por nota.
 
 ---
 
-## 3. Cómo funciona (el circuito completo)
+## 3. Cómo funciona
 
 ```
-Tú escribes  ─►  App web / móvil  ─►  Servidor  ─►  Cerebro (IA)  ─►  Base de datos
- una captura       (guarda y             (recibe y      (entiende y        (guarda el
-                    sincroniza)           reparte)       conecta)           conocimiento)
+Escribes  ─►  App  ─►  Servidor  ─►  Cerebro (IA)  ─►  Memoria privada
+                                                         │
+Hoy · Conversar · Memoria · Tareas  ◄────────────────────┘
 ```
 
-Todo pasa solo, en segundos, y de forma privada (cada usuario aislado del resto).
+Cada usuario está aislado: nadie ve lo de otro.
 
 ---
 
-## 4. EL HALLAZGO MÁS IMPORTANTE (oportunidad #1)
+## 4. Lo que falta (honesto)
 
-> **Hoy el cerebro es muy inteligente, pero esa inteligencia está OCULTA.**
-
-Cuando escribes una captura, el cerebro entiende perfectamente que hay una
-persona (*Marcos*), una tarea (*llamar*), un proyecto (*Aurora*) y una fecha
-(*mañana*)... **pero la app todavía no te muestra nada de eso.** Solo te enseña
-el texto que escribiste.
-
-Es como tener un asistente genial que entiende todo pero no te cuenta lo que
-entendió. **El próximo gran salto es simple de explicar: hacer visible la
-inteligencia que ya existe.** Eso es lo que hará que mindOS se sienta "mágico".
+- **Voz:** todavía no puedes dictar. Es lo que más falta.
+- **El "resumen del día" escrito por mindOS:** ya existe en el servidor, pero
+  **no se muestra en la app**.
+- **Horarios y moneda:** mindOS calcula "hoy" con la hora universal (UTC), no
+  con la tuya, y usa dólares. En Latinoamérica, por la noche el día puede cambiar antes de
+  tiempo y las rachas de hábitos pueden fallar.
+- **Pequeños detalles:** el saludo dice "Buenos días" a cualquier hora, la
+  tarjeta "Proyectos" muestra metas y algunas listas solo enseñan las primeras
+  50 cosas.
+- **Pruebas automáticas:** las pantallas nuevas casi no tienen. Es un riesgo de
+  romper algo sin darnos cuenta.
+- **Modo gratis:** el servidor y el cerebro se duermen sin uso y tardan unos
+  segundos en despertar. Lo dejamos así por ahora (decisión tuya).
 
 ---
 
-## 5. Próximos pasos para dejarlo EXTREMADAMENTE inteligente
+## 5. Qué podemos hacer ahora (menú)
 
-En orden de impacto. Los tres primeros son "cerrar el círculo de valor": que
-mindOS no solo entienda, sino que te **devuelva** valor.
+Ordenado por mi recomendación.
 
-### Paso 1 — Mostrar lo que el cerebro entendió (el más importante)
-Que al crear una captura veas al instante las **tarjetas** de lo detectado:
-personas, tareas, proyectos, eventos y temas, y **cómo se conectan**. Y pantallas
-para ver "todas mis tareas", "todas las personas", etc.
-- **Por qué primero:** convierte el trabajo invisible del cerebro en algo que
-  sientes. Es el "wow".
-
-### Paso 2 — Resumen diario (mindOS te habla primero)
-Al abrir la app: *"Hoy tienes 3 tareas pendientes, 1 con Marcos, y una fecha
-importante el jueves."* Sin que tengas que preguntar.
-- **Por qué:** el producto se vuelve **proactivo**, no un cajón donde guardas
-  cosas.
-
-### Paso 3 — Preguntarle a mindOS
-Escribir *"¿qué tengo pendiente con Marcos?"* y recibir una respuesta correcta
-que **cita tus propias capturas** (sin inventar).
-- **Por qué:** cierra el círculo. Capturas → entiende → te devuelve valor.
-
-### Paso 4 — Captura por voz
-Dictar en vez de escribir. Ya está preparado el "hueco" para conectarlo cuando
-toque.
-
-### Paso 5 — Módulo Finanzas (más adelante)
-Que el cerebro convierta *"gasté $50 en el súper"* en gastos ordenados con
-montos, categorías y resúmenes. Es una **ampliación** sobre lo ya construido; va
-después de que el círculo de valor (pasos 1-3) esté funcionando.
+| # | Qué | Para qué |
+|---|-----|----------|
+| 1 | 🎙️ **Notas por voz** | Capturar sin escribir. Es lo más natural en el móvil |
+| 2 | ☀️ **Resumen del día en "Hoy"** + arreglar los detalles | Que mindOS te hable primero. Ya está casi hecho |
+| 3 | 👍👎 **Corregir lo que entendió** | Que aprenda de ti y que podamos medir si es útil |
+| 4 | 🌎 **Tu hora y tu moneda** | Que fechas, rachas y gastos cuadren en BR/LatAm |
+| 5 | 🛡️ **Pruebas automáticas** de lo nuevo | Crecer sin romper lo que ya funciona |
+| 6 | 💸 **Finanzas con IA** | Escribir "gasté $50 en el súper" y que se anote solo |
+| 7 | 🧠 **Respuestas más listas** | Que "Conversar" use las conexiones (personas ↔ proyectos ↔ tareas) y responda en vivo |
+| 8 | 🔐 **Cuenta y privacidad** | Exportar o borrar tus datos y aceptar el uso de IA. Necesario antes de abrirlo a otros |
 
 ---
 
 ## 6. Decisiones que dependen de ti
 
-1. **¿Empezamos por el Paso 1 (mostrar la inteligencia)?** Es mi recomendación
-   como responsable técnico: máximo impacto, base para todo lo demás.
-2. **¿Cuándo pasar a "siempre encendido" (24/7)?** Hoy el servidor gratis se
-   "duerme" tras ~15 min sin uso (el primer uso del día tarda unos segundos en
-   despertar). La web NO se duerme. Pasar el servidor y el cerebro a modo
-   siempre-encendido cuesta ~$14/mes en total, cuando quieras uso diario real.
-3. **Voz y Finanzas:** cuándo entran (mi recomendación: después de los pasos
-   1-3).
+1. **¿Empezamos por la voz (#1)?** Es mi recomendación.
+2. **Moneda y país por defecto:** ¿real, peso, dólar…?
+3. **Proteger `main`:** que todo cambio pase por revisión y pruebas antes de
+   publicarse. Recomendado. En julio un error estuvo escondido 7 cambios
+   seguidos.
+4. **24/7** (~$14/mes): pospuesto. Lo retomamos cuando quieras uso diario real.
 
 ---
 
-## 7. Cosas honestas que debes saber (sin riesgos ocultos)
+## 7. Resumen de una línea
 
-- **Modo gratis:** servidor y cerebro se duermen sin uso; despiertan solos pero
-  con unos segundos de espera. La base de datos gratis de Neon **no se borra**.
-- **Voz:** aún no está activa en la web (está planificada y con su hueco listo).
-- **Ver el conocimiento conectado:** aún no está en pantalla (es el Paso 1).
-- No hay bloqueos ni problemas urgentes. El sistema es estable.
-
----
-
-## 8. Resumen de una línea
-
-mindOS ya **captura y entiende** de verdad y está **en línea**. El siguiente
-salto es **mostrarte esa inteligencia y devolverte valor** (ver, resumir,
-preguntar). Ahí es donde el producto empieza a sentirse extraordinario.
+mindOS ya **captura, entiende y te devuelve valor** (Hoy, Conversar, Memoria,
+Tareas, Crecimiento, Finanzas). Lo siguiente: **voz**, que te hable primero y
+que cuadre con tu hora y tu moneda.

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { UsersModule } from '../users/users.module';
 import { GrowthController } from './growth.controller';
 import { GrowthService } from './growth.service';
 
@@ -9,7 +10,7 @@ import { GrowthService } from './growth.service';
  * RLS-scoped access.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, UsersModule],
   controllers: [GrowthController],
   providers: [GrowthService],
 })

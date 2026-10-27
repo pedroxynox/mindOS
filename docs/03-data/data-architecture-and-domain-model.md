@@ -8,11 +8,11 @@
 
 | Metadato | Valor |
 |----------|-------|
-| Versión | 0.1 (borrador para revisión) |
+| Versión | 0.2 |
 | Estado | 🟢 Aprobado |
 | Autor | CTO |
 | Depende de | #00 Vision, #01 PRD, #02 TAD |
-| Última actualización | 2026-07-01 |
+| Última actualización | 2026-10-27 |
 
 ---
 
@@ -147,6 +147,35 @@ Las aristas son direccionales y tipadas. Cada una tiene semántica precisa.
 > **`attributes` JSONB** permite que cada tipo tenga campos propios (ej. `Task`:
 > `due_date`, `status`, `priority`; `Person`: `role`, `relationship`) sin
 > multiplicar tablas ni frenar la iteración temprana.
+
+### 5.1 Implementación actual (verificado en `apps/api/prisma/schema.prisma`, 2026-10-27)
+
+Lo implementado difiere del diseño de §5 en algunos valores. Para integrar,
+manda el esquema real:
+
+| Campo | Implementado |
+|-------|--------------|
+| `type` | enum `NodeType`: `capture`, `note`, `task`, `person`, `project`, `event`, `decision`, `topic` |
+| `status` | enum `CaptureStatus`: `raw` → `processing` → `processed` \| `failed`. Es el ciclo de vida del pipeline; las entidades derivadas y los elementos manuales nacen como `processed` |
+| `origin` | enum: `manual_text`, `voice`, `calendar_sync`, **`ai`** (nodos y aristas derivados por el worker) |
+| `embedding` | `vector(1536)` (OpenAI `text-embedding-3-small`) + `embedding_model`. Hoy solo se embeben las **capturas** |
+| Aristas | `edges.type` es texto libre (`derived_from`, `mentions`, …) con `origin`, `confidence` y `user_confirmed` |
+
+**Convenciones de `attributes` en uso:**
+
+| Nodo | `attributes` | Quién lo escribe |
+|------|--------------|------------------|
+| `task` | `done`, `done_at`, `priority` (`high`\|`medium`\|`low`, por defecto `medium`), `due_at`, `area` | IA (worker) o manual (`/v1/tasks`) |
+| `note` + `kind: goal` | `progress` 0..100, `done`, `target_date`, `area` | Manual (`/v1/growth/goals`) |
+| `note` + `kind: habit` | `cadence` (`daily`\|`weekly`), `log` (fechas `YYYY-MM-DD`, UTC), `area` | Manual (`/v1/growth/habits`) |
+| `note` + `kind: reflection` | `mood`; el texto va en `body` | Manual (`/v1/growth/reflections`) |
+| `note` + `kind: expense` | `amount`, `currency` (por defecto USD), `category`; la nota va en `body` | Manual (`/v1/finance/expenses`) |
+| `capture` | `audio_ref`, `modality` (voz) | API de captura |
+
+> Los `note` con `kind` son una decisión de velocidad documentada en
+> [ADR-020](../02-architecture/adr/ADR-020-life-modules-as-note-nodes.md).
+> Incluye sus criterios de salida hacia tablas propias. No cuentan en
+> `GET /v1/graph/summary` y la IA no los genera.
 
 ---
 
@@ -375,3 +404,4 @@ actualizado del pitch de inversión, para la reunión del jueves."*
 | Versión | Fecha | Autor | Cambios |
 |---------|-------|-------|---------|
 | 0.1 | 2026-07-01 | CTO | Borrador inicial. Modelo de property graph, catálogo de nodos y aristas, atributos, mapeo físico a PostgreSQL (DDL ilustrativo + índices + RLS), ciclo de vida del dato, resolución de entidades, modelo temporal, embeddings, escalabilidad, privacidad a nivel de datos y ejemplo completo. |
+| 0.2 | 2026-10-27 | CPTO | Añadido **§5.1 Implementación actual**: enums reales (`NodeType`, `CaptureStatus`, `NodeOrigin` con `ai`), embedding `vector(1536)` solo en capturas, aristas con `user_confirmed` y convenciones de `attributes` por tipo (task, y `note` con `kind` goal, habit, reflection o expense, según ADR-020). Corrige la deriva D-017. |

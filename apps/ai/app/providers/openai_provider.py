@@ -70,4 +70,6 @@ class OpenAIProvider(OpenAICompatibleProvider):
             prices_per_mtok=_PRICES_PER_MTOK,
             max_retries=settings.openai_max_retries,
             backoff_base_s=settings.openai_backoff_base_s,
+            transcribe_model=settings.openai_transcribe_model,
+            transcribe_usd_per_min=settings.openai_transcribe_usd_per_min,
         )

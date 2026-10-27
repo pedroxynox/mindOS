@@ -1,18 +1,20 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsISO4217CurrencyCode,
+  IsISO8601,
   IsNumber,
   IsOptional,
+  IsPositive,
   IsString,
   Max,
   MaxLength,
-  Min,
 } from 'class-validator';
 
 /** Body of `POST /v1/finance/expenses` — log a single expense. */
 export class CreateExpenseDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
+  @IsPositive()
   @Max(100000000)
   amount!: number;
 
@@ -21,14 +23,21 @@ export class CreateExpenseDto {
   @MaxLength(40)
   category?: string;
 
-  /** ISO-4217-ish currency code; defaults to USD. */
+  /** ISO-4217 code; defaults to the user's currency (or USD). */
   @IsOptional()
-  @IsString()
-  @MaxLength(8)
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.toUpperCase() : value,
+  )
+  @IsISO4217CurrencyCode()
   currency?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(120)
   note?: string;
+
+  /** When the money was spent (ISO-8601); defaults to now. */
+  @IsOptional()
+  @IsISO8601()
+  spent_at?: string;
 }

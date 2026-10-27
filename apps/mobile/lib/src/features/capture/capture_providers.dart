@@ -4,7 +4,9 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_providers.dart';
+import '../shared/api_providers.dart';
 import 'data/capture_api_client.dart';
+import 'data/capture_history_api.dart';
 import 'data/capture_repository.dart';
 import 'data/local/app_database.dart';
 import 'data/platform/file_reader.dart';
@@ -27,17 +29,10 @@ final capturesStreamProvider = StreamProvider<List<LocalCapture>>((ref) {
   return ref.watch(captureRepositoryProvider).watchCaptures();
 });
 
-/// Access-token source for the API client. Reads the current access token from
-/// the auth token store, so every capture request is authenticated as the
-/// signed-in user.
-final accessTokenProvider = Provider<Future<String?> Function()>((ref) {
-  final store = ref.watch(tokenStoreProvider);
-  return () async => store.accessToken;
-});
-
-/// HTTP client for the Capture API.
+/// HTTP client for the Capture API (shares the session token source, so an
+/// expired access token is refreshed instead of failing the capture).
 final captureApiClientProvider = Provider<CaptureApiClient>((ref) {
-  return HttpCaptureApiClient(tokenProvider: ref.watch(accessTokenProvider));
+  return HttpCaptureApiClient(tokens: ref.watch(tokenSourceProvider));
 });
 
 /// Reads recorded audio bytes from disk (injected into [SyncService]).
@@ -68,4 +63,14 @@ final syncOnConnectivityProvider = Provider<void>((ref) {
     }
   });
   ref.onDispose(subscription.cancel);
+});
+
+/// Server-side capture history (any device sees the same memory).
+final captureHistoryApiProvider = Provider<CaptureHistoryApi>((ref) {
+  return CaptureHistoryApi(ref.watch(mindosApiProvider));
+});
+
+final serverCapturesProvider =
+    FutureProvider.autoDispose<List<ServerCapture>>((ref) {
+  return ref.watch(captureHistoryApiProvider).recent();
 });
