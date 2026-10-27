@@ -36,12 +36,20 @@ function buildHarness(): Harness {
       order.push('persist');
       const tx = {
         node: {
-          create: (args: { data: { occurredAt: Date | null } }) =>
+          create: (args: {
+            data: {
+              occurredAt: Date | null;
+              body: string | null;
+              origin: string;
+            };
+          }) =>
             Promise.resolve({
               id: randomUUID(),
               status: 'raw',
               createdAt: new Date(),
               occurredAt: args.data.occurredAt ?? null,
+              body: args.data.body ?? null,
+              origin: args.data.origin,
             }),
         },
       } as unknown as Prisma.TransactionClient;
@@ -97,6 +105,8 @@ describe('CaptureService', () => {
       status: 'raw',
       created_at: expect.any(String),
       occurred_at: null,
+      content: 'a thought',
+      modality: 'text',
     });
     expect(() => new Date(res.created_at).toISOString()).not.toThrow();
   });
@@ -108,6 +118,8 @@ describe('CaptureService', () => {
       status: 'raw',
       created_at: new Date().toISOString(),
       occurred_at: null,
+      content: 'a thought',
+      modality: 'text',
     };
     h.idempotency.lookup.mockResolvedValueOnce(prior);
 

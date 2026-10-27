@@ -27,6 +27,8 @@ class GrowthApi {
     return Goal.fromJson(json as Map<String, dynamic>);
   }
 
+  Future<void> deleteGoal(String id) => _api.delete('/growth/goals/$id');
+
   // Habits
   Future<List<Habit>> listHabits() async {
     final json = await _api.get('/growth/habits');
@@ -48,6 +50,8 @@ class GrowthApi {
     return Habit.fromJson(json as Map<String, dynamic>);
   }
 
+  Future<void> deleteHabit(String id) => _api.delete('/growth/habits/$id');
+
   // Reflections
   Future<List<Reflection>> listReflections() async {
     final json = await _api.get('/growth/reflections');
@@ -63,4 +67,7 @@ class GrowthApi {
     });
     return Reflection.fromJson(json as Map<String, dynamic>);
   }
+
+  Future<void> deleteReflection(String id) =>
+      _api.delete('/growth/reflections/$id');
 }

@@ -274,6 +274,25 @@ class FakeProvider(AIProvider):
         )
         return Completion(text=payload, usage=usage)
 
+    async def complete_text(self, prompt: str) -> Completion:
+        # Deterministic "grounded" answer: echo the first numbered note of a RAG
+        # prompt with its citation, so offline/dev runs look sensible.
+        notes = re.findall(r"^\[(\d+)\]\s*(.+)$", prompt, flags=re.MULTILINE)
+        if notes:
+            number, note = notes[0]
+            text = f"Según tus notas: {note.strip()} [{number}]."
+        else:
+            text = "No tengo esa información registrada en tus notas."
+        usage = Usage(
+            provider=_PROVIDER_NAME,
+            model=_COMPLETE_MODEL,
+            operation="complete",
+            input_tokens=_estimate_tokens(prompt),
+            output_tokens=_estimate_tokens(text),
+            cost_usd=0.0,
+        )
+        return Completion(text=text, usage=usage)
+
     async def embed(self, text: str) -> Embedding:
         # Deterministic pseudo-embedding derived from a stable hash of the text.
         digest = hashlib.sha256(text.encode("utf-8")).digest()

@@ -71,6 +71,13 @@
 > El rol `mindos_app` ya existe (lo creaste en el Paso 1.4), así que la migración
 > lo detecta y NO intenta recrearlo — solo le concede permisos.
 
+> **"Conversar" (preguntas a mindOS) no necesita nada manual.**
+> - `render.yaml` genera `QUERY_INTERNAL_SECRET` en `mindos-api` y lo comparte
+>   con `mindos-ai`.
+> - `AI_SERVICE_URL` ya apunta a `https://mindos-ai.onrender.com`.
+> - Si la IA está dormida, la primera pregunta puede tardar o devolver
+>   "el asistente está despertando". Repítela a los ~30 s.
+
 ## Paso 4 — Migraciones (se ejecutan solas al arrancar)
 `mindos-api` corre `prisma migrate deploy` **al arrancar el contenedor** (el
 plan gratis de Render no permite el paso "pre-deploy", así que va en el comando
@@ -132,3 +139,6 @@ Prisma marca esa migración como fallida (no aplica más hasta resolverlo).
   de Neon — consérvalo en las tres URLs.
 - Esta guía no pudo probarse desde el entorno de desarrollo (sin acceso a
   Render/Neon); afinamos los detalles en el primer deploy (deuda D-011).
+  *(2026-07-09: validada end-to-end en producción; D-011 mitigado.)*
+- **Despliegue continuo:** Render vuelve a desplegar al entrar cambios en
+  `main`. Por eso todo cambio debe entrar **por PR con CI verde** (R-008).

@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'auth_controller.dart';
 import 'data/auth_api_client.dart';
+import 'data/auth_session.dart';
 import 'data/token_store.dart';
 
 /// Provides the initialized [SharedPreferences] instance.
@@ -32,5 +33,16 @@ final authControllerProvider =
   return AuthController(
     ref.watch(authApiClientProvider),
     ref.watch(tokenStoreProvider),
+  );
+});
+
+/// The access-token source shared by every authenticated client. Refreshes the
+/// session transparently and signs the user out when the server rejects it.
+final tokenSourceProvider = Provider<TokenSource>((ref) {
+  return AuthSession(
+    store: ref.watch(tokenStoreProvider),
+    api: ref.watch(authApiClientProvider),
+    onExpired: () =>
+        ref.read(authControllerProvider.notifier).expireSession(),
   );
 });

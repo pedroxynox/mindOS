@@ -1,31 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../auth/auth_providers.dart';
+import '../account/account_providers.dart';
+import '../shared/api_providers.dart';
 import 'data/briefing_models.dart';
 import 'data/graph_api_client.dart';
 import 'data/graph_models.dart';
 
-/// Authenticated client for the knowledge-graph endpoints.
+/// Graph / briefing / query facade over the single authenticated client.
 final graphApiClientProvider = Provider<GraphApiClient>((ref) {
-  final store = ref.watch(tokenStoreProvider);
-  return GraphApiClient(tokenProvider: () async => store.accessToken);
+  return GraphApiClient(ref.watch(mindosApiProvider));
 });
 
-/// Per-type counts of derived knowledge (home overview). Auto-refreshes when
+/// Per-type counts of derived knowledge (Memoria overview). Auto-refreshes when
 /// invalidated (e.g. after creating a capture).
 final graphSummaryProvider = FutureProvider.autoDispose<GraphSummary>((ref) {
   return ref.watch(graphApiClientProvider).summary();
 });
 
-/// The list of derived nodes of a given type (task/person/project/...).
-final nodesByTypeProvider =
-    FutureProvider.autoDispose.family<List<GraphNode>, String>((ref, type) async {
-  final page = await ref.watch(graphApiClientProvider).listNodes(type);
-  return page.data;
-});
-
-/// The Daily Briefing (tasks + upcoming events). Auto-refreshes when invalidated.
-final briefingProvider = FutureProvider.autoDispose<Briefing>((ref) {
+/// The Daily Briefing shown on Hoy. Auto-refreshes when invalidated.
+final briefingProvider = FutureProvider.autoDispose<Briefing>((ref) async {
+  await settingsReady(ref); // "today" in the user's timezone
   return ref.watch(graphApiClientProvider).briefing();
 });
 
@@ -34,4 +28,87 @@ final briefingProvider = FutureProvider.autoDispose<Briefing>((ref) {
 final captureEntitiesProvider = FutureProvider.autoDispose
     .family<CaptureEntities, String>((ref, captureId) async {
   return ref.watch(graphApiClientProvider).captureEntities(captureId);
+});
+
+/// Paginated list of derived nodes of one type ("Cargar más").
+class NodesListState {
+  const NodesListState({
+    this.items = const [],
+    this.nextCursor,
+    this.isLoading = false,
+    this.isLoadingMore = false,
+    this.errorMessage,
+  });
+
+  final List<GraphNode> items;
+  final String? nextCursor;
+  final bool isLoading;
+  final bool isLoadingMore;
+  final String? errorMessage;
+
+  bool get hasMore => nextCursor != null;
+
+  NodesListState copyWith({
+    List<GraphNode>? items,
+    String? nextCursor,
+    bool clearCursor = false,
+    bool? isLoading,
+    bool? isLoadingMore,
+    String? errorMessage,
+  }) {
+    return NodesListState(
+      items: items ?? this.items,
+      nextCursor: clearCursor ? null : (nextCursor ?? this.nextCursor),
+      isLoading: isLoading ?? this.isLoading,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      errorMessage: errorMessage,
+    );
+  }
+}
+
+class NodesListController extends StateNotifier<NodesListState> {
+  NodesListController(this._client, this.type, {this.pageSize = 50})
+      : super(const NodesListState(isLoading: true)) {
+    refresh();
+  }
+
+  final GraphApiClient _client;
+  final String type;
+  final int pageSize;
+
+  Future<void> refresh() async {
+    state = const NodesListState(isLoading: true);
+    try {
+      final page = await _client.listNodes(type, limit: pageSize);
+      state = NodesListState(items: page.data, nextCursor: page.nextCursor);
+    } catch (_) {
+      state = const NodesListState(
+        errorMessage: 'No se pudo cargar. Desliza para reintentar.',
+      );
+    }
+  }
+
+  Future<void> loadMore() async {
+    final cursor = state.nextCursor;
+    if (cursor == null || state.isLoadingMore) return;
+    state = state.copyWith(isLoadingMore: true);
+    try {
+      final page =
+          await _client.listNodes(type, cursor: cursor, limit: pageSize);
+      state = NodesListState(
+        items: [...state.items, ...page.data],
+        nextCursor: page.nextCursor,
+      );
+    } catch (_) {
+      state = state.copyWith(
+        isLoadingMore: false,
+        errorMessage: 'No se pudieron cargar más elementos.',
+      );
+    }
+  }
+}
+
+final nodesListProvider = StateNotifierProvider.autoDispose
+    .family<NodesListController, NodesListState, String>((ref, type) {
+  return NodesListController(ref.watch(graphApiClientProvider), type);
 });
