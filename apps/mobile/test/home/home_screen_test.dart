@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mindos/src/features/account/account_providers.dart';
+import 'package:mindos/src/features/account/data/me_api.dart';
 import 'package:mindos/src/features/auth/auth_providers.dart';
 import 'package:mindos/src/features/finance/data/finance_models.dart';
 import 'package:mindos/src/features/finance/finance_providers.dart';
@@ -32,6 +34,13 @@ void main() {
       ProviderScope(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
+          meProvider.overrideWith((ref) async => const Me(
+                id: 'u',
+                email: 'pedro@example.com',
+                timezone: 'America/Sao_Paulo',
+                currency: 'BRL',
+                effectiveCurrency: 'BRL',
+              )),
           tasksListProvider.overrideWith((ref) async => [
                 Task(
                   id: 't1',
@@ -49,7 +58,13 @@ void main() {
                 people: const [BriefingPerson(name: 'Marcos', pendingCount: 1)],
               )),
           financeSummaryProvider.overrideWith((ref) async =>
-              FinanceSummary.fromJson(const {'week_total': 0, 'prev_week_total': 0})),
+              FinanceSummary.fromJson(const {
+                'currency': 'BRL',
+                'week_total': 1234.5,
+                'prev_week_total': 1000,
+                'change_pct': 23,
+                'daily': [0, 0, 0, 0, 0, 0, 1234.5],
+              })),
           habitsProvider.overrideWith((ref) async => const <Habit>[]),
           goalsProvider.overrideWith((ref) async => const [
                 Goal(id: 'g', title: 'Correr 10K', progress: 40, done: false),
@@ -73,6 +88,8 @@ void main() {
     expect(find.text('Metas'), findsOneWidget);
     expect(find.text('Proyectos'), findsNothing);
     expect(find.text('Correr 10K'), findsOneWidget);
+    // Money is shown in the user's currency, never a hard-coded "$".
+    expect(find.text('R\$ 1.234,50'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));

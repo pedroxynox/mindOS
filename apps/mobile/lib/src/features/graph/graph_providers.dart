@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../account/account_providers.dart';
 import '../shared/api_providers.dart';
 import 'data/briefing_models.dart';
 import 'data/graph_api_client.dart';
@@ -17,7 +18,8 @@ final graphSummaryProvider = FutureProvider.autoDispose<GraphSummary>((ref) {
 });
 
 /// The Daily Briefing shown on Hoy. Auto-refreshes when invalidated.
-final briefingProvider = FutureProvider.autoDispose<Briefing>((ref) {
+final briefingProvider = FutureProvider.autoDispose<Briefing>((ref) async {
+  await settingsReady(ref); // "today" in the user's timezone
   return ref.watch(graphApiClientProvider).briefing();
 });
 

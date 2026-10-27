@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { PrismaRlsService } from '../prisma/prisma-rls.service';
+import { UserSettingsService } from '../users/user-settings.service';
 import {
   BriefingService,
   classifyPending,
@@ -28,18 +29,27 @@ function taskRow(id: string, attributes: Record<string, unknown>) {
   };
 }
 
-function buildService(tx: {
-  node: { findMany: jest.Mock };
-  edge?: { findMany: jest.Mock };
-}): { service: BriefingService; withUser: jest.Mock } {
+function buildService(
+  tx: {
+    node: { findMany: jest.Mock };
+    edge?: { findMany: jest.Mock };
+  },
+  timezone = 'UTC',
+): { service: BriefingService; withUser: jest.Mock } {
   const withUser = jest.fn(
     async <T>(
       _userId: string,
       work: (t: Prisma.TransactionClient) => Promise<T>,
     ): Promise<T> => work(tx as unknown as Prisma.TransactionClient),
   );
+  const settings = {
+    get: jest.fn().mockResolvedValue({ timezone, currency: null }),
+  } as unknown as UserSettingsService;
   return {
-    service: new BriefingService({ withUser } as unknown as PrismaRlsService),
+    service: new BriefingService(
+      { withUser } as unknown as PrismaRlsService,
+      settings,
+    ),
     withUser,
   };
 }
@@ -138,6 +148,19 @@ describe('BriefingService.build', () => {
       new Date('2026-07-10T00:00:00.000Z'),
     );
     expect(eventsCall.orderBy).toEqual([{ occurredAt: 'asc' }]);
+  });
+
+  it("uses the user's timezone for today's window", async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const { service } = buildService({ node: { findMany } }, 'America/Mexico_City');
+
+    // 03:00 UTC on the 11th is still the 10th in Mexico City (UTC-6).
+    await service.build(USER_ID, new Date('2026-07-11T03:00:00.000Z'));
+
+    const eventsCall = findMany.mock.calls[1][0];
+    expect(eventsCall.where.occurredAt.gte).toEqual(
+      new Date('2026-07-10T06:00:00.000Z'),
+    );
   });
 
   it('returns empty sections when the user has no knowledge yet', async () => {

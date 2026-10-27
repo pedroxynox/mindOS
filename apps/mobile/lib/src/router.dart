@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'features/account/presentation/account_screen.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/auth_providers.dart';
 import 'features/auth/presentation/login_screen.dart';
@@ -68,6 +69,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/tasks', builder: (_, __) => const TasksScreen()),
       GoRoute(path: '/growth', builder: (_, __) => const GrowthScreen()),
+      GoRoute(path: '/account', builder: (_, __) => const AccountScreen()),
     ],
   );
 });

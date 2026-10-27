@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { normalizeName } from '../common/time';
+import { localDay } from '../common/tz';
 import { PrismaRlsService } from '../prisma/prisma-rls.service';
+import { UserSettingsService } from '../users/user-settings.service';
 import {
   compareTasks,
   TaskResponse,
@@ -61,13 +63,15 @@ export function classifyPending(
  */
 @Injectable()
 export class BriefingService {
-  constructor(private readonly rls: PrismaRlsService) {}
+  constructor(
+    private readonly rls: PrismaRlsService,
+    private readonly settings: UserSettingsService,
+  ) {}
 
-  async build(
-    userId: string,
-    now: Date = new Date(),
-    day: DayWindow = utcDayWindow(now),
-  ): Promise<BriefingResponse> {
+  /** Build the briefing with "today" in the user's own timezone (D-013). */
+  async build(userId: string, now: Date = new Date()): Promise<BriefingResponse> {
+    const { timezone } = await this.settings.get(userId);
+    const day: DayWindow = localDay(now, timezone);
     return this.rls.withUser(userId, async (tx) => {
       const [taskRows, events] = await Promise.all([
         tx.node.findMany({

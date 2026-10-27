@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { localDateKey } from '../common/tz';
 import { PrismaRlsService } from '../prisma/prisma-rls.service';
+import { UserSettingsService } from '../users/user-settings.service';
 import {
   CreateGoalDto,
   CreateHabitDto,
@@ -9,7 +11,6 @@ import {
   UpdateGoalDto,
 } from './dto/growth.dto';
 import {
-  dateKey,
   GoalResponse,
   GrowthKind,
   HabitResponse,
@@ -36,7 +37,16 @@ const SELECT = {
  */
 @Injectable()
 export class GrowthService {
-  constructor(private readonly rls: PrismaRlsService) {}
+  constructor(
+    private readonly rls: PrismaRlsService,
+    private readonly settings: UserSettingsService,
+  ) {}
+
+  /** The user's current calendar day in their own timezone (D-013). */
+  async todayKeyFor(userId: string, now: Date = new Date()): Promise<string> {
+    const { timezone } = await this.settings.get(userId);
+    return localDateKey(now, timezone);
+  }
 
   private listByKind(userId: string, kind: GrowthKind) {
     return this.rls.withUser(userId, (tx) =>
@@ -138,12 +148,10 @@ export class GrowthService {
 
   // --- Habits ----------------------------------------------------------------
 
-  async listHabits(
-    userId: string,
-    todayKey: string = dateKey(new Date()),
-  ): Promise<HabitResponse[]> {
+  async listHabits(userId: string, todayKey?: string): Promise<HabitResponse[]> {
+    const today = todayKey ?? (await this.todayKeyFor(userId));
     const rows = await this.listByKind(userId, 'habit');
-    return rows.map((r) => toHabitResponse(r, todayKey));
+    return rows.map((r) => toHabitResponse(r, today));
   }
 
   async createHabit(
@@ -179,15 +187,15 @@ export class GrowthService {
   async toggleHabitToday(
     userId: string,
     id: string,
-    todayKey: string = dateKey(new Date()),
+    todayKey?: string,
   ): Promise<HabitResponse> {
+    const today = todayKey ?? (await this.todayKeyFor(userId));
     return this.rls.withUser(userId, async (tx) => {
       const existing = await this.findOwned(tx, userId, id, 'habit');
       if (!existing) throw this.notFound('Habit');
 
       const attrs = (existing.attributes ?? {}) as Record<string, unknown>;
       const log = readLog(existing.attributes);
-      const today = todayKey;
       const next = log.includes(today)
         ? log.filter((d) => d !== today)
         : [...log, today];
@@ -197,7 +205,7 @@ export class GrowthService {
         data: { attributes: { ...attrs, log: next } as Prisma.InputJsonValue },
         select: SELECT,
       });
-      return toHabitResponse(updated, todayKey);
+      return toHabitResponse(updated, today);
     });
   }
 

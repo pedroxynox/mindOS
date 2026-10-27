@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { UsersModule } from '../users/users.module';
 import { BriefingController } from './briefing.controller';
 import { BriefingService } from './briefing.service';
 
@@ -9,7 +10,7 @@ import { BriefingService } from './briefing.service';
  * `PrismaModule` for RLS-scoped reads.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, UsersModule],
   controllers: [BriefingController],
   providers: [BriefingService],
 })

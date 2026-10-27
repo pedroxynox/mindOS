@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../account/account_providers.dart';
+import '../account/locale_defaults.dart';
 import '../auth/auth_providers.dart';
 import '../finance/finance_providers.dart';
 import '../graph/graph_providers.dart';
@@ -54,7 +56,7 @@ class HomeScreen extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
               children: [
-                _Header(onAvatar: () => _logout(context, ref)),
+                _Header(onAvatar: () => context.push('/account')),
                 const SizedBox(height: 18),
                 Text(
                   greetingFor(DateTime.now(), name: name),
@@ -96,24 +98,6 @@ class HomeScreen extends ConsumerWidget {
     }).length;
   }
 
-  Future<void> _logout(BuildContext context, WidgetRef ref) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cerrar sesión'),
-        content: const Text('¿Seguro que quieres cerrar sesión?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Cerrar sesión')),
-        ],
-      ),
-    );
-    if (ok ?? false) await ref.read(authControllerProvider.notifier).logout();
-  }
 }
 
 /// The floating bottom bar from the design: chat (Conversar) on the left, the
@@ -386,20 +370,20 @@ class _SummaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rows size to their tallest card (with a 150 px minimum), so larger
+    // accessibility text grows the cards instead of overflowing them.
     return const Column(
       children: [
-        SizedBox(
-          height: 150,
-          child: Row(children: [
+        IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Expanded(child: _FinanceCard()),
             SizedBox(width: 14),
             Expanded(child: _HabitCard()),
           ]),
         ),
         SizedBox(height: 14),
-        SizedBox(
-          height: 150,
-          child: Row(children: [
+        IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Expanded(child: _GoalCard()),
             SizedBox(width: 14),
             Expanded(child: _ReminderCard()),
@@ -421,7 +405,13 @@ class _DashCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(22),
-        child: Padding(padding: const EdgeInsets.all(16), child: child),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 118),
+            child: child,
+          ),
+        ),
       ),
     );
   }
@@ -477,9 +467,13 @@ class _FinanceCard extends ConsumerWidget {
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
               const SizedBox(height: 2),
-              Text('\$${s.weekTotal.toStringAsFixed(s.weekTotal % 1 == 0 ? 0 : 1)}',
-                  style: theme.textTheme.headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w700)),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(formatMoney(s.weekTotal, s.currency),
+                    style: theme.textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+              ),
               if (s.changePct != null)
                 Text('${up ? "+" : ""}${s.changePct}% vs semana pasada',
                     style: TextStyle(color: changeColor, fontSize: 11)),
@@ -493,6 +487,7 @@ class _FinanceCard extends ConsumerWidget {
   }
 
   Future<void> _addExpense(BuildContext context, WidgetRef ref) async {
+    final currency = ref.read(displayCurrencyProvider);
     final controller = TextEditingController();
     final catController = TextEditingController();
     final ok = await showDialog<bool>(
@@ -507,8 +502,8 @@ class _FinanceCard extends ConsumerWidget {
               autofocus: true,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                  prefixText: '\$ ', hintText: 'Monto'),
+              decoration: InputDecoration(
+                  prefixText: '${currencySymbol(currency)} ', hintText: 'Monto'),
             ),
             const SizedBox(height: 12),
             TextField(

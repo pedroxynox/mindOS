@@ -11,15 +11,18 @@ class FinanceApi {
     return FinanceSummary.fromJson(json as Map<String, dynamic>);
   }
 
+  /// Log an expense. The currency defaults (server-side) to the user's own.
   Future<void> addExpense(
     double amount, {
     String? category,
-    String currency = 'USD',
+    String? currency,
+    String? note,
   }) async {
     await _api.post('/finance/expenses', {
       'amount': amount,
-      'currency': currency,
+      if (currency != null) 'currency': currency,
       if (category != null && category.isNotEmpty) 'category': category,
+      if (note != null && note.isNotEmpty) 'note': note,
     });
   }
 }

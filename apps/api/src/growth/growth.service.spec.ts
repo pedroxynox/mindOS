@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import * as fc from 'fast-check';
 import { addDaysToKey, isoWeekKey } from '../common/time';
 import { PrismaRlsService } from '../prisma/prisma-rls.service';
+import { UserSettingsService } from '../users/user-settings.service';
 import {
   computeStreak,
   computeWeeklyStreak,
@@ -28,7 +29,10 @@ function buildService(tx: {
       work: (t: Prisma.TransactionClient) => Promise<T>,
     ): Promise<T> => work(tx as unknown as Prisma.TransactionClient),
   );
-  return new GrowthService({ withUser } as unknown as PrismaRlsService);
+  const settings = {
+    get: jest.fn().mockResolvedValue({ timezone: 'America/Sao_Paulo', currency: null }),
+  } as unknown as UserSettingsService;
+  return new GrowthService({ withUser } as unknown as PrismaRlsService, settings);
 }
 
 function habitNode(attributes: Record<string, unknown>) {
@@ -166,6 +170,22 @@ describe('GrowthService.toggleHabitToday', () => {
     const result = await service.toggleHabitToday(USER_ID, 'h1', TODAY);
 
     expect(result.done_today).toBe(false);
+  });
+
+  it("checks the user's LOCAL day when no day is given", async () => {
+    const findFirst = jest.fn().mockResolvedValue(habitNode({ log: [] }));
+    const update = updateEcho();
+    const service = buildService({ node: { findFirst, update } });
+
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-11T01:30:00.000Z'));
+    try {
+      await service.toggleHabitToday(USER_ID, 'h1');
+    } finally {
+      jest.useRealTimers();
+    }
+
+    // Still the 10th in São Paulo (UTC-3).
+    expect(update.mock.calls[0][0].data.attributes.log).toEqual(['2026-07-10']);
   });
 
   it("throws NotFound for a habit that is not the caller's", async () => {
