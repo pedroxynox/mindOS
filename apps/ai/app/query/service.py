@@ -111,7 +111,9 @@ async def retrieve_sources(
             query_vector_literal,
             limit,
         )
-    return [Source(capture_id=str(r["id"]), snippet=snippet_of(r["body"])) for r in rows]
+    return [
+        Source(capture_id=str(r["id"]), snippet=snippet_of(r["body"])) for r in rows
+    ]
 
 
 async def answer_question(

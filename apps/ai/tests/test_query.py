@@ -5,6 +5,8 @@ tested with a fake provider and no database. The endpoint tests only cover the
 fail-closed auth guard (no DB is touched on those paths).
 """
 
+from fastapi.testclient import TestClient
+
 import app.main as main
 from app.providers.base import Completion, Usage
 from app.query.service import (
@@ -14,7 +16,6 @@ from app.query.service import (
     format_vector,
     snippet_of,
 )
-from fastapi.testclient import TestClient
 
 client = TestClient(main.app)
 
@@ -35,7 +36,9 @@ class _StubProvider:
     async def embed(self, text: str):  # pragma: no cover - unused here
         raise NotImplementedError
 
-    async def transcribe(self, audio_bytes: bytes, content_type: str):  # pragma: no cover
+    async def transcribe(  # pragma: no cover - unused here
+        self, audio_bytes: bytes, content_type: str
+    ):
         raise NotImplementedError
 
 
@@ -72,7 +75,9 @@ async def test_answer_from_sources_empty_returns_no_notes_message() -> None:
 async def test_answer_from_sources_synthesizes_and_keeps_sources() -> None:
     provider = _StubProvider()
     sources = [Source(capture_id="c1", snippet="Llamar a Marcos mañana")]
-    result = await answer_from_sources("¿Qué tengo con Marcos?", sources, provider=provider)
+    result = await answer_from_sources(
+        "¿Qué tengo con Marcos?", sources, provider=provider
+    )
     assert result.answer == "Tienes que llamar a Marcos [1]."  # trimmed
     assert result.sources == sources
     assert provider.prompt is not None
